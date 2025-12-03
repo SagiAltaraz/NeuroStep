@@ -1,0 +1,76 @@
+.main-section {
+   min-height: 100vh;
+   display: flex;
+   justify-content: center;
+   align-items: center;
+   background: #f0f2f8;
+   padding: 5% 0;
+}
+
+.main-wrapper {
+   width: 85%;
+   background: #ffffff;
+   border-radius: 3%;
+   padding: 4% 5%;
+   box-shadow: 0 40px 80px rgba(15, 23, 42, 0.12);
+}
+
+.hero-grid {
+   display: grid;
+   grid-template-columns: repeat(auto-fit, minmax(45%, 1fr));
+   gap: 5%;
+}
+
+.hero-copy .eyebrow {
+   text-transform: uppercase;
+   letter-spacing: 0.3em;
+   font-size: 0.8rem;
+   color: #748092;
+   margin-bottom: 2%;
+}
+
+.hero-copy h1 {
+   font-size: clamp(2rem, 4vw, 3.2rem);
+   margin-bottom: 3%;
+   color: #0b1727;
+}
+
+.hero-copy .lead {
+   font-size: 1.1rem;
+   color: #4b5566;
+   margin-bottom: 4%;
+}
+
+.cta-group {
+   display: flex;
+   gap: 3%;
+   flex-wrap: wrap;
+}
+
+.hero-card {
+   background: linear-gradient(135deg, #0d6efd, #5c7cfa);
+   color: #ffffff;
+   padding: 6%;
+   border-radius: 4%;
+}
+
+.hero-card ul {
+   margin: 0;
+   padding-left: 6%;
+}
+
+@media (max-width: 768px) {
+   .main-wrapper {
+      width: 92%;
+      padding: 6% 7%;
+   }
+
+   .hero-grid {
+      grid-template-columns: 1fr;
+      gap: 8%;
+   }
+
+   .cta-group {
+      width: 100%;
+   }
+}
