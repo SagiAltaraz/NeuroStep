@@ -1,9 +1,11 @@
+// controllers/chatassistant.js
 import { OpenAI } from 'openai';
 import dotenv from 'dotenv';
-
 dotenv.config();
 
-const client = new OpenAI({ apiKey: process.env.OPENAI_API_KEY });
+const client = new OpenAI({
+   apiKey: process.env.OPENAI_API_KEY,
+});
 
 export const askFromOpenAI = async (req, res) => {
    const { prompt } = req.body;
@@ -13,30 +15,32 @@ export const askFromOpenAI = async (req, res) => {
    }
 
    try {
-      const response = await client.chat.completions.create({
+      const completion = await client.chat.completions.create({
          model: 'gpt-4o-mini',
          messages: [
             {
                role: 'system',
                content:
-                  'You are a friendly, helpful assistant. Be concise and kind.',
+                  'You are a friendly, helpful assistant. Answer in Hebrew unless asked otherwise.',
             },
             { role: 'user', content: prompt },
          ],
          temperature: 0.7,
-         max_tokens: 100,
+         max_tokens: 400,
       });
 
       const reply =
-         response.choices[0]?.message?.content || "Hmm, I didn't get that.";
+         completion.choices[0]?.message?.content?.trim() || 'לא הבנתי...';
       res.json({ response: reply });
    } catch (error) {
-      console.error('OpenAI Error:', error.message);
+      console.error('OpenAI Error:', error);
+      if (error instanceof OpenAI.APIError) {
+         return res.status(error.status || 500).json({
+            response: `שגיאה מה-AI: ${error.message}`,
+         });
+      }
       res.status(500).json({
-         response:
-            "I'm having trouble connecting to the AI right now. Try again in a moment!",
+         response: 'אני מתקשה להתחבר ל-AI כרגע. נסה שוב בעוד רגע!',
       });
    }
 };
-
-module.exports = { askFromOpenAI };

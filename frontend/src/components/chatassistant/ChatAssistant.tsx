@@ -20,13 +20,14 @@ const ChatAssistant = () => {
 
       const userMessage: Message = { sender: 'user', text: input };
       setMessages((prev) => [...prev, userMessage]);
+      const promptText = input;
       setInput('');
       setIsLoading(true);
 
       try {
          const response = await axios.post(
-            '/askAI',
-            { prompt: input },
+            'http://localhost:3000/api/askAI',
+            { prompt: promptText },
             { headers: { 'Content-Type': 'application/json' } }
          );
 
@@ -34,17 +35,13 @@ const ChatAssistant = () => {
          setMessages((prev) => [...prev, { sender: 'ai', text: aiReply }]);
       } catch (err: unknown) {
          console.error('Error with AI API:', err);
-
          let errorMsg = 'Connection failed';
          if (axios.isAxiosError(err)) {
             errorMsg =
                (err.response?.data as any)?.error || err.message || errorMsg;
          } else if (err instanceof Error) {
             errorMsg = err.message;
-         } else {
-            errorMsg = String(err);
          }
-
          setMessages((prev) => [
             ...prev,
             {
@@ -68,18 +65,18 @@ const ChatAssistant = () => {
       <div className="chat-assistant">
          {!isOpen ? (
             <button
-               onClick={() => setIsOpen(true)}
                className="chat-toggle-button"
+               onClick={() => setIsOpen(true)}
             >
-               Chat
+               💬 Chat
             </button>
          ) : (
             <div className="chat-container">
                <div className="chat-header">
-                  <span>Assistant</span>
+                  <span>Chat Assistant</span>
                   <button
-                     onClick={() => setIsOpen(false)}
                      className="chat-close-button"
+                     onClick={() => setIsOpen(false)}
                   >
                      ×
                   </button>
@@ -91,9 +88,7 @@ const ChatAssistant = () => {
                         {msg.text}
                      </div>
                   ))}
-                  {isLoading && (
-                     <div className="message-loading">Thinking...</div>
-                  )}
+                  {isLoading && <div className="message ai">Thinking...</div>}
                </div>
 
                <div className="chat-input-container">
