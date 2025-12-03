@@ -1,0 +1,63 @@
+.header {
+   width: 100%;
+   background: #1f2937;
+   color: white;
+   padding: 0.5rem 1rem;
+}
+
+.header-container {
+   display: flex;
+   justify-content: space-between;
+   align-items: center;
+}
+
+.logo h1 {
+   font-size: 1.5rem;
+   font-weight: bold;
+}
+
+.nav ul {
+   display: flex;
+   gap: 1rem;
+   list-style: none;
+}
+
+.nav ul li a {
+   color: white;
+   text-decoration: none;
+   font-weight: 500;
+}
+
+.menu-toggle {
+   display: none;
+   background: none;
+   border: none;
+   color: white;
+   font-size: 1.5rem;
+}
+
+/* Mobile responsive */
+@media (max-width: 768px) {
+   .nav {
+      display: none;
+      position: absolute;
+      top: 3.5rem;
+      right: 1rem;
+      background: #111827;
+      border-radius: 0.5rem;
+      padding: 1rem;
+   }
+
+   .nav.open {
+      display: block;
+   }
+
+   .nav ul {
+      flex-direction: column;
+      gap: 0.5rem;
+   }
+
+   .menu-toggle {
+      display: block;
+   }
+}
