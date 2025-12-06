@@ -2,6 +2,7 @@ import express from 'express';
 import { fileURLToPath } from 'url';
 import { dirname, join } from 'path';
 import cors from 'cors';
+import mongoose from 'mongoose';
 import dotenv from 'dotenv';
 import Routes from './routes/Routes.js';
 
@@ -13,6 +14,12 @@ const __filename = fileURLToPath(import.meta.url);
 const __dirname = dirname(__filename);
 
 const app = express();
+
+console.log("MY CONNECTION STRING IS:", process.env.MONGO_URI);
+
+mongoose.connect(process.env.MONGO_URI)
+  .then(() => console.log('MongoDB Connected!'))
+  .catch((err) => console.log('MongoDB Connection Error:', err));
 
 // CORS setup
 app.use(
