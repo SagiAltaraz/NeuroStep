@@ -1,10 +1,11 @@
 // src/components/Header/Header.tsx
 import React, { useState } from 'react';
+import { useNavigate } from 'react-router-dom';
 import './Header.css';
 
 const Header: React.FC = () => {
    const [isMenuOpen, setIsMenuOpen] = useState<boolean>(false);
-
+   const navigate = useNavigate();
    return (
       <header className="header">
          <div className="header-container">
@@ -23,10 +24,12 @@ const Header: React.FC = () => {
                      <a href="#features">Features</a>
                   </li>
                   <li>
-                     <a href="#chat">Chat</a>
+                     <button onClick={() => navigate('/sign-up')}>
+                        Sign Up
+                     </button>
                   </li>
                   <li>
-                     <a href="#contact">Contact</a>
+                     <button onClick={() => navigate('/log-in')}>Log In</button>
                   </li>
                </ul>
             </nav>
