@@ -4,9 +4,6 @@ import Header from '../../components/Header/Header';
 const Home = () => {
    return (
       <>
-         <div className="home-header">
-            <Header />
-         </div>
          <main className="main-section">
             <div className="main-wrapper">
                <section className="hero-grid">
