@@ -46,7 +46,7 @@ export function SignupForm() {
                <Input id="confirm" type="password" required />
             </div>
 
-            <Button className="w-full" size="lg">
+            <Button className="w-full" variant="black" size="lg" >
                Create Account
             </Button>
 
