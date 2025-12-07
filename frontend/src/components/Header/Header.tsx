@@ -1,35 +1,35 @@
 // src/components/Header/Header.tsx
 import React, { useState } from 'react';
-import { useNavigate } from 'react-router-dom';
+import { Link } from 'react-router-dom';
 import './Header.css';
 
 const Header: React.FC = () => {
    const [isMenuOpen, setIsMenuOpen] = useState<boolean>(false);
-   const navigate = useNavigate();
+
    return (
       <header className="header">
          <div className="header-container">
             {/* Logo */}
             <div className="logo">
-               <h1>NeuroStep</h1>
+               <h1>
+                  <Link to="/">NeuroStep</Link>
+               </h1>
             </div>
 
             {/* Navigation */}
             <nav className={`nav ${isMenuOpen ? 'open' : ''}`}>
                <ul>
                   <li>
-                     <a href="#main">Home</a>
+                     <Link to="/">Home</Link>
                   </li>
                   <li>
-                     <a href="#features">Features</a>
+                     <Link to="#features">Features</Link>
                   </li>
                   <li>
-                     <button onClick={() => navigate('/sign-up')}>
-                        Sign Up
-                     </button>
+                     <Link to="/sign-up">Sign Up</Link>
                   </li>
                   <li>
-                     <button onClick={() => navigate('/log-in')}>Log In</button>
+                     <Link to="/log-in">Log In</Link>
                   </li>
                </ul>
             </nav>

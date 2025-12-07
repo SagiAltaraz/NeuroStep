@@ -1,8 +1,11 @@
+/* Base Header */
 .header {
    width: 100%;
-   background: #1f2937;
+   background: #1f2937; /* אפור כהה */
    color: white;
    padding: 0.5rem 1rem;
+   position: relative;
+   z-index: 50;
 }
 
 .header-container {
@@ -11,15 +14,30 @@
    align-items: center;
 }
 
+/* Logo */
 .logo h1 {
+   margin: 0;
    font-size: 1.5rem;
    font-weight: bold;
 }
 
+.logo a {
+   color: white; /* לבן */
+   text-decoration: none; /* מסיר קו תחתון */
+   font-weight: bold;
+}
+
+.logo a:hover {
+   color: white; /* לא משנה צבע בהובר */
+}
+
+/* Navigation */
 .nav ul {
    display: flex;
    gap: 1rem;
    list-style: none;
+   margin: 0;
+   padding: 0;
 }
 
 .nav ul li a {
@@ -28,12 +46,18 @@
    font-weight: 500;
 }
 
+.nav ul li a:hover {
+   text-decoration: underline; /* optional */
+}
+
+/* Mobile Menu Toggle */
 .menu-toggle {
    display: none;
    background: none;
    border: none;
    color: white;
    font-size: 1.5rem;
+   cursor: pointer;
 }
 
 /* Mobile responsive */
@@ -41,11 +65,13 @@
    .nav {
       display: none;
       position: absolute;
-      top: 3.5rem;
+      top: 3.5rem; /* מתחת ל-header */
       right: 1rem;
-      background: #111827;
+      background: #111827; /* אפור כהה יותר */
       border-radius: 0.5rem;
       padding: 1rem;
+      min-width: 150px;
+      box-shadow: 0 2px 10px rgba(0, 0, 0, 0.5);
    }
 
    .nav.open {
