@@ -8,6 +8,7 @@ import {
 } from '../ui/card';
 import { Input } from '../ui/input';
 import { Label } from '../ui/label';
+import {Link} from 'react-router-dom';
 
 export function SignupForm() {
    return (
@@ -51,9 +52,7 @@ export function SignupForm() {
 
             <div className="text-center text-sm">
                Already have an account?{' '}
-               <a href="#" className="underline font-medium">
-                  Sign in
-               </a>
+               <Link to="/log-in">Log In</Link>
             </div>
          </CardContent>
       </Card>
