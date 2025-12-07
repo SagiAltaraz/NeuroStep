@@ -11,7 +11,9 @@ const Header: React.FC = () => {
          <div className="header-container">
             {/* Logo */}
             <div className="logo">
-               <h1>NeuroStep</h1>
+               <h1>
+                  <Link to="/">NeuroStep</Link>
+               </h1>
             </div>
 
             {/* Navigation */}

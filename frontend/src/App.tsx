@@ -13,7 +13,6 @@ function App() {
    return (
       <div className="App">
          <Header />
-
          <Routes>
             {/* home page */}
             <Route
