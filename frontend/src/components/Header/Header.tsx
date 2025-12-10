@@ -1,14 +1,17 @@
 // src/components/Header/Header.tsx
 import React, { useState } from 'react';
 import { Link } from 'react-router-dom';
+import { useAuth } from '../../context/AuthContext';
 import './Header.css';
 
 const Header: React.FC = () => {
-   const [isMenuOpen, setIsMenuOpen] = useState<boolean>(false);
+   const [isMenuOpen, setIsMenuOpen] = useState(false);
+   const { user, logout } = useAuth();
 
    return (
       <header className="header">
          <div className="header-container">
+
             {/* Logo */}
             <div className="logo">
                <h1>
@@ -19,18 +22,27 @@ const Header: React.FC = () => {
             {/* Navigation */}
             <nav className={`nav ${isMenuOpen ? 'open' : ''}`}>
                <ul>
-                  <li>
-                     <Link to="/">Home</Link>
-                  </li>
-                  <li>
-                     <Link to="#features">Features</Link>
-                  </li>
-                  <li>
-                     <Link to="/sign-up">Sign Up</Link>
-                  </li>
-                  <li>
-                     <Link to="/log-in">Log In</Link>
-                  </li>
+                  {/* -------- CONDITIONAL CONTENT -------- */}
+                  {user ? (
+                     <>
+                        <li className="welcome">
+                           Hello, <strong>{user.name}</strong>
+                        </li>
+                        <li>
+                           <button
+                              className="logout-btn"
+                              onClick={logout}
+                           >
+                              Logout
+                           </button>
+                        </li>
+                     </>
+                  ) : (
+                     <>
+                        <li><Link to="/sign-up">Sign Up</Link></li>
+                        <li><Link to="/log-in">Log In</Link></li>
+                     </>
+                  )}
                </ul>
             </nav>
 
