@@ -8,6 +8,7 @@ import LoginPage from './pages/log-in/log-in';
 
 import Features from './components/features/features';
 import ChatAssistant from './components/ChatAssistant/ChatAssistant';
+import Game from './pages/games/Game';
 
 function App() {
    return (
@@ -27,6 +28,7 @@ function App() {
             />
             <Route path="/sign-up" element={<SignupPage />} />
             <Route path="/log-in" element={<LoginPage />} />
+            <Route path="/game" element={<Game />} />
             <Route path="*" element={<div>404 – העמוד לא נמצא</div>} />
          </Routes>
       </div>

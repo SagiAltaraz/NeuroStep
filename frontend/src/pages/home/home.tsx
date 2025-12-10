@@ -1,46 +1,33 @@
 import './home.css';
+import { Button } from '../../components/ui/button';
+import { useNavigate } from 'react-router-dom';
+import logo from '../../../public/logo5.png';
 
 const Home = () => {
-   return (
-      <>
-         <main className="main-section">
-            <div className="main-wrapper">
-               <section className="hero-grid">
-                  <div className="hero-copy">
-                     <p className="eyebrow">Bootstrap Ready</p>
-                     <h1>Center-stage content that adapts to every screen</h1>
-                     <p className="lead">
-                        The layout relies on percentages rather than fixed
-                        pixels so it scales smoothly from mobile devices up to
-                        large desktop displays.
-                     </p>
-                     <div className="cta-group">
-                        <button className="btn btn-primary">
-                           Start Building
-                        </button>
-                        <button className="btn btn-outline-secondary">
-                           See Docs
-                        </button>
-                     </div>
-                  </div>
-                  <div className="hero-card">
-                     <h2>Why percentages?</h2>
-                     <p>
-                        Percent-based sizing keeps spacing proportional,
-                        providing consistent breathing room without extra media
-                        queries.
-                     </p>
-                     <ul>
-                        <li>80% wrapper width keeps focus centered</li>
-                        <li>Fluid grid stretches responsibly</li>
-                        <li>Bootstrap utilities layer right on top</li>
-                     </ul>
-                  </div>
-               </section>
-            </div>
-         </main>
-      </>
-   );
+  const navigate = useNavigate();
+
+  const handlePlayClick = () => {
+    navigate('/game');
+  };
+
+  return (
+    <main className="main-section home-page">
+      <div className="main-wrapper flex flex-col items-center justify-center h-screen gap-8">
+
+        {/* Hero Section */}
+        <section className="hero-grid text-center">
+         <img src={logo} alt="NeuroStep Logo" className="hero-logo" />
+          <p className="lead">Train your brain. Have fun.</p>
+
+          <div className="cta-group">
+            <Button variant="black" size="lg" onClick={handlePlayClick}>
+              🎮 Let's Play
+            </Button>
+          </div>
+        </section>
+      </div>
+    </main>
+  );
 };
 
 export default Home;
