@@ -5,6 +5,7 @@ import cors from 'cors';
 import mongoose from 'mongoose';
 import dotenv from 'dotenv';
 import Routes from './routes/Routes.js';
+import authRoutes from './routes/auth.js';
 
 // Load environment variables
 dotenv.config();
@@ -14,8 +15,6 @@ const __filename = fileURLToPath(import.meta.url);
 const __dirname = dirname(__filename);
 
 const app = express();
-
-console.log("MY CONNECTION STRING IS:", process.env.MONGO_URI);
 
 mongoose.connect(process.env.MONGO_URI)
   .then(() => console.log('MongoDB Connected!'))
@@ -33,6 +32,7 @@ app.use(
 app.use(express.json());
 
 // API routes
+app.use('/api/auth', authRoutes);
 app.use('/api', Routes);
 
 // Serve frontend static files
@@ -48,5 +48,4 @@ app.get('/', (req, res) => {
 const PORT = process.env.PORT || 3000;
 app.listen(PORT, () => {
    console.log(`Server running on → http://localhost:${PORT}`);
-   console.log(`API endpoint: http://localhost:${PORT}/api/askAI`);
 });
