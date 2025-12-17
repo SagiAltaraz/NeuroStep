@@ -26,7 +26,7 @@ export const askFromOpenAI = async (req, res) => {
             { role: 'user', content: prompt },
          ],
          temperature: 0.7,
-         max_tokens: 400,
+         max_tokens: 50,
       });
 
       const reply =

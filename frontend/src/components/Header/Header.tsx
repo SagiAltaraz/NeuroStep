@@ -1,4 +1,3 @@
-// src/components/Header/Header.tsx
 import React, { useState } from 'react';
 import { Link } from 'react-router-dom';
 import { useAuth } from '../../context/AuthContext';
@@ -6,8 +5,11 @@ import './Header.css';
 
 const Header: React.FC = () => {
    const [isMenuOpen, setIsMenuOpen] = useState(false);
-   const { user, logout } = useAuth();
+   const { user, isAdmin, logout } = useAuth();
 
+  console.log("USER:", user);
+  console.log("IS ADMIN:", isAdmin);
+   
    return (
       <header className="header">
          <div className="header-container">
@@ -22,17 +24,22 @@ const Header: React.FC = () => {
             {/* Navigation */}
             <nav className={`nav ${isMenuOpen ? 'open' : ''}`}>
                <ul>
-                  {/* -------- CONDITIONAL CONTENT -------- */}
                   {user ? (
                      <>
                         <li className="welcome">
                            Hello, <strong>{user.name}</strong>
                         </li>
+
+                        {isAdmin && (
+                           <li>
+                              <Link to="/admin" className="admin-link">
+                                 Admin Panel
+                              </Link>
+                           </li>
+                        )}
+
                         <li>
-                           <button
-                              className="logout-btn"
-                              onClick={logout}
-                           >
+                           <button className="logout-btn" onClick={logout}>
                               Logout
                            </button>
                         </li>
@@ -49,7 +56,7 @@ const Header: React.FC = () => {
             {/* Mobile Menu Toggle */}
             <button
                className="menu-toggle"
-               onClick={() => setIsMenuOpen((prev) => !prev)}
+               onClick={() => setIsMenuOpen(prev => !prev)}
             >
                {isMenuOpen ? '✕' : '☰'}
             </button>

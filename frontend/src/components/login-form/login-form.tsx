@@ -21,7 +21,7 @@ export function LoginForm() {
         alert(res.error);
       } else {
         alert("Logged in successfully!");
-        navigate("/"); // עובר לעמוד הבית
+        navigate("/");
       }
     } catch (err) {
       console.error(err);

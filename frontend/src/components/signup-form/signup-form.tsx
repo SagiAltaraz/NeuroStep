@@ -30,7 +30,7 @@ export function SignupForm() {
         alert(res.error);
       } else {
         alert("User created successfully!");
-        navigate("/log-in");
+        navigate("/");
       }
     } catch (err) {
       console.error(err);

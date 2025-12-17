@@ -7,8 +7,9 @@ import SignupPage from './pages/sign-up/sign-up';
 import LoginPage from './pages/log-in/log-in';
 
 import Features from './components/features/features';
-import ChatAssistant from './components/ChatAssistant/ChatAssistant';
+import ChatAssistant from './components/chatassistant/ChatAssistant';
 import Game from './pages/games/Game';
+import AdminPage from './pages/admin/AdminPage'; 
 
 function App() {
    return (
@@ -29,6 +30,7 @@ function App() {
             <Route path="/sign-up" element={<SignupPage />} />
             <Route path="/log-in" element={<LoginPage />} />
             <Route path="/game" element={<Game />} />
+            <Route path="/admin" element={<AdminPage />} />
             <Route path="*" element={<div>404 – העמוד לא נמצא</div>} />
          </Routes>
       </div>

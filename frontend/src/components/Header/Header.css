@@ -2,7 +2,7 @@
 .header {
   width: 100%;
   background: #ffffff;
-  padding: 14px 0;
+  padding: 8px 12px;
   position: sticky;
   top: 0;
   z-index: 1000;
@@ -12,8 +12,7 @@
 /* ===== CONTAINER ===== */
 .header-container {
   max-width: 1100px;
-  margin: auto;
-  padding: 0 24px;
+  margin: 0 auto;
   display: flex;
   align-items: center;
   justify-content: space-between;
@@ -24,13 +23,14 @@
   margin: 0;
 }
 
-.logo a {
-  text-decoration: none;
-  font-size: 1.9rem;
+.logo a { font-size: 1.9rem;
   font-weight: 700;
   background: linear-gradient(90deg, #007bff, #00b0ff);
   color: transparent;
   -webkit-background-clip: text;
+  -webkit-text-fill-color: transparent;
+  background-clip: text;
+  display: inline-block;
 }
 
 /* ===== NAVIGATION ===== */
@@ -38,17 +38,17 @@
   list-style: none;
   display: flex;
   align-items: center;
-  gap: 24px;
+  gap: 16px;
   margin: 0;
   padding: 0;
 }
 
 .nav a {
-  font-size: 1.05rem;
+  font-size: 1rem;
   color: #333;
   text-decoration: none;
-  transition: 0.25s ease;
   font-weight: 500;
+  transition: 0.25s ease;
 }
 
 .nav a:hover {
@@ -56,16 +56,21 @@
   transform: translateY(-1px);
 }
 
+.admin-link {
+  font-weight: 600;
+  color: #007bff;
+}
+
 /* ===== USER WELCOME ===== */
 .welcome {
-  font-size: 1.05rem;
+  font-size: 1rem;
   font-weight: 500;
   color: #444;
 }
 
 /* ===== LOGOUT BUTTON ===== */
 .logout-btn {
-  padding: 8px 16px;
+  padding: 6px 12px;
   font-size: 0.95rem;
   border: none;
   border-radius: 8px;
@@ -84,12 +89,11 @@
 /* ===== MOBILE MENU BUTTON ===== */
 .menu-toggle {
   display: none;
-  font-size: 1.9rem;
+  font-size: 1.8rem;
   background: none;
   border: none;
   cursor: pointer;
   color: #333;
-  transition: 0.3s ease;
 }
 
 .menu-toggle:hover {
@@ -98,19 +102,18 @@
 
 /* ===== MOBILE NAVIGATION ===== */
 @media (max-width: 768px) {
-
   .menu-toggle {
     display: block;
   }
 
   .nav {
     position: absolute;
-    top: 70px;
+    top: 60px;
     right: 0;
     background: #ffffff;
-    width: 240px;
-    padding: 20px 24px;
-    border-radius: 12px 0 0 12px;
+    width: 220px;
+    padding: 16px 20px;
+    border-radius: 0 0 0 12px;
     box-shadow: -4px 0 20px rgba(0,0,0,0.12);
     transform: translateX(120%);
     transition: 0.4s ease;
@@ -123,10 +126,11 @@
   .nav ul {
     flex-direction: column;
     align-items: flex-start;
-    gap: 18px;
+    gap: 12px;
   }
 
-  .logout-btn {
+  .logout-btn,
+  .admin-link {
     width: 100%;
     text-align: center;
   }

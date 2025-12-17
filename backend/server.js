@@ -6,11 +6,10 @@ import mongoose from 'mongoose';
 import dotenv from 'dotenv';
 import Routes from './routes/Routes.js';
 import authRoutes from './routes/auth.js';
+import adminRoutes from './routes/adminRoutes.js';
 
-// Load environment variables
 dotenv.config();
 
-// Get __dirname in ES module
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = dirname(__filename);
 
@@ -20,7 +19,6 @@ mongoose.connect(process.env.MONGO_URI)
   .then(() => console.log('MongoDB Connected!'))
   .catch((err) => console.log('MongoDB Connection Error:', err));
 
-// CORS setup
 app.use(
    cors({
       origin: 'http://localhost:5173',
@@ -28,20 +26,18 @@ app.use(
    })
 );
 
-// JSON body parsing
 app.use(express.json());
 
 // API routes
-app.use('/api/auth', authRoutes);
-app.use('/api', Routes);
+app.use("/api/auth", authRoutes);
+app.use("/api", Routes);
+app.use("/api/admin", adminRoutes);
 
-// Serve frontend static files
-const frontendPath = join(__dirname, '../frontend/dist');
+const frontendPath = join(__dirname, "../frontend/dist");
 app.use(express.static(frontendPath));
 
-// Fallback route to serve index.html for SPA
-app.get('/', (req, res) => {
-   res.sendFile(join(frontendPath, 'index.html'));
+app.use("/", (req, res) => {
+  res.sendFile(join(frontendPath, "index.html"));
 });
 
 // Start server
