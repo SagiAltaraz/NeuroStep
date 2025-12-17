@@ -1,41 +1,60 @@
+// src/pages/admin/AdminPage.tsx
 import { useState } from "react";
-import type { AdminView } from "./types";
-import { useAuth } from "../../context/AuthContext"; 
-import { Navigate } from "react-router-dom"; 
+import { useAuth } from "../../context/AuthContext";
+import { Navigate } from "react-router-dom";
 
-import AdminMenu from "./menu/AdminMenu";
-import AdminStats from "./stats//AdminStats";
+import AdminStats from "./stats/AdminStats";
 import AdminEvents from "./events/AdminEvents";
 import AdminUsers from "./users/AdminUsers";
 import AdminSettings from "./settings/AdminSettings";
 
+import "./AdminPage.css";
+
+type AdminView = "stats" | "events" | "users" | "settings";
+
 const AdminPage: React.FC = () => {
-  const { isAdmin } = useAuth();  
+  const { isAdmin } = useAuth();
   const [activeView, setActiveView] = useState<AdminView | null>(null);
 
-  if (!isAdmin) {  
-    return <Navigate to="/" />;
-  }
+  if (!isAdmin) return <Navigate to="/" />;
+
+  const handleBack = () => setActiveView(null);
 
   const renderView = () => {
+    if (!activeView) {
+      return (
+        <div className="admin-grid">
+          <button className="admin-card" onClick={() => setActiveView("stats")}>
+            📊 <span>Statistics</span>
+          </button>
+          <button className="admin-card" onClick={() => setActiveView("events")}>
+            📅 <span>Events</span>
+          </button>
+          <button className="admin-card" onClick={() => setActiveView("users")}>
+            👥 <span>Users</span>
+          </button>
+          <button className="admin-card" onClick={() => setActiveView("settings")}>
+            ⚙️ <span>Settings</span>
+          </button>
+        </div>
+      );
+    }
+
     switch (activeView) {
       case "stats":
-        return <AdminStats />;
+        return <AdminStats onBack={handleBack} />;
       case "events":
-        return <AdminEvents />;
+        return <AdminEvents onBack={handleBack} />;
       case "users":
-        return <AdminUsers />;
+        return <AdminUsers onBack={handleBack} />;
       case "settings":
-        return <AdminSettings />;
-      default:
-        return <p>בחר פעולה מהתפריט</p>;
+        return <AdminSettings onBack={handleBack} />;
     }
   };
 
   return (
     <div className="admin-page">
-      <h1>Admin Dashboard</h1>
-      <AdminMenu onSelect={setActiveView} />
+      <h1 className="admin-title">Admin Dashboard</h1>
       <div className="admin-content">{renderView()}</div>
     </div>
   );

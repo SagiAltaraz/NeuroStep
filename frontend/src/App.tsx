@@ -9,7 +9,7 @@ import LoginPage from './pages/log-in/log-in';
 import Features from './components/features/features';
 import ChatAssistant from './components/chatassistant/ChatAssistant';
 import Game from './pages/games/Game';
-import AdminPage from './pages/admin/AdminPage';  // הוסף import זה (תתאים נתיב אם צריך)
+import AdminPage from './pages/admin/AdminPage'; 
 
 function App() {
    return (

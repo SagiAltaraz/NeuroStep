@@ -1,5 +1,5 @@
 import { createContext, useContext, useState } from "react";
-import type { ReactNode } from "react"; 
+import type { ReactNode } from "react";
 import * as authAPI from "../api/auth";
 
 export type UserRole = "user" | "admin";
@@ -26,11 +26,13 @@ interface AuthContextType {
   logout: () => void;
 }
 
-// ===== CONTEXT =====
 const AuthContext = createContext<AuthContextType | undefined>(undefined);
 
 export const AuthProvider = ({ children }: { children: ReactNode }) => {
-  const [token, setToken] = useState<string | null>(() => localStorage.getItem("token"));
+  const [token, setToken] = useState<string | null>(
+    () => localStorage.getItem("token")
+  );
+
   const [user, setUser] = useState<User | null>(() => {
     const savedUser = localStorage.getItem("user");
     return savedUser ? JSON.parse(savedUser) : null;
@@ -38,25 +40,29 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
 
   const isAdmin = user?.role === "admin";
 
-  const login = async (email: string, password: string): Promise<AuthResponse> => {
+  const login = async (email: string, password: string) => {
     const data = await authAPI.login(email, password);
+
     if (data.token && data.user) {
       setUser(data.user);
       setToken(data.token);
       localStorage.setItem("token", data.token);
       localStorage.setItem("user", JSON.stringify(data.user));
     }
+
     return data;
   };
 
-  const signup = async (name: string, email: string, password: string): Promise<AuthResponse> => {
+  const signup = async (name: string, email: string, password: string) => {
     const data = await authAPI.signup(name, email, password);
+
     if (data.token && data.user) {
       setUser(data.user);
       setToken(data.token);
       localStorage.setItem("token", data.token);
       localStorage.setItem("user", JSON.stringify(data.user));
     }
+
     return data;
   };
 
@@ -74,10 +80,8 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
   );
 };
 
-// ===== CUSTOM HOOK =====
 export const useAuth = () => {
   const context = useContext(AuthContext);
   if (!context) throw new Error("useAuth must be used within AuthProvider");
-  const isAdmin = context.user?.role === "admin";
-  return { ...context, isAdmin };
+  return context;
 };
