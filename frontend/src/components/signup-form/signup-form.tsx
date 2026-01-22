@@ -5,6 +5,8 @@ import { Button } from "../ui/button";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "../ui/card";
 import { Input } from "../ui/input";
 import { Label } from "../ui/label";
+import PersonalFormModal from "../startForm/PersonalFormModal";
+import * as authAPI from "../../api/auth";
 
 export function SignupForm() {
   const { signup } = useAuth();
@@ -14,6 +16,8 @@ export function SignupForm() {
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
   const [confirm, setConfirm] = useState("");
+  const [showPersonalizationForm, setShowPersonalizationForm] = useState(false);
+  const [token, setToken] = useState<string | null>(null);
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -28,15 +32,51 @@ export function SignupForm() {
 
       if (res?.error) {
         alert(res.error);
-      } else {
-        alert("User created successfully!");
-        navigate("/");
+      } else if (res?.token) {
+        // Show personalization form instead of redirecting
+        setToken(res.token);
+        setShowPersonalizationForm(true);
       }
     } catch (err) {
       console.error(err);
       alert("Something went wrong!");
     }
   };
+
+  const handleProfileGenerated = async (prompt: string, answers: Record<number, string>) => {
+    try {
+      if (!token) {
+        throw new Error("No token available");
+      }
+
+      // Save the profile to backend
+      const response = await authAPI.savePersonalizationProfile(token, answers, prompt);
+
+      if (!response.success) {
+        throw new Error(response.error || "Failed to save profile");
+      }
+
+      // Close form and redirect to home
+      setShowPersonalizationForm(false);
+      navigate("/");
+    } catch (error) {
+      console.error("Error saving profile:", error);
+      alert("Error saving profile. Please try again.");
+    }
+  };
+
+  if (showPersonalizationForm) {
+    return (
+      <PersonalFormModal
+        isOpen={true}
+        onClose={() => {
+          setShowPersonalizationForm(false);
+          navigate("/");
+        }}
+        onSubmit={handleProfileGenerated}
+      />
+    );
+  }
 
   return (
     <Card className="mx-auto max-w-sm">

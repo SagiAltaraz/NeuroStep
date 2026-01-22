@@ -1,13 +1,12 @@
 import './home.css';
 import { Button } from '../../components/ui/button';
 import { useNavigate } from 'react-router-dom';
-import logo from '../../../public/logo5.png';
 
 const Home = () => {
   const navigate = useNavigate();
 
   const handlePlayClick = () => {
-    navigate('/game');
+    navigate('/games/colorTracking'); 
   };
 
   return (
@@ -16,7 +15,7 @@ const Home = () => {
 
         {/* Hero Section */}
         <section className="hero-grid text-center">
-         <img src={logo} alt="NeuroStep Logo" className="hero-logo" />
+          <img src="/logo5.png" alt="NeuroStep Logo" className="hero-logo" />
           <p className="lead">Train your brain. Have fun.</p>
 
           <div className="cta-group">

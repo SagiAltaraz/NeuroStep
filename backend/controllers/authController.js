@@ -18,7 +18,7 @@ export const signup = async (req, res) => {
       name,
       email,
       password: hashedPassword,
-      role: "user" // ברירת מחדל
+      role: "user" 
     });
 
     const token = generateToken(user);

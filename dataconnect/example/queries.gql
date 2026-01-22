@@ -1,0 +1,31 @@
+mutation CreateNewUser($email: String!, $username: String!) @auth(level: USER) {
+  user_insert(data: { email: $email, username: $username, createdAt_expr: "request.time", id_expr: "uuidV4()" })
+}
+
+query GetGameTypes @auth(level: PUBLIC, insecureReason: "This operation is safe to expose to the public") {
+  gameTypes {
+    id
+    name
+    description
+    primaryCognitiveArea
+    recommendedDurationMinutes
+  }
+}
+
+query GetUserTrainingSessions($userId: UUID!) @auth(level: USER) {
+  trainingSessions(where: { userId: { eq: $userId } }) {
+    id
+    gameType {
+      name
+    }
+    score
+    startTime
+    endTime
+    difficultyLevelStart
+    difficultyLevelEnd
+  }
+}
+
+mutation UpdateTrainingSessionFeedback($id: UUID!, $feedback: String) @auth(level: USER) {
+  trainingSession_update(key: { id: $id }, data: { feedback: $feedback })
+}
