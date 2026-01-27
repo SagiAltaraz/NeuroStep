@@ -1,27 +1,39 @@
 export async function signup(name: string, email: string, password: string) {
-  const res = await fetch("http://localhost:3000/api/auth/signup", {
+  const res = await fetch("/api/auth/signup", {
     method: "POST",
     headers: { "Content-Type": "application/json" },
     body: JSON.stringify({ name, email, password }),
   });
-  return res.json();
+  const data = await res.json();
+  if (!res.ok) {
+    return { error: data.message || "Signup failed" };
+  }
+  return data;
 }
 
 export async function login(email: string, password: string) {
-  const res = await fetch("http://localhost:3000/api/auth/login", {
+  const res = await fetch("/api/auth/login", {
     method: "POST",
     headers: { "Content-Type": "application/json" },
     body: JSON.stringify({ email, password }),
   });
-  return res.json();
+  const data = await res.json();
+  if (!res.ok) {
+    return { error: data.message || "Login failed" };
+  }
+  return data;
 }
 
 export async function logout() {
-  const res = await fetch("http://localhost:3000/api/auth/logout", {
+  const res = await fetch("/api/auth/logout", {
     method: "POST",
     headers: { "Content-Type": "application/json" },
   });
-  return res.json();
+  const data = await res.json();
+  if (!res.ok) {
+    return { error: data.message || "Logout failed" };
+  }
+  return data;
 }
 
 export async function savePersonalizationProfile(
@@ -29,7 +41,7 @@ export async function savePersonalizationProfile(
   answers: Record<number, string>,
   prompt: string
 ) {
-  const res = await fetch("http://localhost:3000/api/personalization/profile/save", {
+  const res = await fetch("/api/personalization/profile/save", {
     method: "POST",
     headers: {
       "Content-Type": "application/json",
@@ -37,15 +49,23 @@ export async function savePersonalizationProfile(
     },
     body: JSON.stringify({ answers, prompt }),
   });
-  return res.json();
+  const data = await res.json();
+  if (!res.ok) {
+    return { error: data.message || "Failed to save profile" };
+  }
+  return data;
 }
 
 export async function getPersonalizationProfile(token: string) {
-  const res = await fetch("http://localhost:3000/api/personalization/profile", {
+  const res = await fetch("/api/personalization/profile", {
     method: "GET",
     headers: {
       Authorization: `Bearer ${token}`,
     },
   });
-  return res.json();
+  const data = await res.json();
+  if (!res.ok) {
+    return { error: data.message || "Failed to get profile" };
+  }
+  return data;
 }

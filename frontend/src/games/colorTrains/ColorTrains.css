@@ -1,34 +1,70 @@
-/* ColorTrains.css */
-.game-wrapper {
-  max-width: 880px;
-  margin: 40px auto;
-  padding: 30px;
-  background: #0f172a;
-  border-radius: 16px;
-  color: #e0f2fe;
-  font-family: system-ui, -apple-system, sans-serif;
-  text-align: center;
-}
+/* ColorTrains.css - Clean professional game styling */
 
-.game-wrapper h1 {
-  margin: 0 0 25px;
-  font-size: 2.8rem;
-  color: #a5f3fc;
-  font-weight: 600;
+.color-trains-game {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  padding: 2rem;
+  min-height: 100vh;
+  background: linear-gradient(180deg, #f0f7ff 0%, #e1effe 100%);
 }
 
 .game-canvas {
-  width: 800px;
-  height: 600px;
-  margin: 0 auto 20px;
-  border: 3px solid #334155;
-  border-radius: 12px;
+  border-radius: 16px;
   overflow: hidden;
-  box-shadow: 0 8px 32px rgba(0, 0, 0, 0.4);
+  box-shadow:
+    0 4px 6px -1px rgba(0, 0, 0, 0.1),
+    0 10px 20px -5px rgba(37, 99, 235, 0.15),
+    0 0 0 1px rgba(59, 130, 246, 0.1);
 }
 
-.game-wrapper p {
+.game-canvas canvas {
+  display: block;
+  border-radius: 16px;
+}
+
+.game-instructions {
+  margin-top: 1.5rem;
+  padding: 1rem 2rem;
+  background: white;
+  border-radius: 12px;
+  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.06);
+  border: 1px solid #e0eafc;
+}
+
+.game-instructions p {
   margin: 0;
-  font-size: 1.2rem;
-  color: #94a3b8;
+  font-size: 1.1rem;
+  color: #4a6fa5;
+  font-weight: 500;
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+}
+
+.game-instructions p::before {
+  content: '🚂';
+  font-size: 1.25rem;
+}
+
+/* Responsive adjustments */
+@media (max-width: 960px) {
+  .color-trains-game {
+    padding: 1rem;
+  }
+
+  .game-canvas {
+    max-width: 100%;
+    overflow-x: auto;
+  }
+}
+
+@media (max-width: 600px) {
+  .game-instructions {
+    padding: 0.75rem 1rem;
+  }
+
+  .game-instructions p {
+    font-size: 0.95rem;
+  }
 }

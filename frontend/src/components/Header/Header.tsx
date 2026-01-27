@@ -7,9 +7,6 @@ const Header: React.FC = () => {
    const [isMenuOpen, setIsMenuOpen] = useState(false);
    const { user, isAdmin, logout } = useAuth();
 
-  console.log("USER:", user);
-  console.log("IS ADMIN:", isAdmin);
-   
    return (
       <header className="header">
          <div className="header-container">

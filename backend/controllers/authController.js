@@ -62,7 +62,7 @@ export const login = async (req, res) => {
         id: user._id,
         name: user.name,
         email: user.email,
-        role: user.role 
+        role: user.role
       },
       token
     });
@@ -72,4 +72,11 @@ export const login = async (req, res) => {
       error: err.message
     });
   }
+};
+
+// ===== LOGOUT =====
+export const logout = async (req, res) => {
+  // Since we use JWT stored client-side, server-side logout is a no-op
+  // The frontend will clear localStorage
+  return res.status(200).json({ message: "Logged out successfully" });
 };

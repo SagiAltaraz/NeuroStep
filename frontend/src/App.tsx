@@ -9,7 +9,8 @@ import LoginPage from './pages/log-in/log-in';
 import Features from './components/features/features';
 import ChatAssistant from './components/chatassistant/ChatAssistant';
 import ColorTrackingPage from './pages/games/ColorTrainsPage';
-import AdminPage from './pages/admin/AdminPage'; 
+import AdminPage from './pages/admin/AdminPage';
+import ProtectedRoute from './components/ProtectedRoute/ProtectedRoute';
 
 function App() {
    return (
@@ -29,9 +30,16 @@ function App() {
             />
             <Route path="/sign-up" element={<SignupPage />} />
             <Route path="/log-in" element={<LoginPage />} />
-            <Route path="/games/colorTracking" element={<ColorTrackingPage />} />
+            <Route
+               path="/games/colorTracking"
+               element={
+                  <ProtectedRoute>
+                     <ColorTrackingPage />
+                  </ProtectedRoute>
+               }
+            />
             <Route path="/admin" element={<AdminPage />} />
-            <Route path="*" element={<div>404 – העמוד לא נמצא</div>} />
+            <Route path="*" element={<div>404 - Page not found</div>} />
          </Routes>
       </div>
    );

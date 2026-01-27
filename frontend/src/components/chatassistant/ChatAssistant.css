@@ -1,198 +1,187 @@
-/* -----------------------------
-   Reset and global styles
------------------------------- */
-* {
-   box-sizing: border-box;
-   font-family: 'Poppins', 'Segoe UI', sans-serif;
-   margin: 0;
-   padding: 0;
-}
-
-/* -----------------------------
-   Chat assistant container
------------------------------- */
 .chat-assistant {
-   position: fixed;
-   bottom: 20px;
-   right: 20px;
-   z-index: 1000;
+  position: fixed;
+  bottom: 1.5rem;
+  right: 1.5rem;
+  z-index: 1000;
 }
 
-/* -----------------------------
-   Chat toggle button
------------------------------- */
+/* ===== TOGGLE BUTTON ===== */
 .chat-toggle-button {
-   background: #007bff;
-   color: white;
-   border: none;
-   border-radius: 50%;
-   width: 56px;
-   height: 56px;
-   font-size: 24px;
-   cursor: pointer;
-   box-shadow: 0 4px 12px rgba(0, 0, 0, 0.3);
-   transition: all 0.3s ease;
+  background: #1a1a2e;
+  color: #fff;
+  border: none;
+  border-radius: 50%;
+  width: 56px;
+  height: 56px;
+  font-size: 1.25rem;
+  cursor: pointer;
+  box-shadow: 0 4px 16px rgba(0, 0, 0, 0.15);
+  transition: all 0.2s;
 }
 
 .chat-toggle-button:hover {
-   background: #0056b3;
-   transform: scale(1.1);
+  background: #2d2d44;
+  transform: scale(1.05);
 }
 
-/* -----------------------------
-   Chat container
------------------------------- */
+/* ===== CHAT CONTAINER ===== */
 .chat-container {
-   width: 340px;
-   max-height: 500px;
-   background: #1e1e1e;
-   border-radius: 16px;
-   box-shadow: 0 10px 30px rgba(0, 0, 0, 0.4);
-   display: flex;
-   flex-direction: column;
-   overflow: hidden;
-   border: 1px solid #333;
+  width: 360px;
+  max-height: 500px;
+  background: #fff;
+  border-radius: 16px;
+  box-shadow: 0 8px 32px rgba(0, 0, 0, 0.12);
+  display: flex;
+  flex-direction: column;
+  overflow: hidden;
+  border: 1px solid #e2e8f0;
 }
 
-/* -----------------------------
-   Header
------------------------------- */
+/* ===== HEADER ===== */
 .chat-header {
-   background: #007bff;
-   color: white;
-   padding: 14px 16px;
-   font-weight: 600;
-   font-size: 16px;
-   display: flex;
-   justify-content: space-between;
-   align-items: center;
+  background: #1a1a2e;
+  color: #fff;
+  padding: 1rem 1.25rem;
+  font-weight: 600;
+  font-size: 0.95rem;
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
 }
 
 .chat-close-button {
-   background: none;
-   border: none;
-   color: white;
-   font-size: 20px;
-   cursor: pointer;
-   border-radius: 50%;
-   width: 32px;
-   height: 32px;
-   display: flex;
-   align-items: center;
-   justify-content: center;
+  background: none;
+  border: none;
+  color: #fff;
+  font-size: 1.25rem;
+  cursor: pointer;
+  border-radius: 50%;
+  width: 28px;
+  height: 28px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  opacity: 0.8;
+  transition: opacity 0.2s;
 }
 
 .chat-close-button:hover {
-   background: rgba(255, 255, 255, 0.2);
+  opacity: 1;
 }
 
-/* -----------------------------
-   Messages
------------------------------- */
+/* ===== MESSAGES ===== */
 .chat-messages {
-   flex: 1;
-   padding: 16px;
-   overflow-y: auto;
-   display: flex;
-   flex-direction: column;
-   gap: 12px;
-   background: #121212;
+  flex: 1;
+  padding: 1rem;
+  overflow-y: auto;
+  display: flex;
+  flex-direction: column;
+  gap: 0.75rem;
+  background: #f8fafc;
 }
 
 .message {
-   padding: 10px 14px;
-   border-radius: 18px;
-   max-width: 80%;
-   font-size: 14px;
-   line-height: 1.5;
-   word-wrap: break-word;
+  padding: 0.75rem 1rem;
+  border-radius: 16px;
+  max-width: 85%;
+  font-size: 0.875rem;
+  line-height: 1.5;
+  word-wrap: break-word;
 }
 
 .message.user {
-   align-self: flex-end;
-   background: #007bff;
-   color: white;
+  align-self: flex-end;
+  background: #1a1a2e;
+  color: #fff;
+  border-bottom-right-radius: 4px;
 }
 
 .message.ai {
-   align-self: flex-start;
-   background: #333;
-   color: #e0e0e0;
+  align-self: flex-start;
+  background: #fff;
+  color: #1a1a2e;
+  border: 1px solid #e2e8f0;
+  border-bottom-left-radius: 4px;
 }
 
-.message-loading {
-   font-style: italic;
-   color: #888;
-   align-self: flex-start;
-}
-
-/* -----------------------------
-   Input area
------------------------------- */
+/* ===== INPUT AREA ===== */
 .chat-input-container {
-   padding: 12px;
-   background: #1e1e1e;
-   border-top: 1px solid #333;
-   display: flex;
-   gap: 8px;
-   align-items: flex-end;
+  padding: 1rem;
+  background: #fff;
+  border-top: 1px solid #e2e8f0;
+  display: flex;
+  gap: 0.5rem;
+  align-items: flex-end;
 }
 
 .chat-input {
-   flex: 1;
-   padding: 12px 16px;
-   border: 1px solid #444;
-   border-radius: 20px;
-   background: #2a2a2a;
-   color: white;
-   font-size: 14px;
-   resize: none;
-   outline: none;
-   max-height: 100px;
+  flex: 1;
+  padding: 0.75rem 1rem;
+  border: 1px solid #e2e8f0;
+  border-radius: 12px;
+  background: #f8fafc;
+  color: #1a1a2e;
+  font-size: 0.875rem;
+  resize: none;
+  outline: none;
+  max-height: 100px;
+  font-family: inherit;
 }
 
 .chat-input:focus {
-   border-color: #007bff;
+  border-color: #6366f1;
+  background: #fff;
+}
+
+.chat-input::placeholder {
+  color: #94a3b8;
 }
 
 .send-button {
-   background: #007bff;
-   color: white;
-   border: none;
-   border-radius: 50%;
-   width: 40px;
-   height: 40px;
-   cursor: pointer;
-   font-size: 18px;
-   display: flex;
-   align-items: center;
-   justify-content: center;
-   transition: background 0.3s;
+  background: #1a1a2e;
+  color: #fff;
+  border: none;
+  border-radius: 10px;
+  width: 40px;
+  height: 40px;
+  cursor: pointer;
+  font-size: 0.9rem;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  transition: background 0.2s;
 }
 
 .send-button:hover:not(:disabled) {
-   background: #0056b3;
+  background: #2d2d44;
 }
 
 .send-button:disabled {
-   background: #555;
-   cursor: not-allowed;
+  background: #e2e8f0;
+  color: #94a3b8;
+  cursor: not-allowed;
 }
 
-/* -----------------------------
-   Mobile responsiveness
------------------------------- */
+/* ===== MOBILE ===== */
 @media (max-width: 480px) {
-   .chat-container {
-      width: 100vw;
-      height: 100vh;
-      border-radius: 0;
-      right: 0;
-      bottom: 0;
-   }
+  .chat-assistant {
+    bottom: 1rem;
+    right: 1rem;
+  }
 
-   .chat-assistant {
-      bottom: 20px;
-      right: 16px;
-   }
+  .chat-container {
+    position: fixed;
+    top: 0;
+    left: 0;
+    right: 0;
+    bottom: 0;
+    width: 100%;
+    max-height: 100%;
+    border-radius: 0;
+  }
+
+  .chat-toggle-button {
+    width: 50px;
+    height: 50px;
+  }
 }

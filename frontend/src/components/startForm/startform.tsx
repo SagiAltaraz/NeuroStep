@@ -18,9 +18,6 @@ const StartForm: React.FC<StartFormProps> = ({ onProfileGenerated }) => {
     if (onProfileGenerated) {
       onProfileGenerated(prompt, answers);
     }
-    
-    console.log("Generated Prompt:\n", prompt);
-    console.log("Answers:", answers);
   };
 
   return (

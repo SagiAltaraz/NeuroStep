@@ -1,69 +1,93 @@
 .features-section {
-  padding: 6% 0;
+  padding: 4rem 1.5rem;
   background: #ffffff;
-  display: flex;
-  justify-content: center;
 }
 
 .features-wrapper {
-  width: 85%;
-  display: flex;
-  flex-direction: column;
-  gap: 5%;
+  max-width: 1200px;
+  margin: 0 auto;
+}
+
+.features-heading {
+  text-align: center;
+  margin-bottom: 3rem;
 }
 
 .features-heading .eyebrow {
   text-transform: uppercase;
-  letter-spacing: 0.3em;
-  font-size: 0.8rem;
-  color: #748092;
-  margin-bottom: 2%;
+  letter-spacing: 0.15em;
+  font-size: 0.75rem;
+  font-weight: 600;
+  color: #6366f1;
+  margin-bottom: 0.75rem;
 }
 
 .features-heading h2 {
-  font-size: clamp(1.8rem, 3vw, 2.6rem);
-  margin-bottom: 2%;
-  color: #0b1727;
+  font-size: clamp(1.5rem, 4vw, 2rem);
+  font-weight: 700;
+  color: #1a1a2e;
+  margin-bottom: 1rem;
 }
 
 .features-heading .description {
-  max-width: 70%;
-  color: #4b5566;
+  max-width: 600px;
+  margin: 0 auto;
+  color: #64748b;
+  line-height: 1.6;
 }
 
 .features-grid {
   display: grid;
-  grid-template-columns: repeat(auto-fit, minmax(28%, 1fr));
-  gap: 4%;
+  grid-template-columns: repeat(auto-fit, minmax(280px, 1fr));
+  gap: 1.5rem;
 }
 
 .feature-card {
-  border: 1px solid rgba(15, 23, 42, 0.1);
-  border-radius: 3%;
-  padding: 5%;
-  text-align: left;
-  background: #f6f8fb;
+  border: 1px solid #e2e8f0;
+  border-radius: 16px;
+  padding: 2rem;
+  text-align: center;
+  background: #f8fafc;
+  transition: transform 0.2s, box-shadow 0.2s;
+}
+
+.feature-card:hover {
+  transform: translateY(-4px);
+  box-shadow: 0 8px 24px rgba(0, 0, 0, 0.06);
+}
+
+.feature-icon {
+  font-size: 2.5rem;
+  margin-bottom: 1rem;
 }
 
 .feature-card h3 {
-  margin-bottom: 3%;
-  color: #0b1727;
+  font-size: 1.1rem;
+  font-weight: 600;
+  color: #1a1a2e;
+  margin-bottom: 0.75rem;
 }
 
 .feature-card p {
-  color: #4b5566;
+  color: #64748b;
+  font-size: 0.9rem;
+  line-height: 1.5;
 }
 
 @media (max-width: 768px) {
-  .features-wrapper {
-    width: 92%;
+  .features-section {
+    padding: 3rem 1rem;
   }
 
-  .features-heading .description {
-    max-width: 100%;
+  .features-heading {
+    margin-bottom: 2rem;
   }
 
   .features-grid {
-    grid-template-columns: 1fr;
+    gap: 1rem;
+  }
+
+  .feature-card {
+    padding: 1.5rem;
   }
 }

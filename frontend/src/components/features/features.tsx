@@ -1,43 +1,47 @@
 import './features.css';
 
 const featureList = [
-   {
-      title: 'Fluid Grid',
-      copy: 'Every column uses percentages, so your layout flows naturally no matter the device width.',
-   },
-   {
-      title: 'Utility Layers',
-      copy: 'Stack Bootstrap utilities on top of these base styles for instant customization.',
-   },
-   {
-      title: 'Composable Sections',
-      copy: 'Break the page into focused sections, each with its own folder and stylesheet.',
-   },
+  {
+    icon: '🎯',
+    title: 'Personalized Training',
+    copy: 'Games adapt to your skill level and focus on the cognitive areas you want to improve.',
+  },
+  {
+    icon: '📈',
+    title: 'Track Your Progress',
+    copy: 'Monitor your improvement over time with detailed analytics and insights.',
+  },
+  {
+    icon: '🧩',
+    title: 'Science-Based Games',
+    copy: 'Each game is designed to target specific cognitive functions like memory, attention, and processing speed.',
+  },
 ];
 
 const Features = () => {
-   return (
-      <section className="features-section">
-         <div className="features-wrapper">
-            <div className="features-heading">
-               <p className="eyebrow">Sections</p>
-               <h2>Additional components that mirror the main module</h2>
-               <p className="description">
-                  Use this area to describe any add-ons, services, or highlights
-                  you want to present beneath the hero.
-               </p>
-            </div>
-            <div className="features-grid">
-               {featureList.map((feature) => (
-                  <article className="feature-card" key={feature.title}>
-                     <h3>{feature.title}</h3>
-                     <p>{feature.copy}</p>
-                  </article>
-               ))}
-            </div>
-         </div>
-      </section>
-   );
+  return (
+    <section className="features-section">
+      <div className="features-wrapper">
+        <div className="features-heading">
+          <p className="eyebrow">How It Works</p>
+          <h2>Train your brain in minutes a day</h2>
+          <p className="description">
+            Our cognitive training platform uses engaging games to help you maintain
+            and improve your mental abilities.
+          </p>
+        </div>
+        <div className="features-grid">
+          {featureList.map((feature) => (
+            <article className="feature-card" key={feature.title}>
+              <div className="feature-icon">{feature.icon}</div>
+              <h3>{feature.title}</h3>
+              <p>{feature.copy}</p>
+            </article>
+          ))}
+        </div>
+      </div>
+    </section>
+  );
 };
 
 export default Features;
