@@ -10,6 +10,16 @@ import adminRoutes from './routes/adminRoutes.js';
 
 dotenv.config();
 
+// Validate required environment variables
+const requiredEnvVars = ['MONGO_URI', 'JWT_SECRET'];
+const missingVars = requiredEnvVars.filter(varName => !process.env[varName]);
+
+if (missingVars.length > 0) {
+  console.error(`ERROR: Missing required environment variables: ${missingVars.join(', ')}`);
+  console.error('Please create a .env file with these variables.');
+  process.exit(1);
+}
+
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = dirname(__filename);
 

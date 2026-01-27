@@ -26,7 +26,7 @@ const ChatAssistant = () => {
 
       try {
          const response = await axios.post(
-            'http://localhost:3000/api/askAI',
+            '/api/askAI',
             { prompt: promptText },
             { headers: { 'Content-Type': 'application/json' } }
          );
