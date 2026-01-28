@@ -1,6 +1,6 @@
 // middleware/authMiddleware.js
 import jwt from "jsonwebtoken";
-import User from "../models/User.js"; // Import your User model
+import { userFirebaseService } from "../services/user.js";
 
 // Protected route - verifies JWT and attaches full user to req.user
 export const protect = async (req, res, next) => {
@@ -23,15 +23,16 @@ export const protect = async (req, res, next) => {
     // Verify token
     const decoded = jwt.verify(token, process.env.JWT_SECRET);
 
-    // Fetch fresh user from DB (important for security & up-to-date role)
-    const user = await User.findById(decoded.id).select("-password");
+    // Fetch fresh user from Firebase (important for security & up-to-date role)
+    const user = await userFirebaseService.findById(decoded.id);
 
     if (!user) {
       return res.status(401).json({ message: "User not found" });
     }
 
-    // Attach full user object to request
-    req.user = user;
+    // Remove password and attach user to request
+    const { password, ...userWithoutPassword } = user;
+    req.user = userWithoutPassword;
     next();
   } catch (err) {
     console.error("Token verification failed:", err.message);

@@ -2,17 +2,17 @@ import express from 'express';
 import { fileURLToPath } from 'url';
 import { dirname, join } from 'path';
 import cors from 'cors';
-import mongoose from 'mongoose';
 import dotenv from 'dotenv';
 import Routes from './routes/Routes.js';
 import authRoutes from './routes/auth.js';
 import adminRoutes from './routes/adminRoutes.js';
-import firebaseConfig from './config/firebase.js';
+import './config/firebase.js';
 
+// Load environment variables first
 dotenv.config();
 
 // Validate required environment variables
-const requiredEnvVars = ['MONGO_URI', 'JWT_SECRET'];
+const requiredEnvVars = ['JWT_SECRET', 'FIREBASE_PROJECT_ID', 'FIREBASE_CLIENT_EMAIL', 'FIREBASE_PRIVATE_KEY'];
 const missingVars = requiredEnvVars.filter(varName => !process.env[varName]);
 
 if (missingVars.length > 0) {
@@ -26,9 +26,8 @@ const __dirname = dirname(__filename);
 
 const app = express();
 
-mongoose.connect(process.env.MONGO_URI)
-  .then(() => console.log('MongoDB Connected!'))
-  .catch((err) => console.log('MongoDB Connection Error:', err));
+// Firebase is initialized via import
+console.log('Firebase Connected!');
 
 app.use(
    cors({

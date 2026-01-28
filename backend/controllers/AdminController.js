@@ -1,10 +1,12 @@
-import User from "../models/User.js";
+import { userFirebaseService } from "../services/user.js";
 
 // ===== GET ALL USERS =====
 export const getAllUsers = async (req, res) => {
   try {
-    const users = await User.find().select("-password");
-    res.json(users);
+    const users = await userFirebaseService.findAll();
+    // Remove password from response
+    const usersWithoutPassword = users.map(({ password, ...user }) => user);
+    res.json(usersWithoutPassword);
   } catch (err) {
     res.status(500).json({ message: "Failed to fetch users" });
   }
@@ -19,13 +21,9 @@ export const updateUserRole = async (req, res) => {
   }
 
   try {
-    const user = await User.findByIdAndUpdate(
-      req.params.id,
-      { role },
-      { new: true }
-    ).select("-password");
-
-    res.json(user);
+    const user = await userFirebaseService.updateUser(req.params.id, { role });
+    const { password, ...userWithoutPassword } = user;
+    res.json(userWithoutPassword);
   } catch (err) {
     res.status(500).json({ message: "Failed to update role" });
   }
@@ -36,21 +34,18 @@ export const updateUser = async (req, res) => {
   const { name, email } = req.body;
 
   try {
-    const user = await User.findByIdAndUpdate(
-      req.params.id,
-      { name, email },
-      { new: true }
-    ).select("-password");
-
-    res.json(user);
+    const user = await userFirebaseService.updateUser(req.params.id, { name, email });
+    const { password, ...userWithoutPassword } = user;
+    res.json(userWithoutPassword);
   } catch (err) {
     res.status(500).json({ message: "Failed to update user" });
   }
 };
+
 // ===== DELETE USER =====
 export const deleteUser = async (req, res) => {
   try {
-    await User.findByIdAndDelete(req.params.id);
+    await userFirebaseService.deleteUser(req.params.id);
     res.json({ message: "User deleted successfully" });
   } catch (err) {
     res.status(500).json({ message: "Failed to delete user" });
