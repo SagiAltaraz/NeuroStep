@@ -7,6 +7,7 @@ import dotenv from 'dotenv';
 import Routes from './routes/Routes.js';
 import authRoutes from './routes/auth.js';
 import adminRoutes from './routes/adminRoutes.js';
+import firebaseConfig from './config/firebase.js';
 
 dotenv.config();
 
