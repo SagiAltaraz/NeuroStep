@@ -8,7 +8,7 @@ if (!JWT_SECRET) {
 
 export const generateToken = (user) => {
   return jwt.sign(
-    { id: user._id, role: user.role },
+    { id: user.id || user._id, role: user.role },
     JWT_SECRET,
     { expiresIn: "7d" }
   );

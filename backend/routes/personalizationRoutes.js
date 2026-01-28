@@ -1,6 +1,6 @@
 import express from "express";
 import { protect } from "../middleware/authMiddleware.js";
-import User from "../models/User.js";
+import { userFirebaseService } from "../services/user.js";
 
 const router = express.Router();
 
@@ -8,27 +8,24 @@ const router = express.Router();
 router.post("/profile/save", protect, async (req, res) => {
   try {
     const { answers, prompt } = req.body;
-    const userId = req.user._id; // From protect middleware
+    const userId = req.user.id; // From protect middleware
 
     if (!userId) {
       return res.status(401).json({ error: "Unauthorized" });
     }
 
     // Update the user with personalization data
-    const updatedUser = await User.findByIdAndUpdate(
-      userId,
-      {
-        personalizationAnswers: answers,
-        personalizationPrompt: prompt,
-        profileCompletedAt: new Date(),
-      },
-      { new: true }
-    ).select("-password");
+    const updatedUser = await userFirebaseService.updatePersonalization(userId, {
+      answers,
+      prompt,
+    });
+
+    const { password, ...userWithoutPassword } = updatedUser;
 
     res.json({
       success: true,
       message: "Profile saved successfully",
-      user: updatedUser,
+      user: userWithoutPassword,
     });
   } catch (error) {
     console.error("Error saving profile:", error);
@@ -39,21 +36,27 @@ router.post("/profile/save", protect, async (req, res) => {
 // Get user personalization profile
 router.get("/profile", protect, async (req, res) => {
   try {
-    const userId = req.user._id;
+    const userId = req.user.id;
 
     if (!userId) {
       return res.status(401).json({ error: "Unauthorized" });
     }
 
-    const user = await User.findById(userId).select(
-      "id email name personalizationAnswers personalizationPrompt profileCompletedAt"
-    );
+    const user = await userFirebaseService.findById(userId);
 
     if (!user) {
       return res.status(404).json({ error: "User not found" });
     }
 
-    res.json(user);
+    // Return only needed fields
+    res.json({
+      id: user.id,
+      email: user.email,
+      name: user.name,
+      personalizationAnswers: user.personalizationAnswers,
+      personalizationPrompt: user.personalizationPrompt,
+      profileCompletedAt: user.profileCompletedAt,
+    });
   } catch (error) {
     console.error("Error fetching profile:", error);
     res.status(500).json({ error: "Failed to fetch profile" });
