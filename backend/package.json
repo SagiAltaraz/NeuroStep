@@ -17,10 +17,7 @@
     "express": "^5.2.1",
     "firebase-admin": "^13.6.0",
     "jsonwebtoken": "^9.0.3",
-    "mongodb": "^7.0.0",
-    "mongoose": "^8.20.0",
     "openai": "^6.9.1",
-    "prisma": "^7.2.0",
     "tiktoken": "^1.0.22"
   }
 }

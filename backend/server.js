@@ -1,15 +1,18 @@
+import dotenv from 'dotenv';
+// Load environment variables FIRST - before any other imports that need them
+dotenv.config();
+
 import express from 'express';
 import { fileURLToPath } from 'url';
 import { dirname, join } from 'path';
 import cors from 'cors';
-import dotenv from 'dotenv';
 import Routes from './routes/Routes.js';
 import authRoutes from './routes/auth.js';
 import adminRoutes from './routes/adminRoutes.js';
-import './config/firebase.js';
+import personalizationRoutes from './routes/personalizationRoutes.js';
 
-// Load environment variables first
-dotenv.config();
+// Import Firebase AFTER dotenv
+import './config/firebase.js';
 
 // Validate required environment variables
 const requiredEnvVars = ['JWT_SECRET', 'FIREBASE_PROJECT_ID', 'FIREBASE_CLIENT_EMAIL', 'FIREBASE_PRIVATE_KEY'];
@@ -26,7 +29,6 @@ const __dirname = dirname(__filename);
 
 const app = express();
 
-// Firebase is initialized via import
 console.log('Firebase Connected!');
 
 app.use(
@@ -40,13 +42,15 @@ app.use(express.json());
 
 // API routes
 app.use("/api/auth", authRoutes);
-app.use("/api", Routes);
+app.use("/api/personalization", personalizationRoutes);
 app.use("/api/admin", adminRoutes);
+app.use("/api", Routes);
 
+// Static files (only in production)
 const frontendPath = join(__dirname, "../frontend/dist");
 app.use(express.static(frontendPath));
 
-app.use("/", (req, res) => {
+app.get("/{*path}", (req, res) => {
   res.sendFile(join(frontendPath, "index.html"));
 });
 

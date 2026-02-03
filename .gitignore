@@ -2,4 +2,12 @@
 .env.local
 .env.*.local
 
-/generated/prisma
+# macOS
+.DS_Store
+
+# Dependencies
+node_modules/
+
+# Build outputs
+dist/
+build/
