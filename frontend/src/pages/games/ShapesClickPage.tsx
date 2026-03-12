@@ -1,0 +1,33 @@
+import { useState } from 'react';
+import { useNavigate } from 'react-router-dom';
+import { ChevronRight } from 'lucide-react';
+import ShapesClickInstructions from '../../components/game-instructions/ShapesClickInstructions';
+
+function ShapesClickGame() {
+  const navigate = useNavigate();
+
+  return (
+    <div className="flex flex-col items-center justify-center min-h-[70vh] gap-4" dir="rtl">
+      <button
+        onClick={() => navigate('/games')}
+        className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-full text-sm font-medium text-blue-600 bg-blue-50 hover:bg-blue-100 border border-blue-100 transition-colors duration-200 self-end ml-8"
+      >
+        <ChevronRight size={14} />
+        חזור
+      </button>
+      <div style={{ fontSize: '3.5rem' }}>🔵🔺🟥</div>
+      <h2 style={{ fontSize: '1.75rem', fontWeight: 700, color: '#1a365d' }}>צורות שקופצות</h2>
+      <p style={{ color: '#4a6fa5', fontSize: '1rem' }}>המשחק בפיתוח ‒ בקרוב!</p>
+    </div>
+  );
+}
+
+export default function ShapesClickPage() {
+  const [showInstructions, setShowInstructions] = useState(true);
+
+  if (showInstructions) {
+    return <ShapesClickInstructions onStart={() => setShowInstructions(false)} />;
+  }
+
+  return <ShapesClickGame />;
+}

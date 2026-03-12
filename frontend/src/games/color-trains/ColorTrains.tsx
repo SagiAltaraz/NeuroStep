@@ -1,4 +1,6 @@
 import { useEffect, useRef, useCallback } from 'react';
+import { useNavigate } from 'react-router-dom';
+import { ChevronRight } from 'lucide-react';
 import Phaser from 'phaser';
 import './ColorTrains.css';
 
@@ -993,6 +995,7 @@ interface ColorTrainsProps {
 }
 
 export default function ColorTrains({ config, onAction }: ColorTrainsProps) {
+  const navigate = useNavigate();
   const gameRef = useRef<HTMLDivElement>(null);
   const gameInstance = useRef<Phaser.Game | null>(null);
 
@@ -1035,6 +1038,15 @@ export default function ColorTrains({ config, onAction }: ColorTrainsProps) {
 
   return (
     <div className="color-trains-game">
+      <div className="game-back-row" dir="rtl">
+        <button
+          onClick={() => navigate('/games')}
+          className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-full text-sm font-medium text-blue-600 bg-blue-50 hover:bg-blue-100 border border-blue-100 transition-colors duration-200"
+        >
+          <ChevronRight size={14} />
+          חזור
+        </button>
+      </div>
       <div ref={gameRef} className="game-canvas" />
     </div>
   );

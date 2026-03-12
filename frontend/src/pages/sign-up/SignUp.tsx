@@ -1,5 +1,5 @@
-import { SignupForm } from '../../components/signup-form/signup-form';
-import './sign-up.css';
+import { SignupForm } from '../../components/signup-form/SignupForm';
+import './SignUp.css';
 
 export default function SignupPage() {
   return (
