@@ -59,6 +59,37 @@ export const userFirebaseService = {
   },
 
   /**
+   * יצירת משתמש חדש דרך Google (ללא סיסמה)
+   */
+  async createGoogleUser({ name, email, googleUid, role = 'user' }) {
+    if (!firestore) {
+      throw new Error('Firebase not initialized');
+    }
+
+    // נתוני המשתמש
+    const userData = {
+      name,
+      email,
+      password: null, // אין סיסמה למשתמשי Google
+      googleUid,
+      role,
+      personalizationAnswers: null,
+      personalizationPrompt: null,
+      profileCompletedAt: null,
+      createdAt: new Date(),
+      updatedAt: new Date(),
+    };
+
+    // יצירה עם ID אוטומטי של Firestore
+    const docRef = await firestore.collection(USERS_COLLECTION).add(userData);
+
+    return {
+      id: docRef.id,
+      ...userData,
+    };
+  },
+
+  /**
    * חיפוש משתמש לפי email
    */
   async findByEmail(email) {

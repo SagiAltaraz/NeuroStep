@@ -46,7 +46,6 @@ app.use("/api/personalization", personalizationRoutes);
 app.use("/api/admin", adminRoutes);
 app.use("/api", Routes);
 
-// Static files (only in production)
 const frontendPath = join(__dirname, "../frontend/dist");
 app.use(express.static(frontendPath));
 

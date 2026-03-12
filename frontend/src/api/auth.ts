@@ -24,14 +24,15 @@ export async function login(email: string, password: string) {
   return data;
 }
 
-export async function logout() {
-  const res = await fetch("/api/auth/logout", {
+export async function googleAuth(idToken: string) {
+  const res = await fetch("/api/auth/google", {
     method: "POST",
     headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({ idToken }),
   });
   const data = await res.json();
   if (!res.ok) {
-    return { error: data.message || "Logout failed" };
+    return { error: data.message || "Google authentication failed" };
   }
   return data;
 }

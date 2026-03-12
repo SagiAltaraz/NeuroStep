@@ -1,11 +1,4 @@
-// controllers/chatassistant.js
 import { OpenAI } from 'openai';
-import dotenv from 'dotenv';
-dotenv.config();
-
-const client = new OpenAI({
-   apiKey: process.env.OPENAI_API_KEY,
-});
 
 export const askFromOpenAI = async (req, res) => {
    const { prompt } = req.body;
@@ -14,14 +7,15 @@ export const askFromOpenAI = async (req, res) => {
       return res.status(400).json({ response: 'Please type a message.' });
    }
 
+   const client = new OpenAI({ apiKey: process.env.OPENAI_API_KEY });
+
    try {
       const completion = await client.chat.completions.create({
          model: 'gpt-4o-mini',
          messages: [
             {
                role: 'system',
-               content:
-                  'You are a friendly, helpful assistant. Answer in Hebrew unless asked otherwise.',
+               content: 'You are a friendly, helpful assistant. Answer in Hebrew unless asked otherwise.',
             },
             { role: 'user', content: prompt },
          ],
@@ -29,8 +23,7 @@ export const askFromOpenAI = async (req, res) => {
          max_tokens: 50,
       });
 
-      const reply =
-         completion.choices[0]?.message?.content?.trim() || 'לא הבנתי...';
+      const reply = completion.choices[0]?.message?.content?.trim() || 'לא הבנתי...';
       res.json({ response: reply });
    } catch (error) {
       console.error('OpenAI Error:', error);
