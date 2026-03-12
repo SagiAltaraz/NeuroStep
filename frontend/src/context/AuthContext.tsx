@@ -1,5 +1,7 @@
 import { createContext, useContext, useState } from "react";
 import type { ReactNode } from "react";
+import { signInWithPopup } from "firebase/auth";
+import { auth, googleProvider } from "../config/firebase";
 import * as authAPI from "../api/auth";
 
 export type UserRole = "user" | "admin";
@@ -23,6 +25,7 @@ interface AuthContextType {
   isAdmin: boolean;
   login: (email: string, password: string) => Promise<AuthResponse>;
   signup: (name: string, email: string, password: string) => Promise<AuthResponse>;
+  loginWithGoogle: () => Promise<AuthResponse>;
   logout: () => void;
 }
 
@@ -66,6 +69,31 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
     return data;
   };
 
+  const loginWithGoogle = async (): Promise<AuthResponse> => {
+    try {
+      // Sign in with Google using Firebase
+      const result = await signInWithPopup(auth, googleProvider);
+
+      // Get the ID token from the signed-in user
+      const idToken = await result.user.getIdToken();
+
+      // Send the ID token to our backend for verification and JWT generation
+      const data = await authAPI.googleAuth(idToken);
+
+      if (data.token && data.user) {
+        setUser(data.user);
+        setToken(data.token);
+        localStorage.setItem("token", data.token);
+        localStorage.setItem("user", JSON.stringify(data.user));
+      }
+
+      return data;
+    } catch (error) {
+      console.error("Google sign-in error:", error);
+      return { error: "Google sign-in failed. Please try again." };
+    }
+  };
+
   const logout = () => {
     setUser(null);
     setToken(null);
@@ -74,7 +102,7 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
   };
 
   return (
-    <AuthContext.Provider value={{ user, token, isAdmin, login, signup, logout }}>
+    <AuthContext.Provider value={{ user, token, isAdmin, login, signup, loginWithGoogle, logout }}>
       {children}
     </AuthContext.Provider>
   );

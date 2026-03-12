@@ -4,18 +4,10 @@ import { userFirebaseService } from "../services/user.js";
 
 const router = express.Router();
 
-// Save personalization profile
 router.post("/profile/save", protect, async (req, res) => {
   try {
     const { answers, prompt } = req.body;
-    const userId = req.user.id; // From protect middleware
-
-    if (!userId) {
-      return res.status(401).json({ error: "Unauthorized" });
-    }
-
-    // Update the user with personalization data
-    const updatedUser = await userFirebaseService.updatePersonalization(userId, {
+    const updatedUser = await userFirebaseService.updatePersonalization(req.user.id, {
       answers,
       prompt,
     });
@@ -33,22 +25,14 @@ router.post("/profile/save", protect, async (req, res) => {
   }
 });
 
-// Get user personalization profile
 router.get("/profile", protect, async (req, res) => {
   try {
-    const userId = req.user.id;
-
-    if (!userId) {
-      return res.status(401).json({ error: "Unauthorized" });
-    }
-
-    const user = await userFirebaseService.findById(userId);
+    const user = await userFirebaseService.findById(req.user.id);
 
     if (!user) {
       return res.status(404).json({ error: "User not found" });
     }
 
-    // Return only needed fields
     res.json({
       id: user.id,
       email: user.email,
