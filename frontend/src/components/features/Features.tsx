@@ -1,4 +1,4 @@
-import './features.css';
+import './Features.css';
 
 const featureList = [
   {

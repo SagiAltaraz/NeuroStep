@@ -9,6 +9,13 @@
   background: linear-gradient(180deg, #f0f7ff 0%, #e1effe 100%);
 }
 
+.game-back-row {
+  width: 100%;
+  display: flex;
+  justify-content: flex-start;
+  margin-bottom: 0.75rem;
+}
+
 .game-canvas {
   border-radius: 16px;
   overflow: hidden;

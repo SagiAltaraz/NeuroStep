@@ -1,4 +1,4 @@
-import './home.css';
+import './Home.css';
 import { Button } from '../../components/ui/button';
 import { useNavigate } from 'react-router-dom';
 import { useAuth } from '../../context/AuthContext';
@@ -8,7 +8,7 @@ const Home = () => {
   const { user } = useAuth();
 
   const handlePlayClick = () => {
-    navigate('/games/colorTracking');
+    navigate('/games');
   };
 
   return (

@@ -1,23 +1,32 @@
 import React from 'react';
+import { useNavigate } from 'react-router-dom';
+import { ChevronRight } from 'lucide-react';
 import { Card, CardHeader, CardTitle, CardDescription, CardContent, CardFooter } from '../ui/card';
 import { Button } from '../ui/button';
 
-interface GameInstructionsProps {
-  gameName: string;
+interface ColorTrainsInstructionsProps {
   onStart: () => void;
 }
 
-const GameInstructions: React.FC<GameInstructionsProps> = ({ gameName, onStart }) => {
+const ColorTrainsInstructions: React.FC<ColorTrainsInstructionsProps> = ({ onStart }) => {
+  const navigate = useNavigate();
+
   return (
     <div className="flex items-center justify-center min-h-[80vh] p-4" dir="rtl">
-      <Card className="max-w-lg w-full">
+      <Card className="relative max-w-lg w-full">
+        <button
+          onClick={() => navigate('/games')}
+          className="absolute top-3 right-3 inline-flex items-center gap-1.5 px-3 py-1.5 rounded-full text-sm font-medium text-blue-600 bg-blue-50 hover:bg-blue-100 border border-blue-100 transition-colors duration-200"
+        >
+          <ChevronRight size={14} />
+          חזור
+        </button>
         <CardHeader className="text-center">
-          <CardTitle className="text-2xl">{gameName}</CardTitle>
+          <CardTitle className="text-2xl">🚂 רכבות הצבעים</CardTitle>
           <CardDescription>אימון קוגניטיבי לשיפור יכולות המוח</CardDescription>
         </CardHeader>
 
-        <CardContent className="space-y-6">
-          {/* Cognitive Benefits Section */}
+        <CardContent className="space-y-6 text-right">
           <div>
             <h3 className="font-semibold text-lg mb-2">יתרונות קוגניטיביים</h3>
             <ul className="list-disc list-inside space-y-1 text-sm text-gray-600">
@@ -29,7 +38,6 @@ const GameInstructions: React.FC<GameInstructionsProps> = ({ gameName, onStart }
             </ul>
           </div>
 
-          {/* Game Instructions Section */}
           <div>
             <h3 className="font-semibold text-lg mb-2">הוראות המשחק</h3>
             <ol className="list-decimal list-inside space-y-1 text-sm text-gray-600">
@@ -40,7 +48,6 @@ const GameInstructions: React.FC<GameInstructionsProps> = ({ gameName, onStart }
             </ol>
           </div>
 
-          {/* Tips Section */}
           <div>
             <h3 className="font-semibold text-lg mb-2">טיפים להצלחה</h3>
             <ul className="list-disc list-inside space-y-1 text-sm text-gray-600">
@@ -61,4 +68,4 @@ const GameInstructions: React.FC<GameInstructionsProps> = ({ gameName, onStart }
   );
 };
 
-export default GameInstructions;
+export default ColorTrainsInstructions;

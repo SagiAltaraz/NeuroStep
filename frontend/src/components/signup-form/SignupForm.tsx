@@ -17,7 +17,7 @@ import {
   FieldSeparator,
 } from "../ui/field";
 import { Input } from "../ui/input";
-import PersonalFormModal from "../startForm/PersonalFormModal";
+import PersonalFormModal from "../start-form/PersonalFormModal";
 import * as authAPI from "../../api/auth";
 
 export function SignupForm({ ...props }: React.ComponentProps<typeof Card>) {
