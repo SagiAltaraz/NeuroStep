@@ -1,4 +1,6 @@
-*.env
+# Environment files with real secrets — never commit these
+backend/.env
+backend/game-server/.env
 .env.local
 .env.*.local
 
