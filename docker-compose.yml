@@ -1,6 +1,6 @@
 services:
 
-  # ── Existing backend REST API ──────────────────────────────────
+  # ── REST API (existing backend) ────────────────────────────────
   app:
     build:
       context: .
@@ -11,8 +11,23 @@ services:
       - ./backend/.env
     restart: unless-stopped
 
-  # ── Zookeeper — Kafka's coordinator ────────────────────────────
-  # Kafka uses ZooKeeper to elect leaders and track which brokers are alive.
+  # ── Game Server (WebSocket + Kafka producer + analytics agent) ─
+  game-server:
+    build:
+      context: ./backend/game-server
+      dockerfile: Dockerfile
+    ports:
+      - "3001:3001"
+    env_file:
+      - ./backend/.env
+    environment:
+      KAFKA_BROKER: kafka:29092   # inside Docker use internal listener
+    depends_on:
+      kafka:
+        condition: service_healthy
+    restart: unless-stopped
+
+  # ── Zookeeper ──────────────────────────────────────────────────
   zookeeper:
     image: confluentinc/cp-zookeeper:7.6.0
     container_name: neurostep-zookeeper
@@ -23,9 +38,6 @@ services:
       - "2181:2181"
 
   # ── Kafka broker ───────────────────────────────────────────────
-  # The actual event log. Every game click becomes a message here.
-  # Port 9092 → accessible from your machine (game-server → localhost:9092)
-  # Port 29092 → internal Docker network (other containers use kafka:29092)
   kafka:
     image: confluentinc/cp-kafka:7.6.0
     container_name: neurostep-kafka
@@ -46,9 +58,9 @@ services:
       test: ["CMD", "kafka-topics", "--bootstrap-server", "localhost:9092", "--list"]
       interval: 10s
       timeout: 10s
-      retries: 5
+      retries: 10
 
-  # ── Kafka UI — browse topics and messages at http://localhost:8080 ──
+  # ── Kafka UI — http://localhost:8080 ───────────────────────────
   kafka-ui:
     image: provectuslabs/kafka-ui:latest
     container_name: neurostep-kafka-ui

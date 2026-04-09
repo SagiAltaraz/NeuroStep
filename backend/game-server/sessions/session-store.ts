@@ -1,20 +1,12 @@
 import type { WebSocket } from 'ws';
-import type { GameEvent } from '../types/game.types.js';
-
-// Concrete params used by the adaptive engine.
-// Currently shaped for shapes-click; will become a union or generic when
-// other games are wired up.
-export interface GameParams {
-  circleLifeMs:    number;
-  distractorCount: number;
-}
+import type { GameId }    from '../types/game.types.js';
+import { type AdaptiveState, createAdaptiveState } from '../agents/adaptive-agent.js';
 
 export interface SessionState {
-  sessionId:    string;
-  gameId:       string;
-  params:       GameParams;
-  window:       GameEvent[];   // rolling window of scored events
-  lastAdjustAt: number;
+  sessionId: string;
+  gameId:    GameId;
+  userId:    string;
+  adaptive:  AdaptiveState;
 }
 
 const sessions = new Map<WebSocket, SessionState>();
@@ -23,8 +15,15 @@ export function getSession(ws: WebSocket): SessionState | undefined {
   return sessions.get(ws);
 }
 
-export function setSession(ws: WebSocket, state: SessionState): void {
+export function initSession(ws: WebSocket, sessionId: string, gameId: GameId, userId: string): SessionState {
+  const state: SessionState = {
+    sessionId,
+    gameId,
+    userId,
+    adaptive: createAdaptiveState(sessionId, gameId, userId),
+  };
   sessions.set(ws, state);
+  return state;
 }
 
 export function deleteSession(ws: WebSocket): void {

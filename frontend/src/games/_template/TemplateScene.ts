@@ -20,7 +20,7 @@ interface SceneInitData {
 
 export class TemplateScene extends Phaser.Scene {
   // Injected via init()
-  private cfg!:       Record<string, unknown>;
+  protected cfg!:     Record<string, unknown>; // read in create() / applyParams()
   private onAction!:  (event: GameEvent) => void;
   private gameId!:    string;
   private sessionId!: string;

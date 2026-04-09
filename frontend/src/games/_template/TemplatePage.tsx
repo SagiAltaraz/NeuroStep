@@ -30,8 +30,9 @@ export default function TemplatePage() {
   // adjustment → server computed a difficulty change, apply it to the scene
   // sessionId  → unique per page load, included in every event automatically
   // isConnected → useful for a debug/status indicator
+  // STEP 1: replace 'shapes-click' with your GameId and add it to game.types.ts
   const { sendEvent, adjustment, isConnected, sessionId } =
-    useGameSession('REPLACE_WITH_GAME_ID'); // STEP 1
+    useGameSession('shapes-click' /* STEP 1: replace with your GameId */);
 
   const containerRef = useRef<HTMLDivElement>(null);
   const gameRef      = useRef<Phaser.Game | null>(null);
