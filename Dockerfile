@@ -2,7 +2,7 @@
 FROM oven/bun:1 AS frontend-build
 WORKDIR /frontend
 COPY frontend/package.json frontend/bun.lock ./
-RUN bun install --frozen-lockfile
+RUN bun install
 COPY frontend/ .
 RUN bun run build
 
@@ -10,7 +10,7 @@ RUN bun run build
 FROM oven/bun:1 AS deps
 WORKDIR /backend
 COPY backend/package.json backend/bun.lock ./
-RUN bun install --frozen-lockfile
+RUN bun install
 
 # Stage 3: Production runner
 FROM oven/bun:1
