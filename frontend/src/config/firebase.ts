@@ -18,6 +18,10 @@ const app = getApps().length === 0 ? initializeApp(firebaseConfig) : getApps()[0
 // Initialize Firebase Authentication
 export const auth = getAuth(app);
 
+// Firestore client — used by AdminStats and any component reading game data
+import { getFirestore } from 'firebase/firestore';
+export const db = getFirestore(app);
+
 // Google Auth Provider
 export const googleProvider = new GoogleAuthProvider();
 googleProvider.setCustomParameters({

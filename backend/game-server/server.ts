@@ -11,7 +11,9 @@ import { connectProducer, disconnectProducer,
 import { TOPICS }                                           from './kafka/topics.js';
 import { getSession, initSession, deleteSession }           from './sessions/session-store.js';
 import { processEvent }                                     from './agents/adaptive-agent.js';
-import { startAnalyticsAgent }                              from './agents/analytics-agent.js';
+import { startAnalyticsAgent, getSessionSnapshot }          from './agents/analytics-agent.js';
+import { generateSessionReport }                            from './agents/report-agent.js';
+import type { AdjustmentRecord }                            from './agents/report-agent.js';
 
 // ── WebSocket server ───────────────────────────────────────────────────────────
 
@@ -21,6 +23,9 @@ const wss  = new WebSocketServer({ port: PORT });
 wss.on('listening', () => console.log(`[GameServer] WebSocket on ws://localhost:${PORT}`));
 
 wss.on('connection', (ws: WebSocket) => {
+  // Per-connection adjustment log — used by report-agent on close
+  const adjustmentLog: AdjustmentRecord[] = [];
+
   ws.on('message', async (raw: Buffer) => {
     let event: GameEvent;
     try { event = JSON.parse(raw.toString()) as GameEvent; }
@@ -62,6 +67,14 @@ wss.on('connection', (ws: WebSocket) => {
 
     console.log(`[Adaptive] → ${result.reason} | params:`, result.params);
 
+    // Record for end-of-session report
+    adjustmentLog.push({
+      reason:    result.reason ?? '',
+      direction: result.params && Object.values(result.params).some(v => typeof v === 'number' && v > 0)
+                   ? 'harder' : 'easier',
+      at:        Date.now(),
+    });
+
     // ── 4. Send adjustment to game ───────────────────────────────
     if (ws.readyState === WebSocket.OPEN) {
       ws.send(JSON.stringify({
@@ -81,7 +94,21 @@ wss.on('connection', (ws: WebSocket) => {
     }).catch(err => console.error('[Kafka] adjustments:', (err as Error).message));
   });
 
-  ws.on('close', () => deleteSession(ws));
+  ws.on('close', () => {
+    const session = getSession(ws);
+    if (session && session.adaptive.totalScoredEvents >= 5) {
+      const snapshot = getSessionSnapshot(session.sessionId);
+      if (snapshot) {
+        generateSessionReport({
+          sessionId:   session.sessionId,
+          snapshot,
+          adaptive:    session.adaptive,
+          adjustments: adjustmentLog,
+        }).catch(err => console.error('[Report] Failed:', (err as Error).message));
+      }
+    }
+    deleteSession(ws);
+  });
   ws.on('error', (err) => console.error('[GameServer] WS error:', err.message));
 });
 
