@@ -11,3 +11,10 @@ node_modules/
 # Build outputs
 dist/
 build/
+
+# Claude Code local state
+.claude/
+
+# Local project dump tooling
+dump-project.ps1
+project-dump.txt
