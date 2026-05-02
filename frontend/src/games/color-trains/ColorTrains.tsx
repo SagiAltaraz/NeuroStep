@@ -2,1039 +2,514 @@ import { useEffect, useRef, useCallback } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { ChevronRight } from 'lucide-react';
 import Phaser from 'phaser';
+import type { GameAdjustment } from '../../hooks/useGameSession';
 import './ColorTrains.css';
 
-// =============================================================================
-// GAME CONFIGURATION - Ready for Kafka integration
-// =============================================================================
-export interface GameConfig {
-  canvasWidth: number;
-  canvasHeight: number;
-  trainSpeed: number;
-  reactionTimeMs: number;
-  stations: StationConfig[];
-}
-
-export interface StationConfig {
-  id: string;
-  name: string;
-  color: string;
-  colorHex: number;
-}
-
-const DEFAULT_CONFIG: GameConfig = {
-  canvasWidth: 1100,
-  canvasHeight: 700,
-  trainSpeed: 80,
-  reactionTimeMs: 10000,
-  stations: [
-    { id: 'red', name: 'Red', color: '#c62828', colorHex: 0xc62828 },
-    { id: 'green', name: 'Green', color: '#2e7d32', colorHex: 0x2e7d32 },
-    { id: 'blue', name: 'Blue', color: '#1565c0', colorHex: 0x1565c0 },
-  ],
-};
-
-// =============================================================================
-// GAME STATE & ACTIONS - For Kafka integration
-// =============================================================================
-export interface GameState {
-  score: number;
-  roundNumber: number;
-  currentTrainColor: string | null;
-  roundStartTime: number;
-  isRoundActive: boolean;
-}
+// ─── Types ────────────────────────────────────────────────────────
 
 export interface GameAction {
-  type: 'ROUND_START' | 'STATION_SELECTED' | 'ROUND_END' | 'TIMEOUT' | 'MISSED_SWITCH';
+  type: 'ROUND_START' | 'STATION_SELECTED' | 'MISSED_SWITCH' | 'ROUND_END';
   timestamp: number;
   payload: Record<string, unknown>;
 }
 
-// =============================================================================
-// TRACK PATH DEFINITIONS
-// =============================================================================
-interface TrackPath {
-  points: { x: number; y: number }[];
-  stationId: string | null; // null for dead-end track
+interface StationConfig {
+  id:       string;
+  label:    string;        // Hebrew label shown on sign
+  colorHex: number;
+  cssColor: string;
 }
 
-// =============================================================================
-// PHASER SCENE
-// =============================================================================
+interface GameConfig {
+  trainSpeedPx: number;    // pixels per second
+  reactionMs:   number;    // window before switch is reached
+}
+
+const DEFAULT_CONFIG: GameConfig = { trainSpeedPx: 120, reactionMs: 6000 };
+
+const STATIONS: StationConfig[] = [
+  { id: 'red',   label: 'אדום',  colorHex: 0xe53935, cssColor: '#e53935' },
+  { id: 'blue',  label: 'כחול',  colorHex: 0x1e88e5, cssColor: '#1e88e5' },
+  { id: 'green', label: 'ירוק',  colorHex: 0x43a047, cssColor: '#43a047' },
+];
+
+// ─── Scene ────────────────────────────────────────────────────────
+
 class TrainScene extends Phaser.Scene {
-  private config: GameConfig = DEFAULT_CONFIG;
+  private cfg:      GameConfig = DEFAULT_CONFIG;
+  private onAction?: (a: GameAction) => void;
+  private onReady?:  (s: TrainScene) => void;
 
-  // Track system
-  private trackPaths: TrackPath[] = [];
-  private deadEndPath: TrackPath | null = null;
-  private switchPointX: number = 0;
-  private mainTrackY: number = 0;
-
-  // Train
-  private trainContainer: Phaser.GameObjects.Container | null = null;
-  private trainPath: { x: number; y: number }[] = [];
-  private trainProgress: number = 0;
-  private hasPassedSwitch: boolean = false;
+  // Layout
+  private W = 960;
+  private H = 580;
+  private switchX = 0;
+  private trackY  = 0;
 
   // Stations
-  private stationContainers: Map<string, Phaser.GameObjects.Container> = new Map();
+  private stationY: number[] = [];
+  private stationX  = 0;
+  private stationBtns: Map<string, Phaser.GameObjects.Container> = new Map();
 
-  // UI
+  // Round state
+  private trainContainer:  Phaser.GameObjects.Container | null = null;
+  private trainX   = -120;
+  private trainPathY = 0;
+  private pastSwitch = false;
+  private chosenId:  string | null = null;
+  private targetId:  string | null = null;
+  private roundStart = 0;
+  private isActive   = false;
+
+  // Score
+  private score = 0;
   private scoreText!: Phaser.GameObjects.Text;
-  private timerBar!: Phaser.GameObjects.Rectangle;
-  private timerBarBg!: Phaser.GameObjects.Rectangle;
-  private feedbackText!: Phaser.GameObjects.Text;
-  private warningText!: Phaser.GameObjects.Text;
+  private roundText!: Phaser.GameObjects.Text;
+  private timerBar!:  Phaser.GameObjects.Rectangle;
+  private feedbackTx!: Phaser.GameObjects.Text;
 
-  // State
-  private state: GameState = {
-    score: 0,
-    roundNumber: 0,
-    currentTrainColor: null,
-    roundStartTime: 0,
-    isRoundActive: false,
-  };
+  constructor() { super({ key: 'TrainScene' }); }
 
-  private selectedStationId: string | null = null;
-  private onAction?: (action: GameAction) => void;
-
-  constructor() {
-    super({ key: 'TrainScene' });
-  }
-
-  init(data: { config?: GameConfig; onAction?: (action: GameAction) => void }) {
-    if (data.config) this.config = data.config;
+  init(data: { config?: Partial<GameConfig>; onAction?: (a: GameAction) => void; onReady?: (s: TrainScene) => void }) {
+    if (data.config)   this.cfg      = { ...DEFAULT_CONFIG, ...data.config };
     if (data.onAction) this.onAction = data.onAction;
+    if (data.onReady)  this.onReady  = data.onReady;
   }
 
   create() {
-    const { canvasWidth: w, canvasHeight: h } = this.config;
+    this.switchX  = this.W * 0.52;
+    this.trackY   = this.H * 0.62;
+    this.stationX = this.W * 0.88;
+    this.stationY = [this.H * 0.20, this.H * 0.52, this.H * 0.84];
 
-    // Switch point is at 55% - closer to stations
-    this.mainTrackY = h * 0.5;
-    this.switchPointX = w * 0.55;
+    this.drawBackground();
+    this.drawMainTrack();
+    this.drawBranchTracks();
+    this.drawSwitch();
+    this.buildStations();
+    this.buildUI();
 
-    this.createBackground();
-    this.createTrackSystem();
-    this.createStations();
-    this.createUI();
-    this.startNewRound();
+    this.onReady?.(this);
+    this.time.delayedCall(600, () => this.startRound());
   }
 
-  // ---------------------------------------------------------------------------
-  // BACKGROUND - Clean and professional
-  // ---------------------------------------------------------------------------
-  private createBackground() {
-    const { canvasWidth: w, canvasHeight: h } = this.config;
-
-    // Sky gradient - subtle and professional
-    const sky = this.add.graphics();
-    sky.fillGradientStyle(0xe3f2fd, 0xe3f2fd, 0xbbdefb, 0xbbdefb, 1);
-    sky.fillRect(0, 0, w, h * 0.6);
-
-    // Ground - earthy tones
-    const ground = this.add.graphics();
-    ground.fillGradientStyle(0x8d6e63, 0x8d6e63, 0x6d4c41, 0x6d4c41, 1);
-    ground.fillRect(0, h * 0.6, w, h * 0.4);
-
-    // Horizon grass strip
-    this.add.rectangle(w / 2, h * 0.6, w, 8, 0x558b2f);
-
-    // Subtle clouds
-    this.createCloud(100, 80, 0.6);
-    this.createCloud(400, 50, 0.8);
-    this.createCloud(700, 70, 0.7);
-    this.createCloud(950, 90, 0.5);
-
-    // Distant trees silhouette
-    this.createTreeLine();
+  // ── Apply server difficulty update ──────────────────────────────
+  applyParams(params: GameAdjustment) {
+    if (typeof params.trainSpeedPx === 'number')
+      this.cfg.trainSpeedPx = Math.max(60, Math.min(280, params.trainSpeedPx));
+    if (typeof params.reactionMs === 'number')
+      this.cfg.reactionMs = Math.max(2000, Math.min(10000, params.reactionMs));
   }
 
-  private createCloud(x: number, y: number, alpha: number) {
-    const cloud = this.add.graphics();
-    cloud.fillStyle(0xffffff, alpha);
-    cloud.fillEllipse(0, 0, 60, 25);
-    cloud.fillEllipse(25, -5, 50, 22);
-    cloud.fillEllipse(-20, 3, 40, 20);
-    cloud.setPosition(x, y);
-  }
+  // ── Background ──────────────────────────────────────────────────
+  private drawBackground() {
+    const g = this.add.graphics();
+    // Sky
+    g.fillGradientStyle(0xbfdbfe, 0xbfdbfe, 0xdbeafe, 0xdbeafe, 1);
+    g.fillRect(0, 0, this.W, this.H * 0.68);
+    // Ground
+    g.fillGradientStyle(0x6b7280, 0x6b7280, 0x4b5563, 0x4b5563, 1);
+    g.fillRect(0, this.H * 0.68, this.W, this.H * 0.32);
+    // Horizon strip
+    this.add.rectangle(this.W / 2, this.H * 0.68, this.W, 6, 0x16a34a);
 
-  private createTreeLine() {
-    const { canvasWidth: w, canvasHeight: h } = this.config;
-    const trees = this.add.graphics();
-    trees.fillStyle(0x2e7d32, 0.4);
-
-    for (let x = 0; x < w; x += 30) {
-      const height = 20 + Math.random() * 30;
-      trees.fillTriangle(
-        x, h * 0.6,
-        x + 15, h * 0.6 - height,
-        x + 30, h * 0.6
-      );
-    }
-  }
-
-  // ---------------------------------------------------------------------------
-  // TRACK SYSTEM - Switch point closer to stations
-  // ---------------------------------------------------------------------------
-  private createTrackSystem() {
-    const { canvasWidth: w, canvasHeight: h, stations } = this.config;
-
-    const graphics = this.add.graphics();
-
-    // Station positions - on the right side
-    const stationYPositions = [h * 0.22, h * 0.5, h * 0.78];
-    const stationX = w * 0.92;
-
-    // Create branch tracks to each station
-    stations.forEach((station, index) => {
-      const stationY = stationYPositions[index];
-
-      const path = this.createBranchPath(stationX - 50, stationY);
-      this.trackPaths.push({
-        points: path,
-        stationId: station.id,
+    // Distant mountains
+    const mtn = this.add.graphics();
+    mtn.fillStyle(0x93c5fd, 0.35);
+    [[80, 0.62, 120], [220, 0.55, 160], [400, 0.58, 140], [600, 0.52, 180], [800, 0.60, 110]]
+      .forEach(([x, yf, size]) => {
+        mtn.fillTriangle(x as number - size/2, this.H*(yf as number), x as number + size/2, this.H*(yf as number), x as number, this.H*(yf as number) - (size as number)*0.7);
       });
 
-      this.drawTrack(graphics, path);
-    });
-
-    // Dead-end track (goes straight off screen)
-    const deadEndPath = this.createDeadEndPath();
-    this.deadEndPath = {
-      points: deadEndPath,
-      stationId: null,
-    };
-    this.drawTrack(graphics, deadEndPath);
-
-    // Main track before switch
-    this.drawMainTrack(graphics);
-
-    // Switch junction
-    this.drawSwitch(graphics);
+    // Clouds
+    [100, 320, 580, 750].forEach((cx, i) => this.drawCloud(cx, 40 + i * 12));
   }
 
-  private createBranchPath(endX: number, endY: number): { x: number; y: number }[] {
-    const points: { x: number; y: number }[] = [];
+  private drawCloud(x: number, y: number) {
+    const g = this.add.graphics();
+    g.fillStyle(0xffffff, 0.85);
+    g.fillEllipse(x,      y,      70, 28);
+    g.fillEllipse(x + 22, y - 8,  50, 24);
+    g.fillEllipse(x - 18, y + 2,  44, 20);
+  }
 
-    // Start from switch point
-    const startX = this.switchPointX;
-    const startY = this.mainTrackY;
+  // ── Tracks ──────────────────────────────────────────────────────
+  private drawMainTrack() {
+    this.drawTrack([{ x: -50, y: this.trackY }, { x: this.switchX, y: this.trackY }]);
+  }
 
-    // Use smooth S-curve
-    const numPoints = 40;
-    for (let i = 0; i <= numPoints; i++) {
-      const t = i / numPoints;
+  private drawBranchTracks() {
+    STATIONS.forEach((_, i) => {
+      const endY = this.stationY[i];
+      const pts  = this.bezierPoints(this.switchX, this.trackY, this.stationX - 40, endY);
+      this.drawTrack(pts);
+    });
+  }
 
-      // Control points for smooth curve
-      const cp1x = startX + (endX - startX) * 0.3;
-      const cp1y = startY;
-      const cp2x = startX + (endX - startX) * 0.7;
-      const cp2y = endY;
-
-      // Cubic bezier
+  private bezierPoints(x0: number, y0: number, x1: number, y1: number): { x: number; y: number }[] {
+    const pts: { x: number; y: number }[] = [];
+    const cpx0 = x0 + (x1 - x0) * 0.4, cpy0 = y0;
+    const cpx1 = x0 + (x1 - x0) * 0.6, cpy1 = y1;
+    for (let t = 0; t <= 1; t += 0.025) {
       const mt = 1 - t;
-      const x = mt * mt * mt * startX + 3 * mt * mt * t * cp1x + 3 * mt * t * t * cp2x + t * t * t * endX;
-      const y = mt * mt * mt * startY + 3 * mt * mt * t * cp1y + 3 * mt * t * t * cp2y + t * t * t * endY;
-
-      points.push({ x, y });
-    }
-
-    return points;
-  }
-
-  private createDeadEndPath(): { x: number; y: number }[] {
-    const { canvasWidth: w } = this.config;
-    const points: { x: number; y: number }[] = [];
-
-    // Straight line from switch to off-screen
-    for (let x = this.switchPointX; x <= w + 100; x += 5) {
-      points.push({ x, y: this.mainTrackY });
-    }
-
-    return points;
-  }
-
-  private drawMainTrack(graphics: Phaser.GameObjects.Graphics) {
-    const points: { x: number; y: number }[] = [];
-
-    // From left edge to switch point
-    for (let x = -100; x <= this.switchPointX; x += 5) {
-      points.push({ x, y: this.mainTrackY });
-    }
-
-    this.drawTrack(graphics, points);
-  }
-
-  private drawTrack(graphics: Phaser.GameObjects.Graphics, path: { x: number; y: number }[]) {
-    if (path.length < 2) return;
-
-    // Gravel bed
-    graphics.lineStyle(32, 0x757575);
-    graphics.beginPath();
-    graphics.moveTo(path[0].x, path[0].y);
-    path.forEach(p => graphics.lineTo(p.x, p.y));
-    graphics.strokePath();
-
-    // Ties
-    for (let i = 0; i < path.length; i += 5) {
-      const p = path[i];
-      const next = path[Math.min(i + 1, path.length - 1)];
-      const angle = Math.atan2(next.y - p.y, next.x - p.x);
-
-      graphics.save();
-      graphics.translateCanvas(p.x, p.y);
-      graphics.rotateCanvas(angle);
-      graphics.fillStyle(0x5d4037);
-      graphics.fillRect(-6, -16, 12, 32);
-      graphics.restore();
-    }
-
-    // Rails with metallic look
-    const railOffset = 8;
-    graphics.lineStyle(5, 0x424242);
-
-    // Draw both rails
-    [-1, 1].forEach(side => {
-      graphics.beginPath();
-      for (let i = 0; i < path.length; i++) {
-        const p = path[i];
-        const next = path[Math.min(i + 1, path.length - 1)];
-        const angle = Math.atan2(next.y - p.y, next.x - p.x) + (side * Math.PI / 2);
-        const ox = Math.cos(angle) * railOffset;
-        const oy = Math.sin(angle) * railOffset;
-
-        if (i === 0) graphics.moveTo(p.x + ox, p.y + oy);
-        else graphics.lineTo(p.x + ox, p.y + oy);
-      }
-      graphics.strokePath();
-
-      // Rail highlight
-      graphics.lineStyle(2, 0x9e9e9e);
-      graphics.beginPath();
-      for (let i = 0; i < path.length; i++) {
-        const p = path[i];
-        const next = path[Math.min(i + 1, path.length - 1)];
-        const angle = Math.atan2(next.y - p.y, next.x - p.x) + (side * Math.PI / 2);
-        const ox = Math.cos(angle) * (railOffset - 1);
-        const oy = Math.sin(angle) * (railOffset - 1);
-
-        if (i === 0) graphics.moveTo(p.x + ox, p.y + oy);
-        else graphics.lineTo(p.x + ox, p.y + oy);
-      }
-      graphics.strokePath();
-      graphics.lineStyle(5, 0x424242);
-    });
-  }
-
-  private drawSwitch(graphics: Phaser.GameObjects.Graphics) {
-    // Switch mechanism - industrial look
-    graphics.fillStyle(0x37474f);
-    graphics.fillRect(this.switchPointX - 25, this.mainTrackY - 25, 50, 50);
-
-    graphics.fillStyle(0x455a64);
-    graphics.fillCircle(this.switchPointX, this.mainTrackY, 18);
-
-    graphics.fillStyle(0x607d8b);
-    graphics.fillCircle(this.switchPointX, this.mainTrackY, 12);
-
-    graphics.fillStyle(0x78909c);
-    graphics.fillCircle(this.switchPointX, this.mainTrackY, 6);
-
-    // Switch label
-    this.add.text(this.switchPointX, this.mainTrackY - 40, 'SWITCH', {
-      fontSize: '12px',
-      fontFamily: 'Arial, sans-serif',
-      color: '#455a64',
-      fontStyle: 'bold',
-    }).setOrigin(0.5);
-  }
-
-  // ---------------------------------------------------------------------------
-  // STATIONS - More realistic
-  // ---------------------------------------------------------------------------
-  private createStations() {
-    const { canvasWidth: w, canvasHeight: h, stations } = this.config;
-
-    const stationYPositions = [h * 0.22, h * 0.5, h * 0.78];
-    const stationX = w * 0.92;
-
-    stations.forEach((station, index) => {
-      const y = stationYPositions[index];
-      const container = this.createStation(stationX, y, station);
-      this.stationContainers.set(station.id, container);
-    });
-  }
-
-  private createStation(x: number, y: number, station: StationConfig): Phaser.GameObjects.Container {
-    const container = this.add.container(x, y);
-
-    // Platform - concrete look
-    const platformShadow = this.add.rectangle(-45, 5, 90, 28, 0x000000, 0.2);
-    const platform = this.add.rectangle(-45, 0, 90, 28, 0x9e9e9e);
-    platform.setStrokeStyle(2, 0x757575);
-
-    // Yellow safety line
-    const safetyLine = this.add.rectangle(-45, -12, 86, 4, 0xffc107);
-
-    // Shelter/canopy
-    const canopyPosts = this.add.graphics();
-    canopyPosts.fillStyle(0x424242);
-    canopyPosts.fillRect(-85, -70, 6, 70);
-    canopyPosts.fillRect(-15, -70, 6, 70);
-
-    // Canopy roof
-    const canopy = this.add.rectangle(-47, -75, 100, 12, 0x37474f);
-    canopy.setStrokeStyle(2, 0x263238);
-
-    // Station building
-    const buildingShadow = this.add.rectangle(32, 5, 65, 95, 0x000000, 0.15);
-
-    // Main building with station color
-    const building = this.add.rectangle(28, 0, 65, 95, 0xfafafa);
-    building.setStrokeStyle(3, station.colorHex);
-
-    // Colored accent stripe
-    const accentStripe = this.add.rectangle(28, -35, 65, 12, station.colorHex);
-
-    // Windows - modern style
-    const win1 = this.add.rectangle(15, -10, 18, 25, 0x90caf9);
-    win1.setStrokeStyle(2, 0x424242);
-    const win2 = this.add.rectangle(41, -10, 18, 25, 0x90caf9);
-    win2.setStrokeStyle(2, 0x424242);
-
-    // Door
-    const door = this.add.rectangle(28, 20, 20, 35, 0x5d4037);
-    door.setStrokeStyle(2, 0x4e342e);
-
-    // Station sign
-    const signBg = this.add.rectangle(28, -58, 75, 24, station.colorHex);
-    signBg.setStrokeStyle(2, 0xffffff);
-
-    const signText = this.add.text(28, -58, station.name.toUpperCase(), {
-      fontSize: '14px',
-      fontFamily: 'Arial Black, sans-serif',
-      color: '#ffffff',
-    }).setOrigin(0.5);
-
-    // Platform number
-    const platformNum = this.add.text(-45, 0, (this.stationContainers.size + 1).toString(), {
-      fontSize: '20px',
-      fontFamily: 'Arial Black, sans-serif',
-      color: '#424242',
-    }).setOrigin(0.5);
-
-    container.add([
-      platformShadow, platform, safetyLine,
-      canopyPosts, canopy,
-      buildingShadow, building, accentStripe,
-      win1, win2, door,
-      signBg, signText, platformNum
-    ]);
-
-    container.setSize(160, 140);
-    container.setInteractive({ useHandCursor: true });
-
-    // Hover effect
-    container.on('pointerover', () => {
-      if (this.state.isRoundActive && !this.hasPassedSwitch && !this.selectedStationId) {
-        building.setStrokeStyle(5, station.colorHex);
-        this.tweens.add({
-          targets: container,
-          scaleX: 1.03,
-          scaleY: 1.03,
-          duration: 100,
-        });
-      }
-    });
-
-    container.on('pointerout', () => {
-      building.setStrokeStyle(3, station.colorHex);
-      this.tweens.add({
-        targets: container,
-        scaleX: 1,
-        scaleY: 1,
-        duration: 100,
+      pts.push({
+        x: mt*mt*mt*x0 + 3*mt*mt*t*cpx0 + 3*mt*t*t*cpx1 + t*t*t*x1,
+        y: mt*mt*mt*y0 + 3*mt*mt*t*cpy0 + 3*mt*t*t*cpy1 + t*t*t*y1,
       });
-    });
-
-    container.on('pointerdown', () => this.handleStationClick(station.id));
-
-    return container;
-  }
-
-  // ---------------------------------------------------------------------------
-  // TRAIN - Clean design with all elements in container
-  // ---------------------------------------------------------------------------
-  private createTrain(colorHex: number): Phaser.GameObjects.Container {
-    const container = this.add.container(0, 0);
-    const elements: Phaser.GameObjects.GameObject[] = [];
-
-    // Helper to add rectangle to container
-    const addRect = (x: number, y: number, w: number, h: number, color: number, alpha: number = 1) => {
-      const rect = this.add.rectangle(x, y, w, h, color, alpha);
-      elements.push(rect);
-      return rect;
-    };
-
-    // Helper to add circle to container
-    const addCircle = (x: number, y: number, r: number, color: number, alpha: number = 1) => {
-      const circle = this.add.circle(x, y, r, color, alpha);
-      elements.push(circle);
-      return circle;
-    };
-
-    // === COAL CAR (TENDER) ===
-    const tenderX = -70;
-
-    // Tender frame
-    addRect(tenderX, 0, 50, 35, 0x2d2d2d);
-    addRect(tenderX, 0, 46, 31, 0x404040);
-
-    // Coal
-    const coal = this.add.graphics();
-    coal.fillStyle(0x1a1a1a);
-    coal.fillEllipse(tenderX, -12, 38, 16);
-    elements.push(coal);
-
-    // Tender wheels
-    this.addWheelToContainer(elements, tenderX - 15, 22, 8);
-    this.addWheelToContainer(elements, tenderX + 15, 22, 8);
-
-    // === CONNECTOR ===
-    addRect(-40, 2, 12, 6, 0x505050);
-
-    // === LOCOMOTIVE BODY ===
-
-    // Main chassis
-    addRect(10, 5, 85, 30, 0x3d3d3d);
-
-    // Main body with color
-    addRect(5, -5, 75, 35, colorHex);
-
-    // Body outline
-    const bodyOutline = addRect(5, -5, 75, 35, colorHex);
-    bodyOutline.setStrokeStyle(2, this.darkenColor(colorHex, 30));
-    bodyOutline.setFillStyle(colorHex, 0);
-
-    // === BOILER ===
-    const boiler = this.add.graphics();
-    // Boiler body
-    boiler.fillStyle(colorHex);
-    boiler.fillRoundedRect(25, -20, 55, 40, 12);
-    // Boiler bands
-    boiler.lineStyle(3, this.darkenColor(colorHex, 25));
-    boiler.strokeCircle(42, 0, 16);
-    boiler.strokeCircle(58, 0, 16);
-    // Highlight
-    boiler.lineStyle(2, this.lightenColor(colorHex, 35));
-    boiler.beginPath();
-    boiler.arc(50, -10, 12, -0.8, 0.8);
-    boiler.strokePath();
-    elements.push(boiler);
-
-    // === SMOKEBOX (front) ===
-    addCircle(75, 0, 18, 0x3a3a3a);
-    addCircle(75, 0, 14, 0x4a4a4a);
-    addCircle(75, 2, 8, 0x2a2a2a);
-
-    // === CHIMNEY ===
-    const chimney = this.add.graphics();
-    chimney.fillStyle(0x2a2a2a);
-    chimney.fillRect(60, -45, 14, 28);
-    chimney.fillStyle(0x3a3a3a);
-    chimney.fillRect(57, -48, 20, 6);
-    chimney.fillStyle(0x4a4a4a);
-    chimney.fillRect(55, -52, 24, 5);
-    elements.push(chimney);
-
-    // === STEAM DOME ===
-    addCircle(35, -28, 10, colorHex);
-    addCircle(35, -30, 7, this.lightenColor(colorHex, 25));
-
-    // === CAB ===
-    addRect(-25, -8, 38, 42, this.darkenColor(colorHex, 15));
-    const cabOutline = addRect(-25, -8, 38, 42, 0x000000, 0);
-    cabOutline.setStrokeStyle(2, this.darkenColor(colorHex, 35));
-
-    // Cab roof
-    addRect(-25, -32, 44, 7, 0x3a3a3a);
-
-    // Cab windows
-    addRect(-33, -12, 12, 16, 0x87ceeb).setStrokeStyle(1, 0x555555);
-    addRect(-17, -12, 12, 16, 0x87ceeb).setStrokeStyle(1, 0x555555);
-
-    // === HEADLIGHT ===
-    addCircle(88, 0, 6, 0xfffde7);
-    addCircle(88, 0, 10, 0xfffde7, 0.3);
-
-    // === COW CATCHER ===
-    const cowCatcher = this.add.graphics();
-    cowCatcher.fillStyle(0x4a4a4a);
-    cowCatcher.beginPath();
-    cowCatcher.moveTo(82, 15);
-    cowCatcher.lineTo(98, 22);
-    cowCatcher.lineTo(82, 22);
-    cowCatcher.closePath();
-    cowCatcher.fill();
-    elements.push(cowCatcher);
-
-    // === WHEELS ===
-    // Drive wheels (large)
-    this.addWheelToContainer(elements, -5, 24, 12, true);
-    this.addWheelToContainer(elements, 25, 24, 12, true);
-
-    // Front wheel (small)
-    this.addWheelToContainer(elements, 60, 24, 8);
-
-    // Connecting rod
-    const rod = this.add.graphics();
-    rod.lineStyle(3, 0x606060);
-    rod.lineBetween(-5, 24, 25, 24);
-    elements.push(rod);
-
-    // Add all elements to container
-    container.add(elements);
-
-    // === SMOKE PARTICLES ===
-    this.createSmokeEffect(container);
-
-    return container;
-  }
-
-  private addWheelToContainer(
-    elements: Phaser.GameObjects.GameObject[],
-    x: number, y: number, radius: number,
-    hasSpokes: boolean = false
-  ) {
-    // Shadow
-    elements.push(this.add.circle(x + 2, y + 2, radius, 0x000000, 0.25));
-
-    // Outer rim
-    const rim = this.add.circle(x, y, radius, 0x3a3a3a);
-    rim.setStrokeStyle(2, 0x2a2a2a);
-    elements.push(rim);
-
-    // Inner wheel
-    elements.push(this.add.circle(x, y, radius * 0.7, 0x4a4a4a));
-
-    // Hub
-    elements.push(this.add.circle(x, y, radius * 0.25, 0x5a5a5a));
-
-    if (hasSpokes) {
-      const spokes = this.add.graphics();
-      spokes.lineStyle(2, 0x5a5a5a);
-      for (let i = 0; i < 6; i++) {
-        const angle = (i / 6) * Math.PI * 2;
-        spokes.lineBetween(
-          x, y,
-          x + Math.cos(angle) * radius * 0.65,
-          y + Math.sin(angle) * radius * 0.65
-        );
-      }
-      elements.push(spokes);
     }
+    return pts;
   }
 
-  private createSmokeEffect(container: Phaser.GameObjects.Container) {
-    // Create smoke texture if not exists
-    if (!this.textures.exists('smoke')) {
-      const graphics = this.add.graphics();
-      graphics.fillStyle(0xffffff);
-      graphics.fillCircle(8, 8, 8);
-      graphics.generateTexture('smoke', 16, 16);
-      graphics.destroy();
+  private drawTrack(pts: { x: number; y: number }[]) {
+    if (pts.length < 2) return;
+    const g = this.add.graphics();
+    // Gravel
+    g.lineStyle(28, 0x6b7280); g.beginPath();
+    pts.forEach((p, i) => i === 0 ? g.moveTo(p.x, p.y) : g.lineTo(p.x, p.y));
+    g.strokePath();
+    // Ties
+    for (let i = 0; i < pts.length - 1; i += 4) {
+      const p = pts[i], n = pts[i + 1];
+      const ang = Math.atan2(n.y - p.y, n.x - p.x);
+      g.fillStyle(0x78350f);
+      g.save(); g.translateCanvas(p.x, p.y); g.rotateCanvas(ang);
+      g.fillRect(-5, -14, 10, 28); g.restore();
     }
-
-    const particles = this.add.particles(0, 0, 'smoke', {
-      x: 67,
-      y: -55,
-      speed: { min: 15, max: 40 },
-      angle: { min: 255, max: 285 },
-      scale: { start: 0.25, end: 1.2 },
-      alpha: { start: 0.5, end: 0 },
-      lifespan: 1200,
-      frequency: 120,
-      tint: [0xfafafa, 0xf0f0f0, 0xe5e5e5],
+    // Rails
+    g.lineStyle(5, 0x374151);
+    [-8, 8].forEach(off => {
+      g.beginPath();
+      pts.forEach((p, i) => {
+        const n = pts[Math.min(i + 1, pts.length - 1)];
+        const ang = Math.atan2(n.y - p.y, n.x - p.x) + Math.PI / 2;
+        const px = p.x + Math.cos(ang) * off, py = p.y + Math.sin(ang) * off;
+        i === 0 ? g.moveTo(px, py) : g.lineTo(px, py);
+      });
+      g.strokePath();
     });
-
-    container.add(particles);
   }
 
-  private lightenColor(color: number, amount: number): number {
-    const r = Math.min(255, ((color >> 16) & 0xff) + amount);
-    const g = Math.min(255, ((color >> 8) & 0xff) + amount);
-    const b = Math.min(255, (color & 0xff) + amount);
-    return (r << 16) | (g << 8) | b;
-  }
-
-  private darkenColor(color: number, amount: number): number {
-    const r = Math.max(0, ((color >> 16) & 0xff) - amount);
-    const g = Math.max(0, ((color >> 8) & 0xff) - amount);
-    const b = Math.max(0, (color & 0xff) - amount);
-    return (r << 16) | (g << 8) | b;
-  }
-
-  // ---------------------------------------------------------------------------
-  // UI
-  // ---------------------------------------------------------------------------
-  private createUI() {
-    const { canvasWidth: w, canvasHeight: h } = this.config;
-
-    // Score panel - top left
-    const scorePanel = this.add.rectangle(90, 35, 140, 50, 0xffffff, 0.95);
-    scorePanel.setStrokeStyle(3, 0x1976d2);
-
-    this.add.text(90, 20, 'SCORE', {
-      fontSize: '12px',
-      fontFamily: 'Arial, sans-serif',
-      color: '#757575',
-    }).setOrigin(0.5);
-
-    this.scoreText = this.add.text(90, 42, '0', {
-      fontSize: '28px',
-      fontFamily: 'Arial Black, sans-serif',
-      color: '#1976d2',
-    }).setOrigin(0.5);
-
-    // Timer bar - top center
-    const timerWidth = 300;
-    this.timerBarBg = this.add.rectangle(w / 2, 35, timerWidth, 20, 0xe0e0e0);
-    this.timerBarBg.setStrokeStyle(2, 0x9e9e9e);
-
-    this.timerBar = this.add.rectangle(w / 2 - timerWidth / 2, 35, timerWidth, 16, 0x4caf50);
-    this.timerBar.setOrigin(0, 0.5);
-
-    this.add.text(w / 2, 55, 'TIME REMAINING', {
-      fontSize: '10px',
-      fontFamily: 'Arial, sans-serif',
-      color: '#757575',
-    }).setOrigin(0.5);
-
-    // Warning text
-    this.warningText = this.add.text(w / 2, h / 2 - 80, '', {
-      fontSize: '24px',
-      fontFamily: 'Arial Black, sans-serif',
-      color: '#f44336',
-    }).setOrigin(0.5).setAlpha(0);
-
-    // Feedback text
-    this.feedbackText = this.add.text(w / 2, h / 2, '', {
-      fontSize: '48px',
-      fontFamily: 'Arial Black, sans-serif',
-      color: '#1a365d',
-    }).setOrigin(0.5).setAlpha(0);
-
-    // Instructions at bottom
-    this.add.rectangle(w / 2, h - 30, 450, 40, 0xffffff, 0.9).setStrokeStyle(2, 0x90a4ae);
-    this.add.text(w / 2, h - 30, 'Click the station matching the train color before the switch!', {
-      fontSize: '14px',
-      fontFamily: 'Arial, sans-serif',
-      color: '#455a64',
-      fontStyle: 'bold',
+  private drawSwitch() {
+    const g = this.add.graphics();
+    g.fillStyle(0x1f2937); g.fillRect(this.switchX - 22, this.trackY - 22, 44, 44);
+    g.fillStyle(0x374151); g.fillCircle(this.switchX, this.trackY, 16);
+    g.fillStyle(0x4b5563); g.fillCircle(this.switchX, this.trackY, 10);
+    g.fillStyle(0x6b7280); g.fillCircle(this.switchX, this.trackY, 5);
+    this.add.text(this.switchX, this.trackY - 34, 'מסלול', {
+      fontSize: '11px', fontFamily: 'Arial', color: '#94a3b8', fontStyle: 'bold',
     }).setOrigin(0.5);
   }
 
-  // ---------------------------------------------------------------------------
-  // GAME LOGIC
-  // ---------------------------------------------------------------------------
-  private startNewRound() {
-    const station = Phaser.Utils.Array.GetRandom(this.config.stations);
+  // ── Stations ─────────────────────────────────────────────────────
+  private buildStations() {
+    STATIONS.forEach((st, i) => {
+      const y = this.stationY[i];
+      const c = this.add.container(this.stationX, y).setDepth(4);
 
-    this.state.roundNumber++;
-    this.state.currentTrainColor = station.id;
-    this.state.roundStartTime = Date.now();
-    this.state.isRoundActive = true;
-    this.selectedStationId = null;
-    this.hasPassedSwitch = false;
+      // Platform
+      const plat = this.add.rectangle(-30, 0, 80, 22, 0xd1d5db).setStrokeStyle(2, 0x9ca3af);
+      // Building
+      const bld  = this.add.rectangle(30, -8, 70, 80, 0xf9fafb).setStrokeStyle(3, st.colorHex);
+      // Color stripe
+      const stripe = this.add.rectangle(30, -38, 70, 14, st.colorHex);
+      // Windows
+      const w1 = this.add.rectangle(18, -10, 16, 22, 0xbae6fd).setStrokeStyle(1, 0x64748b);
+      const w2 = this.add.rectangle(42, -10, 16, 22, 0xbae6fd).setStrokeStyle(1, 0x64748b);
+      // Door
+      const door = this.add.rectangle(30, 14, 18, 32, 0x92400e).setStrokeStyle(2, 0x78350f);
+      // Sign
+      const sign = this.add.rectangle(30, -52, 68, 22, st.colorHex).setStrokeStyle(2, 0xffffff);
+      const lbl  = this.add.text(30, -52, st.label, {
+        fontSize: '13px', fontFamily: 'Arial Black', color: '#ffffff',
+      }).setOrigin(0.5);
 
-    // Reset timer bar
-    this.timerBar.setFillStyle(0x4caf50);
-    this.timerBar.width = 300;
+      c.add([plat, bld, stripe, w1, w2, door, sign, lbl]);
+      c.setSize(120, 110);
+      c.setInteractive({ useHandCursor: true });
 
-    // Create train
-    this.trainContainer = this.createTrain(station.colorHex);
-    this.trainContainer.setPosition(-180, this.mainTrackY);
+      c.on('pointerover', () => {
+        if (this.isActive && !this.pastSwitch && !this.chosenId) {
+          bld.setStrokeStyle(5, st.colorHex);
+          this.tweens.add({ targets: c, scaleX: 1.04, scaleY: 1.04, duration: 80 });
+        }
+      });
+      c.on('pointerout', () => {
+        bld.setStrokeStyle(3, st.colorHex);
+        this.tweens.add({ targets: c, scaleX: 1, scaleY: 1, duration: 80 });
+      });
+      c.on('pointerdown', () => this.onStationClick(st.id));
 
-    // Start on main track (before switch)
-    this.trainPath = [];
-    for (let x = -180; x <= this.switchPointX; x += 5) {
-      this.trainPath.push({ x, y: this.mainTrackY });
-    }
-    this.trainProgress = 0;
-
-    this.emitAction({
-      type: 'ROUND_START',
-      timestamp: Date.now(),
-      payload: {
-        roundNumber: this.state.roundNumber,
-        trainColor: station.id,
-      },
+      this.stationBtns.set(st.id, c);
     });
+  }
+
+  // ── UI ────────────────────────────────────────────────────────────
+  private buildUI() {
+    // Score box
+    this.add.rectangle(68, 36, 110, 48, 0xffffff, 0.92).setStrokeStyle(2, 0x3b82f6).setDepth(10);
+    this.add.text(68, 20, 'ניקוד', { fontSize: '11px', color: '#94a3b8', fontFamily: 'Arial' }).setOrigin(0.5).setDepth(10);
+    this.scoreText = this.add.text(68, 42, '0', {
+      fontSize: '24px', fontFamily: 'Arial Black', color: '#1d4ed8',
+    }).setOrigin(0.5).setDepth(10);
+
+    // Target instruction box
+    this.add.rectangle(this.W / 2, 36, 280, 48, 0xffffff, 0.92).setStrokeStyle(2, 0x3b82f6).setDepth(10);
+    this.roundText = this.add.text(this.W / 2, 36, '', {
+      fontSize: '18px', fontFamily: 'Arial Black', color: '#1e3a8a',
+    }).setOrigin(0.5).setDepth(10);
+
+    // Timer bar
+    const barW = 260;
+    this.add.rectangle(this.W / 2, 68, barW, 12, 0xe2e8f0).setStrokeStyle(1, 0xc7d2fe).setDepth(10);
+    this.timerBar = this.add.rectangle(this.W / 2 - barW / 2, 68, barW, 8, 0x3b82f6)
+      .setOrigin(0, 0.5).setDepth(10);
+
+    // Bottom hint
+    this.add.rectangle(this.W / 2, this.H - 22, 340, 28, 0xffffff, 0.8)
+      .setStrokeStyle(1, 0xbfdbfe).setDepth(10);
+    this.add.text(this.W / 2, this.H - 22, 'לחץ על התחנה לפי צבע הרכבת לפני שתגיע לצומת', {
+      fontSize: '12px', fontFamily: 'Arial', color: '#475569', fontStyle: 'bold',
+    }).setOrigin(0.5).setDepth(10);
+
+    // Feedback
+    this.feedbackTx = this.add.text(this.W / 2, this.H / 2 - 60, '', {
+      fontSize: '64px', fontFamily: 'Arial Black', color: '#fff',
+    }).setOrigin(0.5).setAlpha(0).setDepth(20);
+  }
+
+  // ── Round ─────────────────────────────────────────────────────────
+  private startRound() {
+    this.chosenId    = null;
+    this.pastSwitch  = false;
+    this.isActive    = true;
+    this.trainX      = -130;
+    this.roundStart  = Date.now();
+
+    const st = Phaser.Utils.Array.GetRandom(STATIONS) as StationConfig;
+    this.targetId  = st.id;
+    this.trainPathY = this.trackY;
+
+    this.timerBar.setFillStyle(0x3b82f6);
+    this.roundText.setText(`שלח לתחנה: ${st.label}`).setColor(st.cssColor);
+
+    if (this.trainContainer) { this.trainContainer.destroy(); this.trainContainer = null; }
+    this.trainContainer = this.buildTrain(st.colorHex);
+    this.trainContainer.setPosition(-130, this.trackY);
 
     // Reset station visuals
-    this.stationContainers.forEach((container, id) => {
-      const building = container.list[6] as Phaser.GameObjects.Rectangle;
-      const stationConfig = this.config.stations.find(s => s.id === id);
-      if (stationConfig) {
-        building.setStrokeStyle(3, stationConfig.colorHex);
-      }
-      container.setScale(1);
+    this.stationBtns.forEach((c, id) => {
+      const bld = c.list[1] as Phaser.GameObjects.Rectangle;
+      const cfg = STATIONS.find(s => s.id === id)!;
+      bld.setStrokeStyle(3, cfg.colorHex);
+      c.setScale(1);
     });
+
+    this.emit('ROUND_START', { targetId: st.id, label: st.label });
   }
 
-  private handleStationClick(stationId: string) {
-    if (!this.state.isRoundActive || this.hasPassedSwitch || this.selectedStationId) return;
+  private onStationClick(id: string) {
+    if (!this.isActive || this.pastSwitch || this.chosenId) return;
+    this.chosenId = id;
+    const reactionMs = Date.now() - this.roundStart;
 
-    this.selectedStationId = stationId;
-    const reactionTime = Date.now() - this.state.roundStartTime;
+    const btn = this.stationBtns.get(id)!;
+    const bld = btn.list[1] as Phaser.GameObjects.Rectangle;
+    bld.setStrokeStyle(6, 0xfbbf24);
 
-    // Highlight selected station
-    const container = this.stationContainers.get(stationId);
-    if (container) {
-      const building = container.list[6] as Phaser.GameObjects.Rectangle;
-      building.setStrokeStyle(6, 0xffd700);
-    }
-
-    this.emitAction({
-      type: 'STATION_SELECTED',
-      timestamp: Date.now(),
-      payload: {
-        roundNumber: this.state.roundNumber,
-        selectedStation: stationId,
-        correctStation: this.state.currentTrainColor,
-        reactionTimeMs: reactionTime,
-      },
-    });
+    this.emit('STATION_SELECTED', { chosenId: id, targetId: this.targetId, reactionMs });
   }
 
-  private handleSwitchReached() {
-    this.hasPassedSwitch = true;
+  // ── Update ────────────────────────────────────────────────────────
+  update(_t: number, delta: number) {
+    if (!this.trainContainer || !this.isActive) return;
 
-    if (this.selectedStationId) {
-      // Switch to selected track
-      const selectedPath = this.trackPaths.find(p => p.stationId === this.selectedStationId);
-      if (selectedPath) {
-        this.trainPath = [...this.trainPath, ...selectedPath.points];
+    const speed = (this.cfg.trainSpeedPx * delta) / 1000;
+
+    if (!this.pastSwitch) {
+      this.trainX += speed;
+      if (this.trainX >= this.switchX) {
+        this.pastSwitch = true;
+        if (!this.chosenId) {
+          this.emit('MISSED_SWITCH', { targetId: this.targetId });
+        }
       }
     } else {
-      // No selection - go to dead end
-      this.emitAction({
-        type: 'MISSED_SWITCH',
-        timestamp: Date.now(),
-        payload: {
-          roundNumber: this.state.roundNumber,
-          trainColor: this.state.currentTrainColor,
-        },
-      });
+      // Glide toward selected station's Y (or straight if missed)
+      const destY = this.chosenId
+        ? this.stationY[STATIONS.findIndex(s => s.id === this.chosenId)]
+        : this.trackY;
 
-      if (this.deadEndPath) {
-        this.trainPath = [...this.trainPath, ...this.deadEndPath.points];
-      }
-
-      // Show warning
-      this.warningText.setText('NO SELECTION!');
-      this.warningText.setAlpha(1);
-      this.tweens.add({
-        targets: this.warningText,
-        alpha: 0,
-        duration: 1500,
-      });
-    }
-  }
-
-  private endRound(correct: boolean | null) {
-    this.state.isRoundActive = false;
-
-    if (correct === true) {
-      this.state.score++;
-      this.scoreText.setText(this.state.score.toString());
-      this.showFeedback('CORRECT!', '#4caf50');
-    } else if (correct === false) {
-      this.showFeedback('WRONG!', '#f44336');
-    } else {
-      // null = missed switch (dead end)
-      this.showFeedback('MISSED!', '#ff9800');
+      this.trainX   += speed * 0.85;
+      this.trainPathY = Phaser.Math.Linear(this.trainPathY, destY, 0.04);
     }
 
-    this.emitAction({
-      type: 'ROUND_END',
-      timestamp: Date.now(),
-      payload: {
-        roundNumber: this.state.roundNumber,
-        correct,
-        score: this.state.score,
-        selectedStation: this.selectedStationId,
-        correctStation: this.state.currentTrainColor,
-      },
-    });
+    this.trainContainer.setPosition(this.trainX, this.trainPathY);
 
-    this.time.delayedCall(2000, () => {
-      if (this.trainContainer) {
-        this.trainContainer.destroy();
-        this.trainContainer = null;
+    // Timer bar
+    const elapsed  = Date.now() - this.roundStart;
+    const progress = Math.max(0, 1 - elapsed / this.cfg.reactionMs);
+    this.timerBar.width = 260 * progress;
+    this.timerBar.setFillStyle(progress > 0.5 ? 0x3b82f6 : progress > 0.25 ? 0xf59e0b : 0xef4444);
+
+    // Check arrival
+    if (this.trainX > this.W + 100) {
+      this.isActive = false;
+      const correct = this.chosenId === this.targetId;
+      if (this.chosenId) {
+        if (correct) { this.score++; this.scoreText.setText(String(this.score)); }
+        this.showFeedback(correct ? '✓' : '✗', correct ? '#16a34a' : '#dc2626');
+      } else {
+        this.showFeedback('⚡', '#d97706');
       }
-      this.startNewRound();
-    });
+      this.emit('ROUND_END', { correct, chosenId: this.chosenId, targetId: this.targetId, score: this.score });
+      this.time.delayedCall(1400, () => this.startRound());
+    }
   }
 
   private showFeedback(text: string, color: string) {
-    this.feedbackText.setText(text);
-    this.feedbackText.setColor(color);
-    this.feedbackText.setAlpha(1);
-    this.feedbackText.setScale(0.5);
+    this.feedbackTx.setText(text).setColor(color).setAlpha(1).setScale(0.4);
+    this.tweens.add({ targets: this.feedbackTx, scale: 1.3, duration: 200, ease: 'Back.easeOut' });
+    this.tweens.add({ targets: this.feedbackTx, alpha: 0, duration: 350, delay: 500 });
+  }
 
-    this.tweens.add({
-      targets: this.feedbackText,
-      scale: 1,
-      duration: 200,
-      ease: 'Back.easeOut',
+  private emit(type: GameAction['type'], payload: Record<string, unknown>) {
+    this.onAction?.({ type, timestamp: Date.now(), payload });
+  }
+
+  // ── Train ─────────────────────────────────────────────────────────
+  private buildTrain(color: number): Phaser.GameObjects.Container {
+    const c = this.add.container(0, 0).setDepth(6);
+    const g = this.add.graphics();
+
+    const dark  = this.darken(color, 35);
+    const light = this.lighten(color, 40);
+
+    // Tender (coal car)
+    g.fillStyle(0x374151); g.fillRoundedRect(-115, -14, 50, 28, 4);
+    g.fillStyle(0x1f2937); g.fillEllipse(-90, -8, 38, 14);
+
+    // Connector
+    g.fillStyle(0x4b5563); g.fillRect(-62, -4, 14, 8);
+
+    // Boiler
+    g.fillStyle(color); g.fillRoundedRect(-46, -22, 90, 44, 10);
+    g.lineStyle(3, dark);
+    g.strokeCircle(-10, 0, 18); g.strokeCircle(18, 0, 18);
+    g.lineStyle(2, light);
+    g.beginPath(); g.arc(4, -10, 13, -0.8, 0.8); g.strokePath();
+
+    // Cab
+    g.fillStyle(this.darken(color, 15)); g.fillRoundedRect(-50, -20, 42, 40, 5);
+    g.fillStyle(0x7dd3fc); // windows
+    g.fillRoundedRect(-45, -14, 14, 16, 2);
+    g.fillRoundedRect(-27, -14, 14, 16, 2);
+
+    // Smokebox (front)
+    g.fillStyle(0x374151); g.fillCircle(48, 0, 20);
+    g.fillStyle(0x1f2937); g.fillCircle(48, 0, 14);
+
+    // Chimney
+    g.fillStyle(0x1f2937); g.fillRect(20, -38, 14, 18);
+    g.fillStyle(0x374151); g.fillRect(16, -42, 22, 6);
+
+    // Steam dome
+    g.fillStyle(light); g.fillCircle(0, -28, 10);
+
+    // Headlight glow
+    g.fillStyle(0xfef9c3, 0.6); g.fillCircle(62, 0, 10);
+    g.fillStyle(0xfef08a); g.fillCircle(60, 0, 6);
+
+    // Cowcatcher
+    g.fillStyle(0x6b7280);
+    g.fillTriangle(44, 14, 64, 20, 44, 20);
+
+    // Wheels
+    [[-90, 16, 9], [-30, 20, 13], [10, 20, 13], [38, 18, 9]].forEach(([wx, wy, r]) => {
+      g.fillStyle(0x1f2937); g.fillCircle(wx as number, wy as number, r as number);
+      g.fillStyle(0x374151); g.fillCircle(wx as number, wy as number, (r as number) * 0.7);
+      g.fillStyle(0x6b7280); g.fillCircle(wx as number, wy as number, (r as number) * 0.25);
     });
 
-    this.tweens.add({
-      targets: this.feedbackText,
-      alpha: 0,
-      duration: 500,
-      delay: 1200,
+    // Connecting rod
+    g.lineStyle(3, 0x6b7280); g.lineBetween(-30, 20, 10, 20);
+
+    c.add(g);
+
+    // Smoke particles
+    if (!this.textures.exists('smoke_dot')) {
+      const pg = this.add.graphics();
+      pg.fillStyle(0xffffff); pg.fillCircle(6, 6, 6);
+      pg.generateTexture('smoke_dot', 12, 12); pg.destroy();
+    }
+    const smoke = this.add.particles(0, 0, 'smoke_dot', {
+      x: 22, y: -42,
+      speed: { min: 15, max: 35 },
+      angle: { min: 258, max: 282 },
+      scale: { start: 0.22, end: 1.0 },
+      alpha: { start: 0.5, end: 0 },
+      lifespan: 1100,
+      frequency: 100,
+      tint: [0xf1f5f9, 0xe2e8f0],
     });
+    c.add(smoke);
+
+    return c;
   }
 
-  private emitAction(action: GameAction) {
-    if (this.onAction) {
-      this.onAction(action);
-    }
+  private darken(color: number, amt: number): number {
+    return (Math.max(0, ((color >> 16) & 0xff) - amt) << 16) |
+           (Math.max(0, ((color >> 8)  & 0xff) - amt) << 8)  |
+            Math.max(0, (color         & 0xff) - amt);
   }
-
-  // ---------------------------------------------------------------------------
-  // UPDATE LOOP
-  // ---------------------------------------------------------------------------
-  update(_time: number, delta: number) {
-    if (!this.trainContainer || !this.state.isRoundActive) return;
-
-    // Move train
-    const speed = (this.config.trainSpeed * delta) / 1000;
-    this.trainProgress += speed;
-
-    // Find position on path
-    let totalDist = 0;
-    let currentPos = this.trainPath[0];
-    let nextPos = this.trainPath[Math.min(1, this.trainPath.length - 1)];
-
-    for (let i = 0; i < this.trainPath.length - 1; i++) {
-      const p1 = this.trainPath[i];
-      const p2 = this.trainPath[i + 1];
-      const segDist = Math.sqrt((p2.x - p1.x) ** 2 + (p2.y - p1.y) ** 2);
-
-      if (totalDist + segDist >= this.trainProgress) {
-        const t = (this.trainProgress - totalDist) / segDist;
-        currentPos = {
-          x: p1.x + (p2.x - p1.x) * t,
-          y: p1.y + (p2.y - p1.y) * t,
-        };
-        nextPos = p2;
-        break;
-      }
-      totalDist += segDist;
-      currentPos = p2;
-      nextPos = this.trainPath[Math.min(i + 2, this.trainPath.length - 1)];
-    }
-
-    // Position train
-    this.trainContainer.setPosition(currentPos.x, currentPos.y);
-    const angle = Math.atan2(nextPos.y - currentPos.y, nextPos.x - currentPos.x);
-    this.trainContainer.setRotation(angle);
-
-    // Check if reached switch point
-    if (!this.hasPassedSwitch && currentPos.x >= this.switchPointX - 10) {
-      this.handleSwitchReached();
-    }
-
-    // Update timer bar
-    const elapsed = Date.now() - this.state.roundStartTime;
-    const progress = Math.max(0, 1 - elapsed / this.config.reactionTimeMs);
-    this.timerBar.width = 300 * progress;
-
-    if (progress < 0.3) {
-      this.timerBar.setFillStyle(0xf44336);
-    } else if (progress < 0.6) {
-      this.timerBar.setFillStyle(0xffc107);
-    }
-
-    // Check end conditions
-    if (this.hasPassedSwitch) {
-      // Check if reached station or dead end
-      const endPoint = this.trainPath[this.trainPath.length - 1];
-      const distToEnd = Math.sqrt(
-        (currentPos.x - endPoint.x) ** 2 + (currentPos.y - endPoint.y) ** 2
-      );
-
-      if (distToEnd < 20) {
-        if (this.selectedStationId) {
-          const correct = this.selectedStationId === this.state.currentTrainColor;
-          this.endRound(correct);
-        } else {
-          // Dead end reached
-          this.endRound(null);
-        }
-      }
-    }
-  }
-
-  public getState(): GameState {
-    return { ...this.state };
+  private lighten(color: number, amt: number): number {
+    return (Math.min(255, ((color >> 16) & 0xff) + amt) << 16) |
+           (Math.min(255, ((color >> 8)  & 0xff) + amt) << 8)  |
+            Math.min(255, (color         & 0xff) + amt);
   }
 }
 
-// =============================================================================
-// REACT COMPONENT
-// =============================================================================
+// ─── React Component ──────────────────────────────────────────────
+
 interface ColorTrainsProps {
-  config?: Partial<GameConfig>;
-  onAction?: (action: GameAction) => void;
+  config?:     Partial<GameConfig>;
+  onAction?:   (action: GameAction) => void;
+  adjustment?: GameAdjustment;
 }
 
-export default function ColorTrains({ config, onAction }: ColorTrainsProps) {
-  const navigate = useNavigate();
-  const gameRef = useRef<HTMLDivElement>(null);
-  const gameInstance = useRef<Phaser.Game | null>(null);
+export default function ColorTrains({ config, onAction, adjustment }: ColorTrainsProps) {
+  const navigate     = useNavigate();
+  const containerRef = useRef<HTMLDivElement>(null);
+  const gameRef      = useRef<Phaser.Game | null>(null);
+  const sceneRef     = useRef<TrainScene | null>(null);
 
-  const mergedConfig: GameConfig = {
-    ...DEFAULT_CONFIG,
-    ...config,
-    stations: config?.stations || DEFAULT_CONFIG.stations,
-  };
-
-  const handleAction = useCallback((action: GameAction) => {
-    if (onAction) {
-      onAction(action);
-    }
-  }, [onAction]);
+  const handleAction = useCallback((a: GameAction) => { onAction?.(a); }, [onAction]);
 
   useEffect(() => {
-    if (!gameRef.current) return;
+    if (adjustment) sceneRef.current?.applyParams(adjustment);
+  }, [adjustment]);
 
-    gameInstance.current = new Phaser.Game({
-      type: Phaser.AUTO,
-      width: mergedConfig.canvasWidth,
-      height: mergedConfig.canvasHeight,
-      parent: gameRef.current,
-      backgroundColor: '#e3f2fd',
-      scene: TrainScene,
+  useEffect(() => {
+    if (!containerRef.current) return;
+    gameRef.current = new Phaser.Game({
+      type:            Phaser.AUTO,
+      width:           960,
+      height:          580,
+      parent:          containerRef.current,
+      backgroundColor: '#bfdbfe',
+      banner:          false,
+      scene:           TrainScene,
     });
-
-    gameInstance.current.scene.start('TrainScene', {
-      config: mergedConfig,
+    gameRef.current.scene.start('TrainScene', {
+      config:   config ?? {},
       onAction: handleAction,
+      onReady:  (s: TrainScene) => { sceneRef.current = s; },
     });
-
     return () => {
-      if (gameInstance.current) {
-        gameInstance.current.destroy(true);
-        gameInstance.current = null;
-      }
+      gameRef.current?.destroy(true);
+      gameRef.current  = null;
+      sceneRef.current = null;
     };
-  }, []);
+  }, []); // eslint-disable-line react-hooks/exhaustive-deps
 
   return (
     <div className="color-trains-game">
@@ -1047,7 +522,7 @@ export default function ColorTrains({ config, onAction }: ColorTrainsProps) {
           חזור
         </button>
       </div>
-      <div ref={gameRef} className="game-canvas" />
+      <div ref={containerRef} className="game-canvas" />
     </div>
   );
 }
