@@ -5,7 +5,7 @@ import {
 } from 'firebase/firestore';
 import {
   BarChart, Bar, XAxis, YAxis, Tooltip, ResponsiveContainer,
-  LineChart, Line, CartesianGrid, Legend,
+  LineChart, Line, CartesianGrid,
 } from 'recharts';
 import { db } from '../../../config/firebase';
 import './AdminStats.css';
@@ -49,14 +49,13 @@ const GAME_LABELS: Record<string, string> = {
   'memory':       'זיכרון',
 };
 
-const COLORS = ['#6366f1', '#10b981', '#f59e0b', '#ef4444'];
-
 // ── Component ──────────────────────────────────────────────────────────────────
 
 const AdminStats: React.FC<{ onBack: () => void }> = ({ onBack }) => {
   const [sessions,    setSessions]    = useState<SessionDoc[]>([]);
   const [tokenUsage,  setTokenUsage]  = useState<TokenUsage | null>(null);
   const [loading,     setLoading]     = useState(true);
+  const [error,       setError]       = useState<string | null>(null);
 
   useEffect(() => {
     async function load() {
@@ -72,7 +71,9 @@ const AdminStats: React.FC<{ onBack: () => void }> = ({ onBack }) => {
         const tokenSnap = await getDoc(doc(db, 'meta', 'tokenUsage'));
         if (tokenSnap.exists()) setTokenUsage(tokenSnap.data() as TokenUsage);
       } catch (err) {
+        const msg = err instanceof Error ? err.message : String(err);
         console.error('[AdminStats] Firestore error:', err);
+        setError(msg);
       } finally {
         setLoading(false);
       }
@@ -134,6 +135,20 @@ const AdminStats: React.FC<{ onBack: () => void }> = ({ onBack }) => {
     </div>
   );
 
+  if (error) return (
+    <div className="admin-view-page">
+      <div className="view-header">
+        <h2>Statistics</h2>
+        <button className="back-btn" onClick={onBack}>← Back</button>
+      </div>
+      <div className="stats-error">
+        <strong>שגיאת Firestore:</strong>
+        <code>{error}</code>
+        <p>בדוק Firestore Rules ו-VITE_FIREBASE_API_KEY ב-.env</p>
+      </div>
+    </div>
+  );
+
   return (
     <div className="admin-view-page">
       <div className="view-header">
@@ -174,7 +189,7 @@ const AdminStats: React.FC<{ onBack: () => void }> = ({ onBack }) => {
                   <CartesianGrid strokeDasharray="3 3" stroke="#f1f5f9" />
                   <XAxis dataKey="name" tick={{ fontSize: 12 }} />
                   <YAxis domain={[0, 100]} tick={{ fontSize: 12 }} unit="%" />
-                  <Tooltip formatter={(v: number) => `${v}%`} />
+                  <Tooltip formatter={(v) => `${v ?? 0}%`} />
                   <Bar dataKey="accuracy" fill="#6366f1" radius={[4, 4, 0, 0]} />
                 </BarChart>
               </ResponsiveContainer>
@@ -192,7 +207,7 @@ const AdminStats: React.FC<{ onBack: () => void }> = ({ onBack }) => {
                   <XAxis dataKey="idx" tick={{ fontSize: 12 }} label={{ value: 'סשן', position: 'insideBottom', offset: -2, fontSize: 11 }} />
                   <YAxis domain={[0, 100]} tick={{ fontSize: 12 }} />
                   <Tooltip
-                    formatter={(v: number) => [`${v}`, 'ציון']}
+                    formatter={(v) => [`${v ?? '—'}`, 'ציון']}
                     labelFormatter={(l) => `סשן ${l}`}
                   />
                   <Line type="monotone" dataKey="score" stroke="#10b981" strokeWidth={2} dot={{ r: 3 }} />

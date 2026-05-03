@@ -29,7 +29,3 @@ export function initSession(ws: WebSocket, sessionId: string, gameId: GameId, us
 export function deleteSession(ws: WebSocket): void {
   sessions.delete(ws);
 }
-
-export function getAllSessions(): Map<WebSocket, SessionState> {
-  return sessions;
-}

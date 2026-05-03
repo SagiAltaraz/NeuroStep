@@ -10,12 +10,12 @@
  *     accuracy, avgReactionMs, peakStreak
  *
  *   users/{userId}/stats/{gameId}
- *     sessionsCount, avgAccuracy, avgReactionMs, lastPlayedAt
+ *     lastPlayedAt, lastAccuracy, lastAvgReactionMs
+ *     (avgReactionMs / stdDevReactionMs / sessionsCount are owned by baseline-agent)
  */
 
 import { Kafka } from 'kafkajs';
 import type { GameEvent } from '../types/game.types.js';
-import { computeSessionStats } from './adaptive-agent.js';
 import { TOPICS } from '../kafka/topics.js';
 import { getDb } from '../firebase.js';
 
@@ -63,10 +63,16 @@ function applyEvent(event: GameEvent) {
   buf.totalEvents++;
   buf.dirty = true;
 
+  // ROUND_END carries correct:boolean in payload — use it instead of type alone
+  const roundEndCorrect = type === 'ROUND_END'
+    ? event.payload?.correct === true
+    : null;
+
   const isHit = type === 'CIRCLE_HIT' || type === 'PAIR_MATCHED' ||
-                type === 'STATION_SELECTED' || type === 'ROUND_END';
+                type === 'STATION_SELECTED' || roundEndCorrect === true;
   const isMiss = type === 'DISTRACTOR_CLICK' || type === 'PAIR_MISSED' ||
-                 type === 'MISSED_SWITCH' || type === 'MOVE_MADE';
+                 type === 'MISSED_SWITCH'     || type === 'MOVE_MADE'   ||
+                 roundEndCorrect === false;
   const isTimeout = type === 'TIMEOUT';
 
   if (isHit) {
@@ -116,18 +122,15 @@ async function flushAll() {
       peakStreak:   buf.peakStreak,
     }, { merge: true });
 
-    // Update per-user per-game rolling stats
+    // Update per-user per-game last-session snapshot.
+    // avgReactionMs / stdDevReactionMs / sessionsCount are written by baseline-agent
+    // (once per session close, using Welford cross-session statistics).
     const statsRef = db.collection('users').doc(buf.userId)
                        .collection('stats').doc(buf.gameId);
     batch.set(statsRef, {
       lastPlayedAt:      buf.lastEventAt,
       lastAccuracy:      Math.round(accuracy * 100) / 100,
       lastAvgReactionMs: avgReactionMs,
-      // stdDev is used by adaptive-agent as the personal baseline spread
-      ...(computeSessionStats(buf.reactionTimes) && {
-        avgReactionMs:    computeSessionStats(buf.reactionTimes)!.mean,
-        stdDevReactionMs: computeSessionStats(buf.reactionTimes)!.stdDev,
-      }),
     }, { merge: true });
   }
 
@@ -176,6 +179,7 @@ export interface SessionSnapshot {
   accuracy:      number;
   avgReactionMs: number;
   peakStreak:    number;
+  reactionTimes: number[];   // raw array — baseline-agent uses this for Welford update
 }
 
 export function getSessionSnapshot(sessionId: string): SessionSnapshot | null {
@@ -196,5 +200,6 @@ export function getSessionSnapshot(sessionId: string): SessionSnapshot | null {
     accuracy:      Math.round(accuracy * 100) / 100,
     avgReactionMs,
     peakStreak:    buf.peakStreak,
+    reactionTimes: [...buf.reactionTimes],
   };
 }

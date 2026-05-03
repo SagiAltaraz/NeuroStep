@@ -54,85 +54,83 @@ export interface CognitiveReport {
   };
 }
 
-// ── Prompt builder ─────────────────────────────────────────────────────────────
+// ── Prompt ─────────────────────────────────────────────────────────────────────
+
+const SYSTEM = `\
+You are a cognitive neuropsychologist specialising in elderly brain health.
+You analyse data from digital cognitive training sessions and produce structured reports.
+
+Audience: the report is read by caregivers, family members, and occasionally the patient.
+Tone: warm, encouraging, clinically grounded — avoid alarmist or overly clinical language.
+
+Output format: return ONLY valid JSON, no markdown fences, no preamble.
+The "summaryHe", "strengthsHe", and "recommendationsHe" fields must be written in natural,
+conversational Hebrew — the target reader is an elderly Hebrew-speaking adult.`;
 
 const GAME_NAMES: Record<GameId, string> = {
-  'shapes-click': 'זיהוי צורות (Shapes Click)',
-  'color-trains': 'רכבות צבעוניות (Color Trains)',
-  'tictactoe':    'איקס עיגול (Tic-Tac-Toe)',
-  'memory':       'זיכרון (Memory)',
+  'shapes-click': 'Shape Recognition (Shapes Click)',
+  'color-trains': 'Color Trains (attention switching)',
+  'tictactoe':    'Tic-Tac-Toe (strategic planning)',
+  'memory':       'Memory Card Matching',
 };
 
-function buildPrompt(input: ReportInput): string {
+function buildUserPrompt(input: ReportInput): string {
   const { snapshot, adaptive, adjustments } = input;
-  const gameName = GAME_NAMES[snapshot.gameId as GameId] ?? snapshot.gameId;
   const durationSec = Math.round(snapshot.durationMs / 1000);
-  const harder = adjustments.filter(a => a.direction === 'harder').length;
-  const easier = adjustments.filter(a => a.direction === 'easier').length;
-  const netDir = harder > easier ? 'harder' : easier > harder ? 'easier' : 'stable';
-  const trend  = adaptive.reactionWindow.length >= 4
-    ? describeReactionWindow(adaptive.reactionWindow)
-    : 'אין מספיק נתוני תגובה לניתוח מגמה';
+  const harder  = adjustments.filter(a => a.direction === 'harder').length;
+  const easier  = adjustments.filter(a => a.direction === 'easier').length;
+  const netDir  = harder > easier ? 'harder' : easier > harder ? 'easier' : 'stable';
+  const rtTrend = describeReactionTrend(adaptive.reactionWindow);
+
+  const baselineSection = adaptive.baselineMean
+    ? `Personal baseline: ${adaptive.baselineMean}ms avg  |  This session EMA: ${adaptive.emaReactionMs?.toFixed(0) ?? '—'}ms  |  ${
+        adaptive.emaReactionMs && adaptive.baselineMean
+          ? adaptive.emaReactionMs < adaptive.baselineMean ? 'Faster than personal average ✓' : 'Slower than personal average'
+          : ''
+      }`
+    : 'No prior baseline — this is the first session.';
 
   return `
-אתה פסיכולוג קוגניטיבי שמנתח ביצועים של משחק קוגניטיבי לאוכלוסייה המבוגרת.
-המטרה היא לתת משוב אנושי, מעודד ומקצועי — לא מספרים יבשים.
+## Session Data
+Game: ${GAME_NAMES[snapshot.gameId as GameId] ?? snapshot.gameId}
+Duration: ${durationSec}s
+Successful responses: ${snapshot.hits}  |  Errors: ${snapshot.misses}  |  Timeouts: ${snapshot.timeouts}
+Accuracy: ${Math.round(snapshot.accuracy * 100)}%
+Average reaction time: ${snapshot.avgReactionMs}ms
+Peak consecutive streak: ${snapshot.peakStreak}
 
-## נתוני הסשן
-- משחק: ${gameName}
-- משך: ${durationSec} שניות
-- לחיצות מוצלחות: ${snapshot.hits}
-- שגיאות: ${snapshot.misses}
-- פסקי זמן: ${snapshot.timeouts}
-- דיוק: ${Math.round(snapshot.accuracy * 100)}%
-- זמן תגובה ממוצע: ${snapshot.avgReactionMs}ms
-- רצף שיא: ${snapshot.peakStreak}
+## Reaction Time Trend
+${rtTrend}
 
-## ניתוח מגמת תגובה
-${trend}
+## Adaptive Difficulty (${adjustments.length} adjustments total)
+Harder: ${harder}  |  Easier: ${easier}  |  Net: ${netDir}
+${adjustments.slice(-3).map(a => `  - ${a.reason} → ${a.direction}`).join('\n')}
 
-## התאמות קושי שבוצעו (${adjustments.length} סה"כ)
-- הקשה: ${harder} פעמים
-- הורדה: ${easier} פעמים
-- כיוון נטו: ${netDir === 'harder' ? 'התקדמות (קושי עלה)' : netDir === 'easier' ? 'הורדת קושי (המשחק התאים)' : 'יציב'}
-${adjustments.slice(-3).map(a => `  • ${a.reason} → ${a.direction}`).join('\n')}
+## Personal Baseline Comparison
+${baselineSection}
 
-${adaptive.baselineMean ? `## השוואה לבסיס אישי
-- בסיס אישי: ${adaptive.baselineMean}ms
-- ביצוע הסשן: ${adaptive.emaReactionMs?.toFixed(0) ?? '—'}ms
-- ${adaptive.emaReactionMs && adaptive.baselineMean
-    ? adaptive.emaReactionMs < adaptive.baselineMean
-      ? 'ביצוע מהיר מהממוצע האישי ✓'
-      : 'ביצוע איטי מהממוצע האישי'
-    : ''}` : '(אין היסטוריה אישית — סשן ראשון)'}
-
-## הוראות
-החזר JSON בלבד, ללא הסבר, בפורמט הבא:
+## Required JSON Output
 {
-  "cognitiveScore": <מספר 0-100 שמשקף את ביצועי הסשן>,
-  "summaryHe": "<פסקה של 2-3 משפטים בעברית — מה הצליח, מה עלה, מה מעיד על הקוגניציה>",
-  "strengthsHe": ["<חוזקה 1>", "<חוזקה 2>"],
-  "recommendationsHe": ["<המלצה 1>", "<המלצה 2>"]
+  "cognitiveScore": <integer 0-100>,
+  "summaryHe": "<2-3 sentences in Hebrew — what went well, what the performance reveals cognitively>",
+  "strengthsHe": ["<specific observed strength in Hebrew>", "<another strength in Hebrew>"],
+  "recommendationsHe": ["<one actionable suggestion in Hebrew>", "<optional second suggestion>"]
 }
 
-כללים:
-- כתוב בעברית מדוברת ומעודדת
-- cognitiveScore: 70-100 = ביצוע טוב, 40-69 = ממוצע, 0-39 = דורש תרגול
-- הימנע ממינוח קליני מפחיד
-- התמקד בחוזקות ובהתקדמות
-`.trim();
+Scoring: 70–100 = strong performance, 40–69 = average, 0–39 = needs practice.
+Keep Hebrew text warm, simple, and encouraging — never frightening.`.trim();
 }
 
-function describeReactionWindow(times: number[]): string {
-  const first = times.slice(0, Math.ceil(times.length / 2));
-  const last  = times.slice(Math.floor(times.length / 2));
-  const avgFirst = Math.round(first.reduce((a, b) => a + b, 0) / first.length);
-  const avgLast  = Math.round(last.reduce((a, b) => a + b, 0) / last.length);
+function describeReactionTrend(times: number[]): string {
+  if (times.length < 4) return 'Not enough reaction time data to determine trend.';
+  const half     = Math.floor(times.length / 2);
+  const avgFirst = Math.round(times.slice(0, half).reduce((a, b) => a + b, 0) / half);
+  const avgLast  = Math.round(times.slice(half).reduce((a, b) => a + b, 0) / (times.length - half));
   const delta    = avgLast - avgFirst;
-  if (Math.abs(delta) < 30) return 'זמני התגובה היו יציבים לאורך הסשן';
+  if (Math.abs(delta) < 30) return 'Reaction times were stable throughout the session.';
   return delta > 0
-    ? `זמני התגובה עלו בממוצע ב-${delta}ms לקראת סוף הסשן (סימן לעייפות)`
-    : `זמני התגובה ירדו ב-${Math.abs(delta)}ms לקראת סוף הסשן (שיפור)`;
+    ? `Reaction times increased by ~${delta}ms toward the end (possible fatigue signal).`
+    : `Reaction times improved by ~${Math.abs(delta)}ms toward the end (warming up / flow state).`;
 }
 
 // ── Net direction helper ───────────────────────────────────────────────────────
@@ -158,9 +156,10 @@ export async function generateSessionReport(input: ReportInput): Promise<Cogniti
     const client = new Anthropic({ apiKey });
 
     const message = await client.messages.create({
-      model:      'claude-haiku-4-5-20251001',  // fast + cheap for structured reports
+      model:      'claude-haiku-4-5-20251001',
       max_tokens: 600,
-      messages:   [{ role: 'user', content: buildPrompt(input) }],
+      system:     SYSTEM,
+      messages:   [{ role: 'user', content: buildUserPrompt(input) }],
     });
 
     const text = message.content[0].type === 'text' ? message.content[0].text : '';

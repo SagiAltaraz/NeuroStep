@@ -171,6 +171,37 @@
   text-align: right;
 }
 
+.stats-error {
+  background: #fef2f2;
+  border: 1px solid #fca5a5;
+  border-radius: 12px;
+  padding: 1.5rem;
+  direction: rtl;
+}
+
+.stats-error strong {
+  display: block;
+  color: #dc2626;
+  margin-bottom: 0.5rem;
+}
+
+.stats-error code {
+  display: block;
+  font-size: 0.8rem;
+  background: #fff;
+  padding: 0.5rem;
+  border-radius: 6px;
+  margin-bottom: 0.75rem;
+  direction: ltr;
+  word-break: break-all;
+}
+
+.stats-error p {
+  font-size: 0.85rem;
+  color: #6b7280;
+  margin: 0;
+}
+
 .stats-loading {
   text-align: center;
   color: #94a3b8;

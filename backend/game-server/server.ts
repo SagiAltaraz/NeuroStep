@@ -14,6 +14,10 @@ import { processEvent }                                     from './agents/adapt
 import { startAnalyticsAgent, getSessionSnapshot }          from './agents/analytics-agent.js';
 import { generateSessionReport }                            from './agents/report-agent.js';
 import type { AdjustmentRecord }                            from './agents/report-agent.js';
+import { updateBaseline }                                   from './agents/baseline-agent.js';
+import { getCoachingMessage }                               from './agents/coaching-agent.js';
+import { checkAndRunCoach }                                 from './agents/coach-agent.js';
+import { checkAlerts }                                      from './agents/alert-agent.js';
 
 // ── WebSocket server ───────────────────────────────────────────────────────────
 
@@ -70,8 +74,7 @@ wss.on('connection', (ws: WebSocket) => {
     // Record for end-of-session report
     adjustmentLog.push({
       reason:    result.reason ?? '',
-      direction: result.params && Object.values(result.params).some(v => typeof v === 'number' && v > 0)
-                   ? 'harder' : 'easier',
+      direction: result.direction ?? 'harder',
       at:        Date.now(),
     });
 
@@ -82,6 +85,22 @@ wss.on('connection', (ws: WebSocket) => {
         reason: result.reason,
         params: result.params,
       }));
+    }
+
+    // ── 4b. Async coaching message (Claude) ──────────────────────
+    // Fires after the adjustment is already sent — never blocks the game.
+    // Arrives ~300-600ms later as a separate 'coaching' WS message.
+    {
+      const snap        = getSessionSnapshot(session.sessionId);
+      const accuracy    = snap?.accuracy ?? 0;
+      const durationSec = snap ? Math.round(snap.durationMs / 1000) : 0;
+      getCoachingMessage(session.gameId, result.direction!, accuracy, durationSec)
+        .then(message => {
+          if (message && ws.readyState === WebSocket.OPEN) {
+            ws.send(JSON.stringify({ type: 'coaching', message }));
+          }
+        })
+        .catch(() => {});
     }
 
     // ── 5. Log adjustment to Kafka ───────────────────────────────
@@ -99,12 +118,28 @@ wss.on('connection', (ws: WebSocket) => {
     if (session && session.adaptive.totalScoredEvents >= 5) {
       const snapshot = getSessionSnapshot(session.sessionId);
       if (snapshot) {
+        const { sessionId, gameId, userId } = session;
+
+        // All post-session jobs run in parallel, fire-and-forget.
+        // Order doesn't matter — each agent is independently idempotent.
+
         generateSessionReport({
-          sessionId:   session.sessionId,
+          sessionId,
           snapshot,
           adaptive:    session.adaptive,
           adjustments: adjustmentLog,
-        }).catch(err => console.error('[Report] Failed:', (err as Error).message));
+        }).catch(err => console.error('[Report]', (err as Error).message));
+
+        updateBaseline(userId, gameId, snapshot.reactionTimes)
+          .then(() => {
+            // Coach report depends on sessionsCount written by updateBaseline
+            checkAndRunCoach(userId, gameId)
+              .catch(err => console.error('[Coach]', (err as Error).message));
+          })
+          .catch(err => console.error('[Baseline]', (err as Error).message));
+
+        checkAlerts(userId, gameId, snapshot)
+          .catch(err => console.error('[Alert]', (err as Error).message));
       }
     }
     deleteSession(ws);
