@@ -10,31 +10,14 @@
  *     accuracy, avgReactionMs, peakStreak
  *
  *   users/{userId}/stats/{gameId}
- *     sessionsCount, avgAccuracy, avgReactionMs, lastPlayedAt
+ *     lastPlayedAt, lastAccuracy, lastAvgReactionMs
+ *     (avgReactionMs / stdDevReactionMs / sessionsCount are owned by baseline-agent)
  */
 
 import { Kafka } from 'kafkajs';
-import { initializeApp, cert, getApps } from 'firebase-admin/app';
-import { getFirestore, type Firestore } from 'firebase-admin/firestore';
 import type { GameEvent } from '../types/game.types.js';
-import { computeSessionStats } from './adaptive-agent.js';
 import { TOPICS } from '../kafka/topics.js';
-
-// ── Firebase Admin init ────────────────────────────────────────────────────────
-// Uses the same credentials already in backend/.env
-
-function getFirestoreClient(): Firestore {
-  if (getApps().length === 0) {
-    initializeApp({
-      credential: cert({
-        projectId:    process.env.FIREBASE_PROJECT_ID,
-        clientEmail:  process.env.FIREBASE_CLIENT_EMAIL,
-        privateKey:   process.env.FIREBASE_PRIVATE_KEY?.replace(/\\n/g, '\n'),
-      }),
-    });
-  }
-  return getFirestore();
-}
+import { getDb } from '../firebase.js';
 
 // ── In-memory session buffer ───────────────────────────────────────────────────
 // We accumulate events per session and flush to Firestore every FLUSH_INTERVAL_MS
@@ -80,10 +63,16 @@ function applyEvent(event: GameEvent) {
   buf.totalEvents++;
   buf.dirty = true;
 
+  // ROUND_END carries correct:boolean in payload — use it instead of type alone
+  const roundEndCorrect = type === 'ROUND_END'
+    ? event.payload?.correct === true
+    : null;
+
   const isHit = type === 'CIRCLE_HIT' || type === 'PAIR_MATCHED' ||
-                type === 'STATION_SELECTED' || type === 'ROUND_END';
+                type === 'STATION_SELECTED' || roundEndCorrect === true;
   const isMiss = type === 'DISTRACTOR_CLICK' || type === 'PAIR_MISSED' ||
-                 type === 'MISSED_SWITCH' || type === 'MOVE_MADE';
+                 type === 'MISSED_SWITCH'     || type === 'MOVE_MADE'   ||
+                 roundEndCorrect === false;
   const isTimeout = type === 'TIMEOUT';
 
   if (isHit) {
@@ -102,7 +91,8 @@ function applyEvent(event: GameEvent) {
   if (rt !== null && rt > 0) buf.reactionTimes.push(rt);
 }
 
-async function flushAll(db: Firestore) {
+async function flushAll() {
+  const db = getDb();
   const dirty = [...buffers.entries()].filter(([, buf]) => buf.dirty);
   if (dirty.length === 0) return;
 
@@ -132,18 +122,15 @@ async function flushAll(db: Firestore) {
       peakStreak:   buf.peakStreak,
     }, { merge: true });
 
-    // Update per-user per-game rolling stats
+    // Update per-user per-game last-session snapshot.
+    // avgReactionMs / stdDevReactionMs / sessionsCount are written by baseline-agent
+    // (once per session close, using Welford cross-session statistics).
     const statsRef = db.collection('users').doc(buf.userId)
                        .collection('stats').doc(buf.gameId);
     batch.set(statsRef, {
       lastPlayedAt:      buf.lastEventAt,
       lastAccuracy:      Math.round(accuracy * 100) / 100,
       lastAvgReactionMs: avgReactionMs,
-      // stdDev is used by adaptive-agent as the personal baseline spread
-      ...(computeSessionStats(buf.reactionTimes) && {
-        avgReactionMs:    computeSessionStats(buf.reactionTimes)!.mean,
-        stdDevReactionMs: computeSessionStats(buf.reactionTimes)!.stdDev,
-      }),
     }, { merge: true });
   }
 
@@ -154,8 +141,6 @@ async function flushAll(db: Firestore) {
 // ── Kafka consumer ─────────────────────────────────────────────────────────────
 
 export async function startAnalyticsAgent(): Promise<void> {
-  const db = getFirestoreClient();
-
   const kafka    = new Kafka({ clientId: 'analytics-agent', brokers: [process.env.KAFKA_BROKER ?? 'localhost:9092'] });
   const consumer = kafka.consumer({ groupId: 'analytics-group' });
 
@@ -164,7 +149,7 @@ export async function startAnalyticsAgent(): Promise<void> {
 
   // Flush every 5 seconds
   setInterval(() => {
-    flushAll(db).catch(err => console.error('[Analytics] Flush error:', err));
+    flushAll().catch(err => console.error('[Analytics] Flush error:', err));
   }, FLUSH_INTERVAL_MS);
 
   await consumer.run({
@@ -180,4 +165,41 @@ export async function startAnalyticsAgent(): Promise<void> {
   });
 
   console.log('[Analytics] Agent running — consuming game-events → Firestore');
+}
+
+// ── Session snapshot (used by report-agent on session end) ─────────────────────
+
+export interface SessionSnapshot {
+  userId:        string;
+  gameId:        string;
+  durationMs:    number;
+  hits:          number;
+  misses:        number;
+  timeouts:      number;
+  accuracy:      number;
+  avgReactionMs: number;
+  peakStreak:    number;
+  reactionTimes: number[];   // raw array — baseline-agent uses this for Welford update
+}
+
+export function getSessionSnapshot(sessionId: string): SessionSnapshot | null {
+  const buf = buffers.get(sessionId);
+  if (!buf) return null;
+  const scored        = buf.hits + buf.misses + buf.timeouts;
+  const accuracy      = scored > 0 ? buf.hits / scored : 0;
+  const avgReactionMs = buf.reactionTimes.length > 0
+    ? Math.round(buf.reactionTimes.reduce((a, b) => a + b, 0) / buf.reactionTimes.length)
+    : 0;
+  return {
+    userId:        buf.userId,
+    gameId:        buf.gameId,
+    durationMs:    buf.lastEventAt - buf.startedAt,
+    hits:          buf.hits,
+    misses:        buf.misses,
+    timeouts:      buf.timeouts,
+    accuracy:      Math.round(accuracy * 100) / 100,
+    avgReactionMs,
+    peakStreak:    buf.peakStreak,
+    reactionTimes: [...buf.reactionTimes],
+  };
 }

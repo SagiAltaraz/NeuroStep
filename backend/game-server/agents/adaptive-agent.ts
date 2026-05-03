@@ -16,9 +16,8 @@
  */
 
 import { mean, standardDeviation, linearRegression } from 'simple-statistics';
-import { getApps, initializeApp, cert } from 'firebase-admin/app';
-import { getFirestore }                 from 'firebase-admin/firestore';
-import type { DifficultyParams, GameId } from '../types/game.types.js';
+import { getDb }                                     from '../firebase.js';
+import type { DifficultyParams, GameId }             from '../types/game.types.js';
 
 // ── Config ─────────────────────────────────────────────────────────────────────
 
@@ -67,21 +66,10 @@ export function createAdaptiveState(sessionId: string, gameId: GameId, userId: s
 
 // ── Firebase ───────────────────────────────────────────────────────────────────
 
-function db() {
-  if (getApps().length === 0) {
-    initializeApp({ credential: cert({
-      projectId:   process.env.FIREBASE_PROJECT_ID,
-      clientEmail: process.env.FIREBASE_CLIENT_EMAIL,
-      privateKey:  process.env.FIREBASE_PRIVATE_KEY?.replace(/\\n/g, '\n'),
-    })});
-  }
-  return getFirestore();
-}
-
 async function loadBaseline(userId: string, gameId: GameId): Promise<{ mean: number; stdDev: number } | null> {
   if (userId === 'anonymous') return null;
   try {
-    const doc = await db().collection('users').doc(userId).collection('stats').doc(gameId).get();
+    const doc = await getDb().collection('users').doc(userId).collection('stats').doc(gameId).get();
     if (!doc.exists) return null;
     const data = doc.data()!;
     if (typeof data.avgReactionMs !== 'number' || typeof data.stdDevReactionMs !== 'number') return null;
@@ -98,10 +86,11 @@ export interface AdaptiveEvent {
 }
 
 export interface AdaptiveResult {
-  adjusted: boolean;
-  reason?:  string;
-  params?:  DifficultyParams;
-  debug?:   {
+  adjusted:  boolean;
+  direction?: 'harder' | 'easier';
+  reason?:   string;
+  params?:   DifficultyParams;
+  debug?:    {
     ema:       number | null;
     baseline:  number | null;
     zScore:    number | null;
@@ -120,7 +109,7 @@ const HIT_TYPES: Record<string, Set<string>> = {
 
 const SCORED_TYPES: Record<string, Set<string>> = {
   'shapes-click': new Set(['CIRCLE_HIT', 'DISTRACTOR_CLICK', 'TIMEOUT']),
-  'color-trains': new Set(['STATION_SELECTED', 'MISSED_SWITCH']),
+  'color-trains': new Set(['STATION_SELECTED', 'MISSED_SWITCH', 'ROUND_END']),
   'tictactoe':    new Set(['GAME_WON', 'GAME_DRAW', 'MOVE_MADE']),
   'memory':       new Set(['PAIR_MATCHED', 'PAIR_MISSED']),
 };
@@ -223,7 +212,7 @@ export async function processEvent(
   state.lastAdjustAt = Date.now();
 
   const params = buildParams(state.gameId, direction, state.emaReactionMs);
-  return { adjusted: true, reason, params, debug };
+  return { adjusted: true, direction, reason, params, debug };
 }
 
 // ── Game-specific param mapping ────────────────────────────────────────────────

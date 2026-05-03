@@ -1,20 +1,238 @@
 /**
- * Report Agent
+ * Report Agent — end-of-session cognitive analysis via Claude SDK
  *
- * Trigger : called on session end OR on a scheduled daily job
- * Input   : aggregated session data from PostgreSQL (via analytics-agent)
- * Output  : CognitiveProfile per userId, stored to PostgreSQL
+ * Trigger : ws.on('close') in server.ts → generateSessionReport()
+ * Input   : session stats (hits, misses, RT, trend) + adaptive history
+ * Output  : CognitiveReport saved to Firestore at:
+ *             sessions/{sessionId}/report  (full report)
+ *             users/{userId}/reports/{sessionId} (summary index)
  *
- * TODO:
- *   1. Define CognitiveProfile type:
- *        { userId, gameId, period: '7d'|'30d', avgAccuracy, avgReactionMs,
- *          accuracyTrend: number, reactionTrend: number, sessionsCount }
- *   2. Read session_summaries WHERE userId = ? AND createdAt > NOW() - interval
- *   3. Compute trends (simple linear regression on accuracy/reactionMs over time)
- *   4. Upsert into cognitive_profiles(userId, gameId, period, …)
- *   5. Expose via REST endpoint GET /api/users/:userId/profile
- *      (for the admin dashboard AdminStats.tsx)
+ * Why Claude here (not in adaptive-agent)?
+ *   - Adaptive agent must respond in <5ms → pure maths only
+ *   - Report runs once, async, after the session → latency is fine
+ *   - Claude gives a human-readable Hebrew narrative, not just numbers
  */
 
-// import { Pool } from 'pg';
-// import type { GameId } from '../types/game.types.js';
+import Anthropic               from '@anthropic-ai/sdk';
+import { FieldValue }          from 'firebase-admin/firestore';
+import { getDb }               from '../firebase.js';
+import type { GameId }         from '../types/game.types.js';
+import type { AdaptiveState }             from './adaptive-agent.js';
+import type { SessionSnapshot }           from './analytics-agent.js';
+
+// ── Types ──────────────────────────────────────────────────────────────────────
+
+export interface ReportInput {
+  sessionId:    string;
+  snapshot:     SessionSnapshot;
+  adaptive:     AdaptiveState;
+  adjustments:  AdjustmentRecord[];
+}
+
+export interface AdjustmentRecord {
+  reason:    string;
+  direction: 'harder' | 'easier';
+  at:        number; // timestamp
+}
+
+export interface CognitiveReport {
+  sessionId:           string;
+  userId:              string;
+  gameId:              GameId;
+  generatedAt:         number;
+  cognitiveScore:      number;       // 0–100
+  summaryHe:           string;       // one paragraph in Hebrew
+  strengthsHe:         string[];     // 2–3 bullet points
+  recommendationsHe:   string[];     // 1–2 action items
+  rawStats: {
+    accuracy:          number;
+    avgReactionMs:     number;
+    peakStreak:        number;
+    durationMs:        number;
+    adjustmentCount:   number;
+    netDirection:      'harder' | 'easier' | 'stable';
+  };
+}
+
+// ── Prompt ─────────────────────────────────────────────────────────────────────
+
+const SYSTEM = `\
+You are a cognitive neuropsychologist specialising in elderly brain health.
+You analyse data from digital cognitive training sessions and produce structured reports.
+
+Audience: the report is read by caregivers, family members, and occasionally the patient.
+Tone: warm, encouraging, clinically grounded — avoid alarmist or overly clinical language.
+
+Output format: return ONLY valid JSON, no markdown fences, no preamble.
+The "summaryHe", "strengthsHe", and "recommendationsHe" fields must be written in natural,
+conversational Hebrew — the target reader is an elderly Hebrew-speaking adult.`;
+
+const GAME_NAMES: Record<GameId, string> = {
+  'shapes-click': 'Shape Recognition (Shapes Click)',
+  'color-trains': 'Color Trains (attention switching)',
+  'tictactoe':    'Tic-Tac-Toe (strategic planning)',
+  'memory':       'Memory Card Matching',
+};
+
+function buildUserPrompt(input: ReportInput): string {
+  const { snapshot, adaptive, adjustments } = input;
+  const durationSec = Math.round(snapshot.durationMs / 1000);
+  const harder  = adjustments.filter(a => a.direction === 'harder').length;
+  const easier  = adjustments.filter(a => a.direction === 'easier').length;
+  const netDir  = harder > easier ? 'harder' : easier > harder ? 'easier' : 'stable';
+  const rtTrend = describeReactionTrend(adaptive.reactionWindow);
+
+  const baselineSection = adaptive.baselineMean
+    ? `Personal baseline: ${adaptive.baselineMean}ms avg  |  This session EMA: ${adaptive.emaReactionMs?.toFixed(0) ?? '—'}ms  |  ${
+        adaptive.emaReactionMs && adaptive.baselineMean
+          ? adaptive.emaReactionMs < adaptive.baselineMean ? 'Faster than personal average ✓' : 'Slower than personal average'
+          : ''
+      }`
+    : 'No prior baseline — this is the first session.';
+
+  return `
+## Session Data
+Game: ${GAME_NAMES[snapshot.gameId as GameId] ?? snapshot.gameId}
+Duration: ${durationSec}s
+Successful responses: ${snapshot.hits}  |  Errors: ${snapshot.misses}  |  Timeouts: ${snapshot.timeouts}
+Accuracy: ${Math.round(snapshot.accuracy * 100)}%
+Average reaction time: ${snapshot.avgReactionMs}ms
+Peak consecutive streak: ${snapshot.peakStreak}
+
+## Reaction Time Trend
+${rtTrend}
+
+## Adaptive Difficulty (${adjustments.length} adjustments total)
+Harder: ${harder}  |  Easier: ${easier}  |  Net: ${netDir}
+${adjustments.slice(-3).map(a => `  - ${a.reason} → ${a.direction}`).join('\n')}
+
+## Personal Baseline Comparison
+${baselineSection}
+
+## Required JSON Output
+{
+  "cognitiveScore": <integer 0-100>,
+  "summaryHe": "<2-3 sentences in Hebrew — what went well, what the performance reveals cognitively>",
+  "strengthsHe": ["<specific observed strength in Hebrew>", "<another strength in Hebrew>"],
+  "recommendationsHe": ["<one actionable suggestion in Hebrew>", "<optional second suggestion>"]
+}
+
+Scoring: 70–100 = strong performance, 40–69 = average, 0–39 = needs practice.
+Keep Hebrew text warm, simple, and encouraging — never frightening.`.trim();
+}
+
+function describeReactionTrend(times: number[]): string {
+  if (times.length < 4) return 'Not enough reaction time data to determine trend.';
+  const half     = Math.floor(times.length / 2);
+  const avgFirst = Math.round(times.slice(0, half).reduce((a, b) => a + b, 0) / half);
+  const avgLast  = Math.round(times.slice(half).reduce((a, b) => a + b, 0) / (times.length - half));
+  const delta    = avgLast - avgFirst;
+  if (Math.abs(delta) < 30) return 'Reaction times were stable throughout the session.';
+  return delta > 0
+    ? `Reaction times increased by ~${delta}ms toward the end (possible fatigue signal).`
+    : `Reaction times improved by ~${Math.abs(delta)}ms toward the end (warming up / flow state).`;
+}
+
+// ── Net direction helper ───────────────────────────────────────────────────────
+
+function computeNetDir(adjustments: AdjustmentRecord[]): 'harder' | 'easier' | 'stable' {
+  const harder = adjustments.filter(a => a.direction === 'harder').length;
+  const easier = adjustments.filter(a => a.direction === 'easier').length;
+  return harder > easier ? 'harder' : easier > harder ? 'easier' : 'stable';
+}
+
+// ── Main export ────────────────────────────────────────────────────────────────
+
+export async function generateSessionReport(input: ReportInput): Promise<CognitiveReport | null> {
+  const apiKey = process.env.ANTHROPIC_API_KEY ?? process.env.Claude_API_KEY;
+  if (!apiKey) {
+    console.warn('[Report] Claude API key not set (ANTHROPIC_API_KEY or Claude_API_KEY) — skipping');
+    return null;
+  }
+
+  const { sessionId, snapshot, adjustments } = input;
+
+  try {
+    const client = new Anthropic({ apiKey });
+
+    const message = await client.messages.create({
+      model:      'claude-haiku-4-5-20251001',
+      max_tokens: 600,
+      system:     SYSTEM,
+      messages:   [{ role: 'user', content: buildUserPrompt(input) }],
+    });
+
+    const text = message.content[0].type === 'text' ? message.content[0].text : '';
+
+    // Extract JSON from response (Claude may wrap in ```json ... ```)
+    const jsonMatch = text.match(/\{[\s\S]*\}/);
+    if (!jsonMatch) throw new Error('No JSON in Claude response');
+
+    const parsed = JSON.parse(jsonMatch[0]) as {
+      cognitiveScore: number;
+      summaryHe: string;
+      strengthsHe: string[];
+      recommendationsHe: string[];
+    };
+
+    const report: CognitiveReport = {
+      sessionId,
+      userId:              snapshot.userId,
+      gameId:              snapshot.gameId as GameId,
+      generatedAt:         Date.now(),
+      cognitiveScore:      Math.max(0, Math.min(100, Math.round(parsed.cognitiveScore))),
+      summaryHe:           parsed.summaryHe,
+      strengthsHe:         parsed.strengthsHe ?? [],
+      recommendationsHe:   parsed.recommendationsHe ?? [],
+      rawStats: {
+        accuracy:        snapshot.accuracy,
+        avgReactionMs:   snapshot.avgReactionMs,
+        peakStreak:      snapshot.peakStreak,
+        durationMs:      snapshot.durationMs,
+        adjustmentCount: adjustments.length,
+        netDirection:    computeNetDir(adjustments),
+      },
+    };
+
+    // Save to Firestore
+    const firestore = getDb();
+    const batch = firestore.batch();
+
+    // Full report under the session doc
+    batch.set(
+      firestore.collection('sessions').doc(sessionId),
+      { report },
+      { merge: true },
+    );
+
+    // Lightweight index under the user's profile
+    batch.set(
+      firestore.collection('users').doc(snapshot.userId)
+               .collection('reports').doc(sessionId),
+      {
+        sessionId,
+        gameId:         snapshot.gameId,
+        generatedAt:    report.generatedAt,
+        cognitiveScore: report.cognitiveScore,
+        summaryHe:      report.summaryHe,
+      },
+    );
+
+    await batch.commit();
+
+    // Increment token counters — FieldValue.increment is atomic, no race conditions
+    await firestore.collection('meta').doc('tokenUsage').set({
+      totalInputTokens:  FieldValue.increment(message.usage.input_tokens),
+      totalOutputTokens: FieldValue.increment(message.usage.output_tokens),
+      totalReports:      FieldValue.increment(1),
+      lastUpdated:       Date.now(),
+    }, { merge: true });
+
+    console.log(`[Report] session:${sessionId} score:${report.cognitiveScore} tokens:${message.usage.input_tokens}in/${message.usage.output_tokens}out`);
+    return report;
+
+  } catch (err) {
+    console.error('[Report] Error generating report:', (err as Error).message);
+    return null;
+  }
+}
