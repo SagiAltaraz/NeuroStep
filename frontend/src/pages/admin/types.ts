@@ -2,5 +2,6 @@ export type AdminView =
   | "stats"
   | "events"
   | "users"
-  | "settings";
+  | "settings"
+  | "activity";
   

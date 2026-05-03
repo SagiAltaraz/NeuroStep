@@ -1,0 +1,175 @@
+.act-section-title {
+  font-size: 0.95rem;
+  font-weight: 600;
+  color: #1a1a2e;
+  margin: 0 0 0.75rem 0;
+  direction: rtl;
+}
+
+.act-state {
+  text-align: center;
+  color: #94a3b8;
+  padding: 2.5rem 0;
+  font-size: 0.875rem;
+  direction: rtl;
+}
+
+.act-error {
+  background: #fef2f2;
+  border: 1px solid #fca5a5;
+  border-radius: 10px;
+  padding: 1rem 1.25rem;
+  color: #dc2626;
+  font-size: 0.875rem;
+  direction: rtl;
+}
+
+/* ── User summary grid ── */
+.act-user-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(280px, 1fr));
+  gap: 0.75rem;
+  margin-bottom: 0.5rem;
+}
+
+.act-user-card {
+  background: #fff;
+  border: 1px solid #e2e8f0;
+  border-radius: 12px;
+  padding: 1rem;
+  display: flex;
+  align-items: center;
+  gap: 0.75rem;
+  direction: rtl;
+}
+
+.act-avatar {
+  width: 40px;
+  height: 40px;
+  border-radius: 50%;
+  background: #6366f1;
+  color: #fff;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-weight: 700;
+  font-size: 1.1rem;
+  flex-shrink: 0;
+}
+
+.act-user-info {
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  gap: 0.1rem;
+  min-width: 0;
+}
+
+.act-user-name {
+  font-weight: 600;
+  font-size: 0.875rem;
+  color: #1a1a2e;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.act-user-email {
+  font-size: 0.75rem;
+  color: #64748b;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.act-user-last {
+  font-size: 0.72rem;
+  color: #94a3b8;
+}
+
+.act-login-count {
+  font-size: 0.8rem;
+  font-weight: 700;
+  color: #6366f1;
+  white-space: nowrap;
+  flex-shrink: 0;
+}
+
+/* ── Login feed ── */
+.act-feed {
+  background: #fff;
+  border: 1px solid #e2e8f0;
+  border-radius: 12px;
+  overflow: hidden;
+}
+
+.act-feed-row {
+  display: flex;
+  align-items: center;
+  gap: 0.75rem;
+  padding: 0.7rem 1rem;
+  border-bottom: 1px solid #f1f5f9;
+  direction: rtl;
+}
+
+.act-feed-row:last-child { border-bottom: none; }
+.act-feed-row:hover { background: #f8fafc; }
+
+.act-feed-avatar {
+  width: 32px;
+  height: 32px;
+  border-radius: 50%;
+  background: #e0e7ff;
+  color: #4338ca;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-weight: 700;
+  font-size: 0.85rem;
+  flex-shrink: 0;
+}
+
+.act-feed-main {
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  gap: 0.05rem;
+  min-width: 0;
+}
+
+.act-feed-name {
+  font-size: 0.85rem;
+  font-weight: 600;
+  color: #1e293b;
+}
+
+.act-feed-email {
+  font-size: 0.75rem;
+  color: #94a3b8;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.act-method {
+  font-size: 0.72rem;
+  font-weight: 600;
+  padding: 0.15rem 0.5rem;
+  border-radius: 20px;
+  flex-shrink: 0;
+}
+
+.act-method.email  { background: #e0e7ff; color: #4338ca; }
+.act-method.google { background: #fce7f3; color: #db2777; }
+
+.act-feed-time {
+  font-size: 0.75rem;
+  color: #94a3b8;
+  flex-shrink: 0;
+  min-width: 80px;
+  text-align: left;
+}
+
+@media (max-width: 600px) {
+  .act-user-grid { grid-template-columns: 1fr; }
+}

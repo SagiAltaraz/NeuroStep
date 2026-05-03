@@ -5,7 +5,8 @@
     "moduleResolution": "Node16",
     "outDir": "./dist",
     "strict": true,
-    "erasableSyntaxOnly": true
+    "erasableSyntaxOnly": true,
+    "skipLibCheck": true
   },
   "include": ["**/*.ts"]
 }

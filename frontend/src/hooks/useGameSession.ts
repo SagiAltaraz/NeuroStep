@@ -25,8 +25,9 @@ export function useGameSession(gameId: GameId) {
   const wsRef     = useRef<WebSocket | null>(null);
   const sessionId = useRef(`${gameId}-${crypto.randomUUID()}`);
 
-  const [isConnected, setIsConnected] = useState(false);
-  const [adjustment,  setAdjustment]  = useState<GameAdjustment | null>(null);
+  const [isConnected,    setIsConnected]    = useState(false);
+  const [adjustment,     setAdjustment]     = useState<GameAdjustment | null>(null);
+  const [coachingMessage, setCoachingMessage] = useState<string | null>(null);
 
   useEffect(() => {
     const ws = new WebSocket(WS_URL);
@@ -38,10 +39,14 @@ export function useGameSession(gameId: GameId) {
 
     ws.onmessage = (evt: MessageEvent<string>) => {
       try {
-        const msg = JSON.parse(evt.data) as { type: string; reason: string; params: GameAdjustment };
-        if (msg.type === 'adjustment') {
+        const msg = JSON.parse(evt.data) as { type: string; reason?: string; params?: GameAdjustment; message?: string };
+        if (msg.type === 'adjustment' && msg.params) {
           console.log(`[${gameId}] Adjustment (${msg.reason}):`, msg.params);
           setAdjustment(msg.params);
+        } else if (msg.type === 'coaching' && msg.message) {
+          setCoachingMessage(msg.message);
+          // Auto-clear after 4 seconds so it doesn't linger
+          setTimeout(() => setCoachingMessage(null), 4000);
         }
       } catch { /* ignore malformed */ }
     };
@@ -60,5 +65,5 @@ export function useGameSession(gameId: GameId) {
     }));
   }, [gameId, userId]);
 
-  return { sendEvent, adjustment, isConnected, sessionId: sessionId.current, userId };
+  return { sendEvent, adjustment, coachingMessage, isConnected, sessionId: sessionId.current, userId };
 }

@@ -1,0 +1,218 @@
+/* ── KPI row ─────────────────────────────────────────────────────────────────── */
+.kpi-row {
+  display: grid;
+  grid-template-columns: repeat(4, 1fr);
+  gap: 1rem;
+  margin-bottom: 1.5rem;
+}
+
+.kpi-card {
+  background: #fff;
+  border: 1px solid #e2e8f0;
+  border-radius: 12px;
+  padding: 1.25rem 1rem;
+  display: flex;
+  flex-direction: column;
+  gap: 0.4rem;
+  text-align: center;
+}
+
+.kpi-card.kpi-highlight {
+  border-color: #6366f1;
+  background: #f5f3ff;
+}
+
+.kpi-label {
+  font-size: 0.78rem;
+  font-weight: 500;
+  color: #64748b;
+  text-transform: uppercase;
+  letter-spacing: 0.03em;
+}
+
+.kpi-value {
+  font-size: 2rem;
+  font-weight: 700;
+  color: #1a1a2e;
+  line-height: 1;
+}
+
+.kpi-highlight .kpi-value {
+  color: #4f46e5;
+}
+
+/* ── Charts row ──────────────────────────────────────────────────────────────── */
+.charts-row {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 1rem;
+  margin-bottom: 1rem;
+}
+
+.chart-card {
+  background: #fff;
+  border: 1px solid #e2e8f0;
+  border-radius: 12px;
+  padding: 1.25rem;
+}
+
+.chart-title {
+  font-size: 0.9rem;
+  font-weight: 600;
+  color: #1a1a2e;
+  margin: 0 0 1rem 0;
+  direction: rtl;
+}
+
+.chart-empty {
+  font-size: 0.85rem;
+  color: #94a3b8;
+  text-align: center;
+  padding: 2rem 0;
+  direction: rtl;
+}
+
+/* ── Token usage ─────────────────────────────────────────────────────────────── */
+.token-card {
+  background: #fff;
+  border: 1px solid #e2e8f0;
+  border-radius: 12px;
+  padding: 1.25rem;
+  margin-bottom: 1rem;
+}
+
+.token-grid {
+  display: grid;
+  grid-template-columns: repeat(4, 1fr);
+  gap: 1rem;
+}
+
+.token-stat {
+  display: flex;
+  flex-direction: column;
+  gap: 0.3rem;
+  text-align: center;
+}
+
+.token-stat.token-cost {
+  background: #f0fdf4;
+  border-radius: 8px;
+  padding: 0.5rem;
+}
+
+.token-label {
+  font-size: 0.75rem;
+  color: #64748b;
+  font-weight: 500;
+  direction: rtl;
+}
+
+.token-num {
+  font-size: 1.4rem;
+  font-weight: 700;
+  color: #1a1a2e;
+}
+
+.token-cost .token-num {
+  color: #16a34a;
+}
+
+/* ── Recent reports ──────────────────────────────────────────────────────────── */
+.reports-card {
+  background: #fff;
+  border: 1px solid #e2e8f0;
+  border-radius: 12px;
+  padding: 1.25rem;
+}
+
+.report-row {
+  border-top: 1px solid #f1f5f9;
+  padding: 0.9rem 0;
+}
+
+.report-row:first-of-type {
+  border-top: none;
+}
+
+.report-meta {
+  display: flex;
+  align-items: center;
+  gap: 0.75rem;
+  margin-bottom: 0.4rem;
+  direction: rtl;
+}
+
+.report-game {
+  font-size: 0.8rem;
+  font-weight: 600;
+  background: #f1f5f9;
+  padding: 0.2rem 0.6rem;
+  border-radius: 20px;
+  color: #475569;
+}
+
+.report-score {
+  font-size: 0.85rem;
+  font-weight: 700;
+  padding: 0.2rem 0.6rem;
+  border-radius: 20px;
+}
+
+.report-score.score-good { background: #dcfce7; color: #16a34a; }
+.report-score.score-mid  { background: #fef9c3; color: #ca8a04; }
+.report-score.score-low  { background: #fee2e2; color: #dc2626; }
+
+.report-summary {
+  font-size: 0.85rem;
+  color: #475569;
+  line-height: 1.5;
+  margin: 0;
+  direction: rtl;
+  text-align: right;
+}
+
+.stats-error {
+  background: #fef2f2;
+  border: 1px solid #fca5a5;
+  border-radius: 12px;
+  padding: 1.5rem;
+  direction: rtl;
+}
+
+.stats-error strong {
+  display: block;
+  color: #dc2626;
+  margin-bottom: 0.5rem;
+}
+
+.stats-error code {
+  display: block;
+  font-size: 0.8rem;
+  background: #fff;
+  padding: 0.5rem;
+  border-radius: 6px;
+  margin-bottom: 0.75rem;
+  direction: ltr;
+  word-break: break-all;
+}
+
+.stats-error p {
+  font-size: 0.85rem;
+  color: #6b7280;
+  margin: 0;
+}
+
+.stats-loading {
+  text-align: center;
+  color: #94a3b8;
+  padding: 3rem;
+  font-size: 0.9rem;
+  direction: rtl;
+}
+
+/* ── Responsive ──────────────────────────────────────────────────────────────── */
+@media (max-width: 700px) {
+  .kpi-row       { grid-template-columns: repeat(2, 1fr); }
+  .charts-row    { grid-template-columns: 1fr; }
+  .token-grid    { grid-template-columns: repeat(2, 1fr); }
+}

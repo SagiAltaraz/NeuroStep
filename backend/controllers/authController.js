@@ -1,6 +1,18 @@
 import { userFirebaseService } from "../services/user.js";
 import { generateToken } from "../utils/jwt.js";
-import { firebaseAuth } from "../config/firebase.js";
+import { firebaseAuth, firestore } from "../config/firebase.js";
+
+async function recordActivity(userId, name, email, method) {
+  try {
+    await firestore.collection('activityLogs').add({
+      userId, name, email, method,
+      timestamp: new Date(),
+    });
+    await firestore.collection('users').doc(userId).update({
+      lastLoginAt: new Date(),
+    });
+  } catch { /* non-blocking */ }
+}
 
 // ===== SIGNUP =====
 export const signup = async (req, res) => {
@@ -48,6 +60,7 @@ export const login = async (req, res) => {
     }
 
     const token = generateToken(user);
+    recordActivity(user.id, user.name, user.email, 'email');
 
     return res.status(200).json({
       user: {
@@ -102,6 +115,7 @@ export const googleAuth = async (req, res) => {
     }
 
     const token = generateToken(user);
+    recordActivity(user.id, user.name, user.email, 'google');
 
     return res.status(200).json({
       user: {

@@ -1,5 +1,6 @@
 import { initializeApp, getApps } from "firebase/app";
 import { getAuth, GoogleAuthProvider } from "firebase/auth";
+import { getFirestore } from "firebase/firestore";
 
 // Firebase configuration for frontend (client-side)
 // Get these values from Firebase Console -> Project Settings -> Your apps -> Web app
@@ -17,6 +18,8 @@ const app = getApps().length === 0 ? initializeApp(firebaseConfig) : getApps()[0
 
 // Initialize Firebase Authentication
 export const auth = getAuth(app);
+
+export const db = getFirestore(app);
 
 // Google Auth Provider
 export const googleProvider = new GoogleAuthProvider();
