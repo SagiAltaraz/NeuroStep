@@ -23,17 +23,16 @@ export const CognitiveReportSchema = z.object({
 export type CognitiveReportFromClaude = z.infer<typeof CognitiveReportSchema>;
 
 // ── Coach Agent: longitudinal report (every 5 sessions) ───────────────────────
-// NOTE: fields use *En suffix today; Phase 4D will migrate to *He. When that
-// happens, rename keys here and the Coach Agent prompt language; the future
-// CoachReportsPage should already use a `report.summaryHe ?? report.summaryEn`
-// fallback so historical *En docs keep rendering.
+// Phase 4D migrated this to Hebrew. Historical docs in Firestore still have
+// *En fields — the CoachReportsPage frontend reads `summaryHe ?? summaryEn`
+// so old reports keep rendering without a backfill.
 
 export const CoachReportSchema = z.object({
   overallProgress:    z.enum(['improving', 'stable', 'needs_attention']),
-  summaryEn:          z.string().min(1).max(500),
-  highlightsEn:       z.array(z.string().min(1).max(200)).min(1).max(5),
-  recommendationsEn:  z.array(z.string().min(1).max(200)).min(1).max(3),
-  cognitiveInsightEn: z.string().min(1).max(500),
+  summaryHe:          z.string().min(1).max(500),
+  highlightsHe:       z.array(z.string().min(1).max(200)).min(1).max(5),
+  recommendationsHe:  z.array(z.string().min(1).max(200)).min(1).max(3),
+  cognitiveInsightHe: z.string().min(1).max(500),
 });
 export type CoachReportFromClaude = z.infer<typeof CoachReportSchema>;
 
