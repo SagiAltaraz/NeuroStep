@@ -34,6 +34,12 @@ export async function checkAlerts(
 ): Promise<void> {
   if (userId === 'anonymous') return;
 
+  // Sessions with no scored events (e.g. tic-tac-toe with only MOVE_MADE) have
+  // accuracy=null and cannot be part of a decline pattern. Skip the accuracy
+  // trigger entirely — but still allow the cognitive-score trigger to fire,
+  // which doesn't depend on this session's accuracy.
+  const currentAccuracy = current.accuracy;
+
   const db = getDb();
 
   let prevSnap;
@@ -52,16 +58,20 @@ export async function checkAlerts(
   if (prevSnap.size < 2) return;   // need at least 2 historical sessions
 
   const prev = prevSnap.docs.map(d => ({
-    accuracy: d.data().accuracy  as number,
+    accuracy: (d.data().accuracy ?? null)              as number | null,
     cogScore: (d.data().report?.cognitiveScore ?? null) as number | null,
   }));
 
-  // Three sessions ordered newest → oldest: [current, prev[0], prev[1]]
-  const accuracies  = [current.accuracy, prev[0].accuracy, prev[1].accuracy];
-  const totalDrop   = accuracies[2] - accuracies[0];    // oldest minus newest = drop when positive
+  // Accuracy trigger only when all three sessions have a defined accuracy.
+  let isLargeAccuracyDrop = false;
+  let totalDrop           = 0;
+  if (currentAccuracy !== null && prev[0].accuracy !== null && prev[1].accuracy !== null) {
+    const accuracies = [currentAccuracy, prev[0].accuracy, prev[1].accuracy];
+    totalDrop        = accuracies[2] - accuracies[0];   // oldest minus newest = drop when positive
 
-  const isMonotoneDecline = accuracies[0] < accuracies[1] && accuracies[1] < accuracies[2];
-  const isLargeAccuracyDrop = isMonotoneDecline && totalDrop >= ACCURACY_DROP_THRESHOLD;
+    const isMonotoneDecline = accuracies[0] < accuracies[1] && accuracies[1] < accuracies[2];
+    isLargeAccuracyDrop     = isMonotoneDecline && totalDrop >= ACCURACY_DROP_THRESHOLD;
+  }
 
   // Cognitive scores come from completed report-agent runs — current session's
   // report hasn't been generated yet, so we only look at previous sessions.

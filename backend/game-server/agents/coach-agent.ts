@@ -88,18 +88,21 @@ export async function checkAndRunCoach(
 
   const sessions = sessionsSnap.docs.map(d => {
     const s = d.data();
+    const rawAccuracy = (s.accuracy ?? null) as number | null;
     return {
       date:       new Date(s.startedAt as number).toLocaleDateString('en-US'),
-      accuracy:   Math.round((s.accuracy as number) * 100),
+      accuracy:   rawAccuracy === null ? null : Math.round(rawAccuracy * 100),
       avgRtMs:    s.avgReactionMs  as number,
       peakStreak: s.peakStreak     as number,
       cogScore:   (s.report?.cognitiveScore ?? null) as number | null,
     };
   });
 
-  const accuracyTrend = trend(sessions.map(s => s.accuracy));
-  const cogScores     = sessions.map(s => s.cogScore).filter((v): v is number => v !== null);
-  const cogTrend      = cogScores.length >= 2 ? trend(cogScores) : 'no cognitive scores yet';
+  // Trends ignore null-accuracy sessions (incomplete games)
+  const definedAccuracies = sessions.map(s => s.accuracy).filter((v): v is number => v !== null);
+  const accuracyTrend     = definedAccuracies.length >= 2 ? trend(definedAccuracies) : 'no completed games yet';
+  const cogScores         = sessions.map(s => s.cogScore).filter((v): v is number => v !== null);
+  const cogTrend          = cogScores.length >= 2 ? trend(cogScores) : 'no cognitive scores yet';
 
   const apiKey = process.env.ANTHROPIC_API_KEY ?? process.env.Claude_API_KEY;
   if (!apiKey) return;
@@ -112,7 +115,7 @@ Cognitive score trend: ${cogTrend}
 
 Session data (index 0 = most recent):
 ${sessions.map((s, i) =>
-  `[${i}] ${s.date}: accuracy=${s.accuracy}%  avg_rt=${s.avgRtMs}ms  streak=${s.peakStreak}${s.cogScore != null ? `  cognitive_score=${s.cogScore}` : ''}`
+  `[${i}] ${s.date}: accuracy=${s.accuracy === null ? 'n/a' : s.accuracy + '%'}  avg_rt=${s.avgRtMs}ms  streak=${s.peakStreak}${s.cogScore != null ? `  cognitive_score=${s.cogScore}` : ''}`
 ).join('\n')}
 
 Return JSON exactly matching this schema:

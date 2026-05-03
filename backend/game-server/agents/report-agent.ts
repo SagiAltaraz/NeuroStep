@@ -45,7 +45,7 @@ export interface CognitiveReport {
   strengthsHe:         string[];     // 2–3 bullet points
   recommendationsHe:   string[];     // 1–2 action items
   rawStats: {
-    accuracy:          number;
+    accuracy:          number | null;  // null when no scored events (e.g. tic-tac-toe with no completed game)
     avgReactionMs:     number;
     peakStreak:        number;
     durationMs:        number;
@@ -90,12 +90,16 @@ function buildUserPrompt(input: ReportInput): string {
       }`
     : 'No prior baseline — this is the first session.';
 
+  const accuracyLine = snapshot.accuracy === null
+    ? 'Accuracy: n/a (no scored events in session)'
+    : `Accuracy: ${Math.round(snapshot.accuracy * 100)}%`;
+
   return `
 ## Session Data
 Game: ${GAME_NAMES[snapshot.gameId as GameId] ?? snapshot.gameId}
 Duration: ${durationSec}s
 Successful responses: ${snapshot.hits}  |  Errors: ${snapshot.misses}  |  Timeouts: ${snapshot.timeouts}
-Accuracy: ${Math.round(snapshot.accuracy * 100)}%
+${accuracyLine}
 Average reaction time: ${snapshot.avgReactionMs}ms
 Peak consecutive streak: ${snapshot.peakStreak}
 
