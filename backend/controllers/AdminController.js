@@ -119,3 +119,62 @@ export const getTokenUsage = async (req, res) => {
     res.status(500).json({ message: "Failed to fetch token usage", error: err.message });
   }
 };
+
+// ===== COGNITIVE TREND (per-user time series) =====
+const VALID_GAMES   = new Set(['shapes-click', 'color-trains', 'tictactoe', 'memory', 'all']);
+const VALID_PERIODS = new Set(['7d', '30d', '90d', 'all']);
+
+const PERIOD_DAYS = { '7d': 7, '30d': 30, '90d': 90 };
+
+export const getUserCognitiveTrend = async (req, res) => {
+  try {
+    const { userId } = req.params;
+    const game   = VALID_GAMES.has(req.query.game)     ? req.query.game     : 'all';
+    const period = VALID_PERIODS.has(req.query.period) ? req.query.period   : '30d';
+
+    // Look up the user's display name (use 'name' field per existing schema)
+    const userSnap    = await firestore.collection('users').doc(userId).get();
+    const displayName = userSnap.exists ? (userSnap.data().name ?? null) : null;
+
+    // Build the query against users/{userId}/reports
+    let q = firestore.collection('users').doc(userId).collection('reports');
+
+    if (game !== 'all')   q = q.where('gameId',      '==', game);
+    if (period !== 'all') {
+      const cutoff = Date.now() - PERIOD_DAYS[period] * 24 * 60 * 60 * 1000;
+      q = q.where('generatedAt', '>=', cutoff);
+    }
+
+    const snap = await q.orderBy('generatedAt', 'asc').limit(500).get();
+
+    const series = snap.docs.map(d => {
+      const data = d.data();
+      return {
+        sessionId:      data.sessionId      ?? d.id,
+        generatedAt:    data.generatedAt    ?? null,
+        gameId:         data.gameId         ?? null,
+        cognitiveScore: data.cognitiveScore ?? null,
+        accuracy:       data.accuracy       ?? null,   // may be null for older records
+        summaryHe:      data.summaryHe      ?? '',
+      };
+    });
+
+    // Compute summary
+    const scores         = series.map(s => s.cognitiveScore).filter(v => typeof v === 'number');
+    const latestScore    = scores.length > 0 ? scores[scores.length - 1] : null;
+    const periodAverage  = scores.length > 0
+      ? Math.round(scores.reduce((a, b) => a + b, 0) / scores.length)
+      : null;
+    const periodChange   = scores.length >= 2 ? scores[scores.length - 1] - scores[0] : null;
+    const sessionsCount  = series.length;
+
+    res.json({
+      user:    { userId, displayName },
+      series,
+      summary: { latestScore, periodAverage, periodChange, sessionsCount },
+    });
+  } catch (err) {
+    console.error('[getUserCognitiveTrend]', err);
+    res.status(500).json({ message: "Failed to fetch cognitive trend", error: err.message });
+  }
+};

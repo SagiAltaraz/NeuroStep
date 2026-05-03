@@ -14,6 +14,7 @@ import TicTacToePage from './pages/games/TicTacToePage';
 import MemoryGamePage from './pages/games/MemoryGamePage';
 import ShapesClickPage from './pages/games/ShapesClickPage';
 import AdminPage from './pages/admin/AdminPage';
+import CognitiveTrendPage from './pages/admin/trend/CognitiveTrendPage';
 import ProtectedRoute from './components/ProtectedRoute/ProtectedRoute';
 
 function App() {
@@ -68,6 +69,7 @@ function App() {
                }
             />
             <Route path="/admin" element={<AdminPage />} />
+            <Route path="/admin/users/:userId/trend" element={<CognitiveTrendPage />} />
             <Route path="*" element={<div>404 - Page not found</div>} />
          </Routes>
       </div>

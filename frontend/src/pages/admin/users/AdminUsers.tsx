@@ -1,4 +1,5 @@
 import { useEffect, useState, useMemo } from "react";
+import { useNavigate } from "react-router-dom";
 import { useAuth } from "../../../context/AuthContext";
 import "./AdminUsers.css";
 
@@ -17,6 +18,7 @@ interface AdminUsersProps {
 
 const AdminUsers: React.FC<AdminUsersProps> = ({ onBack }) => {
   const { token, user: currentUser } = useAuth();
+  const navigate = useNavigate();
 
   const [users, setUsers] = useState<User[]>([]);
   const [loading, setLoading] = useState(true);
@@ -326,6 +328,13 @@ const AdminUsers: React.FC<AdminUsersProps> = ({ onBack }) => {
                   </>
                 ) : (
                   <>
+                    <button
+                      className="btn btn-trend"
+                      onClick={() => navigate(`/admin/users/${user.id}/trend`)}
+                      title="View cognitive score trend"
+                    >
+                      Trend
+                    </button>
                     <button
                       className="btn btn-role"
                       onClick={() => toggleRole(user)}

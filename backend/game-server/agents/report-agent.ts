@@ -221,7 +221,9 @@ export async function generateSessionReport(input: ReportInput): Promise<Cogniti
       { merge: true },
     );
 
-    // Lightweight index under the user's profile
+    // Lightweight index under the user's profile (consumed by Cognitive Trend page).
+    // accuracy is denormalised here so the trend endpoint avoids N+1 lookups
+    // against sessions/{id}. May be null (per Phase 0 — see analytics-agent).
     batch.set(
       firestore.collection('users').doc(snapshot.userId)
                .collection('reports').doc(sessionId),
@@ -231,6 +233,7 @@ export async function generateSessionReport(input: ReportInput): Promise<Cogniti
         generatedAt:    report.generatedAt,
         cognitiveScore: report.cognitiveScore,
         summaryHe:      report.summaryHe,
+        accuracy:       snapshot.accuracy,
       },
     );
 
