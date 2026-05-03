@@ -18,6 +18,7 @@ import { FieldValue } from 'firebase-admin/firestore';
 import { getDb }   from '../firebase.js';
 import type { GameId } from '../types/game.types.js';
 import { CoachingMessageSchema } from './schemas.js';
+import { pickFallback } from './coaching-fallbacks.js';
 
 const SYSTEM = `\
 You are a warm, encouraging cognitive fitness coach for elderly adults playing brain training games.
@@ -37,14 +38,28 @@ const GAME_NAMES: Record<GameId, string> = {
   'memory':       'memory card matching',
 };
 
+function useFallback(direction: 'harder' | 'easier', sessionId: string, reason: string): string {
+  // Atomic increment — fire-and-forget, never awaited (toast latency must stay low).
+  getDb().collection('meta').doc('coachingFallbackUsage').set({
+    total:           FieldValue.increment(1),
+    [`by_${reason}`]: FieldValue.increment(1),
+    lastUsedAt:      Date.now(),
+  }, { merge: true }).catch(() => {});
+
+  const message = pickFallback(direction, sessionId);
+  console.log(`[Coaching] (fallback:${reason}) "${message}"`);
+  return message;
+}
+
 export async function getCoachingMessage(
   gameId:      GameId,
   direction:   'harder' | 'easier',
   accuracy:    number,   // 0–1, current sliding window
   durationSec: number,
-): Promise<string | null> {
+  sessionId:   string,   // for the fallback bank's LRU cache (avoid repeats)
+): Promise<string> {
   const apiKey = process.env.ANTHROPIC_API_KEY ?? process.env.Claude_API_KEY;
-  if (!apiKey) return null;
+  if (!apiKey) return useFallback(direction, sessionId, 'no_api_key');
 
   const game   = GAME_NAMES[gameId] ?? gameId;
   const accPct = Math.round(accuracy * 100);
@@ -53,6 +68,8 @@ export async function getCoachingMessage(
   const userPrompt = direction === 'harder'
     ? `The player is excelling at ${game}. Accuracy: ${accPct}% after ${durationSec}s. Write one short Hebrew encouragement.`
     : `The player is working hard at ${game}. Accuracy: ${accPct}% after ${durationSec}s. Write one short Hebrew encouragement.`;
+
+  let rawText: string | null = null;
 
   try {
     const client = new Anthropic({ apiKey });
@@ -64,29 +81,28 @@ export async function getCoachingMessage(
       messages:   [{ role: 'user', content: userPrompt }],
     });
 
-    const rawText = msg.content[0].type === 'text' ? msg.content[0].text.trim() : null;
+    rawText = msg.content[0].type === 'text' ? msg.content[0].text.trim() : null;
 
     // Track tokens (fire-and-forget — don't await so we never delay the message)
     getDb().collection('meta').doc('tokenUsage').set({
       totalInputTokens:  FieldValue.increment(msg.usage.input_tokens),
       totalOutputTokens: FieldValue.increment(msg.usage.output_tokens),
     }, { merge: true }).catch(() => {});
-
-    if (!rawText) return null;
-
-    // Defensive validation — rules also live in the system prompt, but Claude
-    // sometimes ignores them. Better to drop the toast than show one that
-    // breaks the elderly-friendly content rules.
-    const validation = CoachingMessageSchema.safeParse(rawText);
-    if (!validation.success) {
-      console.warn(`[Coaching] Schema validation failed | game:${gameId} direction:${direction} | issues:${JSON.stringify(validation.error.issues)} | raw:"${rawText.slice(0, 100)}"`);
-      return null;
-    }
-
-    console.log(`[Coaching] "${validation.data}"`);
-    return validation.data;
   } catch (err) {
-    console.error('[Coaching]', (err as Error).message);
-    return null;
+    console.error('[Coaching] Claude call failed:', (err as Error).message);
+    return useFallback(direction, sessionId, 'claude_error');
   }
+
+  if (!rawText) return useFallback(direction, sessionId, 'empty_response');
+
+  // Defensive validation — rules also live in the system prompt, but Claude
+  // sometimes ignores them. Fall back rather than show a rule-breaking toast.
+  const validation = CoachingMessageSchema.safeParse(rawText);
+  if (!validation.success) {
+    console.warn(`[Coaching] Schema validation failed | game:${gameId} direction:${direction} | issues:${JSON.stringify(validation.error.issues)} | raw:"${rawText.slice(0, 100)}"`);
+    return useFallback(direction, sessionId, 'schema_invalid');
+  }
+
+  console.log(`[Coaching] "${validation.data}"`);
+  return validation.data;
 }
