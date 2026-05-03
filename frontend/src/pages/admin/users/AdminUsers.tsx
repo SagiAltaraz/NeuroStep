@@ -336,6 +336,13 @@ const AdminUsers: React.FC<AdminUsersProps> = ({ onBack }) => {
                       Trend
                     </button>
                     <button
+                      className="btn btn-coach"
+                      onClick={() => navigate(`/admin/users/${user.id}/coach-reports`)}
+                      title="View longitudinal coach reports"
+                    >
+                      Coach
+                    </button>
+                    <button
                       className="btn btn-role"
                       onClick={() => toggleRole(user)}
                       disabled={actionLoading === user.id || user.id === currentUser?.id}

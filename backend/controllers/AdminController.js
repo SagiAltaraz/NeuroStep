@@ -1,5 +1,6 @@
 import { userFirebaseService } from "../services/user.js";
 import { firestore } from "../config/firebase.js";
+import { FieldValue } from "firebase-admin/firestore";
 
 // ===== GET ALL USERS =====
 export const getAllUsers = async (req, res) => {
@@ -176,5 +177,100 @@ export const getUserCognitiveTrend = async (req, res) => {
   } catch (err) {
     console.error('[getUserCognitiveTrend]', err);
     res.status(500).json({ message: "Failed to fetch cognitive trend", error: err.message });
+  }
+};
+
+// ===== ACTIVE ALERTS (admin queue) =====
+// Reads admin/pendingAlerts (a single doc keyed by `${userId}_${gameId}`),
+// joins each alert with the user's displayName, returns sorted newest-first.
+export const getAlerts = async (req, res) => {
+  try {
+    const doc = await firestore.collection('admin').doc('pendingAlerts').get();
+    if (!doc.exists) return res.json([]);
+
+    const data    = doc.data() ?? {};
+    const entries = Object.entries(data);
+    if (entries.length === 0) return res.json([]);
+
+    // Batch-fetch user names for all unique userIds
+    const userIds = [...new Set(entries.map(([, alert]) => alert.userId).filter(Boolean))];
+    const userDocs = await Promise.all(
+      userIds.map(id => firestore.collection('users').doc(id).get())
+    );
+    const nameMap = Object.fromEntries(
+      userDocs.map(d => [d.id, d.exists ? (d.data().name ?? null) : null])
+    );
+
+    const alerts = entries
+      .map(([, alert]) => ({
+        alertId:      alert.alertId      ?? null,
+        userId:       alert.userId,
+        displayName:  nameMap[alert.userId] ?? null,
+        gameId:       alert.gameId,
+        type:         alert.type         ?? 'performance_decline',
+        trigger:      alert.trigger      ?? null,
+        accuracyDrop: alert.accuracyDrop ?? null,
+        createdAt:    alert.createdAt    ?? null,
+        acknowledged: alert.acknowledged ?? false,
+      }))
+      .sort((a, b) => (b.createdAt ?? 0) - (a.createdAt ?? 0));
+
+    res.json(alerts);
+  } catch (err) {
+    console.error('[getAlerts]', err);
+    res.status(500).json({ message: "Failed to fetch alerts", error: err.message });
+  }
+};
+
+// ===== ACKNOWLEDGE ALERT =====
+// Marks the audit doc as acknowledged AND removes the entry from
+// admin/pendingAlerts so it stops appearing in the active queue.
+// Both writes go in one batch — atomic, idempotent on retry.
+export const acknowledgeAlert = async (req, res) => {
+  const { userId, gameId, alertId } = req.body ?? {};
+  if (!userId || !gameId || !alertId) {
+    return res.status(400).json({ message: "userId, gameId, and alertId are required" });
+  }
+
+  try {
+    const batch = firestore.batch();
+
+    // 1. Mark the per-user audit doc — preserves history.
+    const auditRef = firestore.collection('users').doc(userId)
+                              .collection('alerts').doc(alertId);
+    batch.set(auditRef, {
+      acknowledged:   true,
+      acknowledgedAt: Date.now(),
+    }, { merge: true });
+
+    // 2. Remove the entry from the admin queue so it stops showing up.
+    const pendingRef = firestore.collection('admin').doc('pendingAlerts');
+    batch.update(pendingRef, {
+      [`${userId}_${gameId}`]: FieldValue.delete(),
+    });
+
+    await batch.commit();
+    res.json({ ok: true });
+  } catch (err) {
+    console.error('[acknowledgeAlert]', err);
+    res.status(500).json({ message: "Failed to acknowledge alert", error: err.message });
+  }
+};
+
+// ===== USER COACH REPORTS (longitudinal, every 5 sessions) =====
+export const getUserCoachReports = async (req, res) => {
+  try {
+    const { userId } = req.params;
+
+    let q = firestore.collection('users').doc(userId).collection('coachReports');
+    if (req.query.game) q = q.where('gameId', '==', req.query.game);
+
+    const snap = await q.orderBy('generatedAt', 'desc').limit(100).get();
+    const reports = snap.docs.map(d => ({ id: d.id, ...d.data() }));
+
+    res.json(reports);
+  } catch (err) {
+    console.error('[getUserCoachReports]', err);
+    res.status(500).json({ message: "Failed to fetch coach reports", error: err.message });
   }
 };
