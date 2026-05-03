@@ -34,9 +34,13 @@ export interface CoachReport extends CoachReportFromClaude {
 
 const SYSTEM = `\
 You are a cognitive health specialist reviewing a senior patient's brain training history.
-Your reports are read by caregivers, family members, and clinicians.
+Your reports are read by caregivers, family members of elderly users, and clinicians.
 
 Tone: warm, encouraging, clinically grounded — never alarmist.
+
+Output language: write summaryHe / highlightsHe / recommendationsHe / cognitiveInsightHe in
+natural, conversational Hebrew. The audience is Hebrew-speaking adults.
+
 Return ONLY valid JSON, no markdown fences, no preamble.`;
 
 // ── Helpers ────────────────────────────────────────────────────────────────────
@@ -103,7 +107,7 @@ export async function checkAndRunCoach(
   const cogScores         = sessions.map(s => s.cogScore).filter((v): v is number => v !== null);
   const cogTrend          = cogScores.length >= 2 ? trend(cogScores) : 'no cognitive scores yet';
 
-  const apiKey = process.env.ANTHROPIC_API_KEY ?? process.env.Claude_API_KEY;
+  const apiKey = process.env.ANTHROPIC_API_KEY;
   if (!apiKey) return;
 
   const userPrompt = `
@@ -117,13 +121,13 @@ ${sessions.map((s, i) =>
   `[${i}] ${s.date}: accuracy=${s.accuracy === null ? 'n/a' : s.accuracy + '%'}  avg_rt=${s.avgRtMs}ms  streak=${s.peakStreak}${s.cogScore != null ? `  cognitive_score=${s.cogScore}` : ''}`
 ).join('\n')}
 
-Return JSON exactly matching this schema:
+Return JSON exactly matching this schema. Hebrew text fields must be in natural Hebrew:
 {
   "overallProgress": "improving" | "stable" | "needs_attention",
-  "summaryEn": "<2-3 sentences describing the patient's trajectory>",
-  "highlightsEn": ["<one specific observed strength>", "<another strength>"],
-  "recommendationsEn": ["<one specific, actionable practice suggestion>"],
-  "cognitiveInsightEn": "<one non-alarming clinical observation about attention, processing speed, or memory>"
+  "summaryHe": "<2-3 sentences in Hebrew describing the patient's trajectory>",
+  "highlightsHe": ["<one specific observed strength in Hebrew>", "<another strength in Hebrew>"],
+  "recommendationsHe": ["<one specific, actionable practice suggestion in Hebrew>"],
+  "cognitiveInsightHe": "<one non-alarming clinical observation in Hebrew about attention, processing speed, or memory>"
 }`.trim();
 
   try {
@@ -163,10 +167,10 @@ Return JSON exactly matching this schema:
       generatedAt:        Date.now(),
       sessionCount:       count,
       overallProgress:    validated.overallProgress,
-      summaryEn:          validated.summaryEn,
-      highlightsEn:       validated.highlightsEn,
-      recommendationsEn:  validated.recommendationsEn,
-      cognitiveInsightEn: validated.cognitiveInsightEn,
+      summaryHe:          validated.summaryHe,
+      highlightsHe:       validated.highlightsHe,
+      recommendationsHe:  validated.recommendationsHe,
+      cognitiveInsightHe: validated.cognitiveInsightHe,
     };
 
     await db.collection('users').doc(userId).collection('coachReports').add(report);

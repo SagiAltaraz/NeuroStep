@@ -149,9 +149,9 @@ function computeNetDir(adjustments: AdjustmentRecord[]): 'harder' | 'easier' | '
 // ── Main export ────────────────────────────────────────────────────────────────
 
 export async function generateSessionReport(input: ReportInput): Promise<CognitiveReport | null> {
-  const apiKey = process.env.ANTHROPIC_API_KEY ?? process.env.Claude_API_KEY;
+  const apiKey = process.env.ANTHROPIC_API_KEY;
   if (!apiKey) {
-    console.warn('[Report] Claude API key not set (ANTHROPIC_API_KEY or Claude_API_KEY) — skipping');
+    console.warn('[Report] ANTHROPIC_API_KEY not set — skipping');
     return null;
   }
 

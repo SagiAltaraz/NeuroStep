@@ -58,7 +58,7 @@ export async function getCoachingMessage(
   durationSec: number,
   sessionId:   string,   // for the fallback bank's LRU cache (avoid repeats)
 ): Promise<string> {
-  const apiKey = process.env.ANTHROPIC_API_KEY ?? process.env.Claude_API_KEY;
+  const apiKey = process.env.ANTHROPIC_API_KEY;
   if (!apiKey) return useFallback(direction, sessionId, 'no_api_key');
 
   const game   = GAME_NAMES[gameId] ?? gameId;
