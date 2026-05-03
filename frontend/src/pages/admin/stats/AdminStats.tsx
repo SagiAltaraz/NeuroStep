@@ -1,34 +1,32 @@
 import { useEffect, useState } from 'react';
 import {
-  collection, getDocs, getDoc,
-  query, orderBy, limit, doc,
-} from 'firebase/firestore';
-import {
   BarChart, Bar, XAxis, YAxis, Tooltip, ResponsiveContainer,
   LineChart, Line, CartesianGrid,
 } from 'recharts';
-import { db } from '../../../config/firebase';
+import { useAuth } from '../../../context/AuthContext';
 import './AdminStats.css';
 
 // ── Types ──────────────────────────────────────────────────────────────────────
+// Mirrors the response shape of GET /api/admin/sessions (server-side pulls
+// from Firestore via Admin SDK; we never touch Firestore from the browser).
 
 interface SessionDoc {
+  id?:          string;
   userId:       string;
   gameId:       string;
   startedAt:    number;
-  accuracy:     number;
+  accuracy:     number | null;     // null when no scored events (Phase 0)
   avgReactionMs: number;
   peakStreak:   number;
   hits:         number;
   misses:       number;
   timeouts:     number;
+  username?:    string | null;
   report?: {
-    cognitiveScore:    number;
-    summaryHe:         string;
-    strengthsHe:       string[];
-    recommendationsHe: string[];
-    generatedAt:       number;
-  };
+    cognitiveScore: number;
+    summaryHe:      string;
+    generatedAt:    number;
+  } | null;
 }
 
 interface TokenUsage {
@@ -52,50 +50,62 @@ const GAME_LABELS: Record<string, string> = {
 // ── Component ──────────────────────────────────────────────────────────────────
 
 const AdminStats: React.FC<{ onBack: () => void }> = ({ onBack }) => {
+  const { token } = useAuth();
   const [sessions,    setSessions]    = useState<SessionDoc[]>([]);
   const [tokenUsage,  setTokenUsage]  = useState<TokenUsage | null>(null);
   const [loading,     setLoading]     = useState(true);
   const [error,       setError]       = useState<string | null>(null);
 
   useEffect(() => {
+    if (!token) return;
     async function load() {
       try {
-        // Last 50 sessions ordered by start time
-        const snap = await getDocs(
-          query(collection(db, 'sessions'), orderBy('startedAt', 'desc'), limit(50))
-        );
-        const docs = snap.docs.map(d => d.data() as SessionDoc);
-        setSessions(docs);
+        const headers = { Authorization: `Bearer ${token}` };
 
-        // Token usage counter
-        const tokenSnap = await getDoc(doc(db, 'meta', 'tokenUsage'));
-        if (tokenSnap.exists()) setTokenUsage(tokenSnap.data() as TokenUsage);
+        const [sessionsRes, tokenRes] = await Promise.all([
+          fetch('/api/admin/sessions',    { headers }),
+          fetch('/api/admin/token-usage', { headers }),
+        ]);
+        if (!sessionsRes.ok) throw new Error(`Sessions HTTP ${sessionsRes.status}`);
+        if (!tokenRes.ok)    throw new Error(`Token usage HTTP ${tokenRes.status}`);
+
+        const sessionDocs = (await sessionsRes.json()) as SessionDoc[];
+        const tokenDoc    = (await tokenRes.json())    as TokenUsage;
+
+        setSessions(sessionDocs);
+        setTokenUsage(tokenDoc.totalReports !== undefined ? tokenDoc : null);
       } catch (err) {
         const msg = err instanceof Error ? err.message : String(err);
-        console.error('[AdminStats] Firestore error:', err);
+        console.error('[AdminStats] API error:', err);
         setError(msg);
       } finally {
         setLoading(false);
       }
     }
     load();
-  }, []);
+  }, [token]);
 
   // ── Derived data ─────────────────────────────────────────────────────────────
 
   const totalSessions  = sessions.length;
   const uniqueUsers    = new Set(sessions.map(s => s.userId)).size;
-  const avgAccuracy    = sessions.length
-    ? Math.round((sessions.reduce((s, d) => s + d.accuracy, 0) / sessions.length) * 100)
+
+  // Sessions with at least one scored event (i.e. accuracy is non-null) —
+  // tic-tac-toe sessions with only MOVE_MADE will be skipped here per Phase 0.
+  const sessionsWithAccuracy = sessions.filter(
+    (s): s is SessionDoc & { accuracy: number } => typeof s.accuracy === 'number'
+  );
+  const avgAccuracy = sessionsWithAccuracy.length
+    ? Math.round((sessionsWithAccuracy.reduce((sum, d) => sum + d.accuracy, 0) / sessionsWithAccuracy.length) * 100)
     : 0;
   const reportsWithScore = sessions.filter(s => s.report?.cognitiveScore != null);
   const avgCogScore    = reportsWithScore.length
     ? Math.round(reportsWithScore.reduce((s, d) => s + d.report!.cognitiveScore, 0) / reportsWithScore.length)
     : null;
 
-  // Bar chart: avg accuracy per game
+  // Bar chart: avg accuracy per game (only sessions that have accuracy)
   const byGame = Object.entries(
-    sessions.reduce<Record<string, number[]>>((acc, s) => {
+    sessionsWithAccuracy.reduce<Record<string, number[]>>((acc, s) => {
       (acc[s.gameId] ??= []).push(s.accuracy);
       return acc;
     }, {})
@@ -142,9 +152,9 @@ const AdminStats: React.FC<{ onBack: () => void }> = ({ onBack }) => {
         <button className="back-btn" onClick={onBack}>← Back</button>
       </div>
       <div className="stats-error">
-        <strong>שגיאת Firestore:</strong>
+        <strong>שגיאת טעינה:</strong>
         <code>{error}</code>
-        <p>בדוק Firestore Rules ו-VITE_FIREBASE_API_KEY ב-.env</p>
+        <p>בדוק שה-backend פעיל ושיש לך הרשאות admin</p>
       </div>
     </div>
   );
