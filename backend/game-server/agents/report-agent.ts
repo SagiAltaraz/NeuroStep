@@ -19,6 +19,8 @@ import { getDb }               from '../firebase.js';
 import type { GameId }         from '../types/game.types.js';
 import type { AdaptiveState }             from './adaptive-agent.js';
 import type { SessionSnapshot }           from './analytics-agent.js';
+import { CognitiveReportSchema }          from './schemas.js';
+import type { CognitiveReportFromClaude } from './schemas.js';
 
 // ── Types ──────────────────────────────────────────────────────────────────────
 
@@ -35,15 +37,14 @@ export interface AdjustmentRecord {
   at:        number; // timestamp
 }
 
-export interface CognitiveReport {
-  sessionId:           string;
-  userId:              string;
-  gameId:              GameId;
-  generatedAt:         number;
-  cognitiveScore:      number;       // 0–100
-  summaryHe:           string;       // one paragraph in Hebrew
-  strengthsHe:         string[];     // 2–3 bullet points
-  recommendationsHe:   string[];     // 1–2 action items
+// Persistence type = Claude-validated payload + agent-supplied metadata.
+// The Claude-side fields (cognitiveScore, summaryHe, ...) are sourced from
+// CognitiveReportSchema in schemas.ts — single source of truth.
+export interface CognitiveReport extends CognitiveReportFromClaude {
+  sessionId:    string;
+  userId:       string;
+  gameId:       GameId;
+  generatedAt:  number;
   rawStats: {
     accuracy:          number | null;  // null when no scored events (e.g. tic-tac-toe with no completed game)
     avgReactionMs:     number;
@@ -170,24 +171,35 @@ export async function generateSessionReport(input: ReportInput): Promise<Cogniti
 
     // Extract JSON from response (Claude may wrap in ```json ... ```)
     const jsonMatch = text.match(/\{[\s\S]*\}/);
-    if (!jsonMatch) throw new Error('No JSON in Claude response');
+    if (!jsonMatch) {
+      console.warn(`[Report] No JSON in Claude response | session:${sessionId} | raw:${text.slice(0, 500)}`);
+      return null;
+    }
 
-    const parsed = JSON.parse(jsonMatch[0]) as {
-      cognitiveScore: number;
-      summaryHe: string;
-      strengthsHe: string[];
-      recommendationsHe: string[];
-    };
+    let parsedJson: unknown;
+    try {
+      parsedJson = JSON.parse(jsonMatch[0]);
+    } catch (err) {
+      console.warn(`[Report] JSON parse failed | session:${sessionId} | err:${(err as Error).message} | raw:${text.slice(0, 500)}`);
+      return null;
+    }
+
+    const validation = CognitiveReportSchema.safeParse(parsedJson);
+    if (!validation.success) {
+      console.warn(`[Report] Schema validation failed | session:${sessionId} | issues:${JSON.stringify(validation.error.issues)} | raw:${text.slice(0, 500)}`);
+      return null;
+    }
+    const validated = validation.data;
 
     const report: CognitiveReport = {
       sessionId,
       userId:              snapshot.userId,
       gameId:              snapshot.gameId as GameId,
       generatedAt:         Date.now(),
-      cognitiveScore:      Math.max(0, Math.min(100, Math.round(parsed.cognitiveScore))),
-      summaryHe:           parsed.summaryHe,
-      strengthsHe:         parsed.strengthsHe ?? [],
-      recommendationsHe:   parsed.recommendationsHe ?? [],
+      cognitiveScore:      validated.cognitiveScore,    // schema guarantees integer 0–100
+      summaryHe:           validated.summaryHe,
+      strengthsHe:         validated.strengthsHe,
+      recommendationsHe:   validated.recommendationsHe,
       rawStats: {
         accuracy:        snapshot.accuracy,
         avgReactionMs:   snapshot.avgReactionMs,

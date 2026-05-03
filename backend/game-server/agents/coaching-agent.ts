@@ -17,6 +17,7 @@ import Anthropic   from '@anthropic-ai/sdk';
 import { FieldValue } from 'firebase-admin/firestore';
 import { getDb }   from '../firebase.js';
 import type { GameId } from '../types/game.types.js';
+import { CoachingMessageSchema } from './schemas.js';
 
 const SYSTEM = `\
 You are a warm, encouraging cognitive fitness coach for elderly adults playing brain training games.
@@ -63,7 +64,7 @@ export async function getCoachingMessage(
       messages:   [{ role: 'user', content: userPrompt }],
     });
 
-    const text = msg.content[0].type === 'text' ? msg.content[0].text.trim() : null;
+    const rawText = msg.content[0].type === 'text' ? msg.content[0].text.trim() : null;
 
     // Track tokens (fire-and-forget — don't await so we never delay the message)
     getDb().collection('meta').doc('tokenUsage').set({
@@ -71,8 +72,19 @@ export async function getCoachingMessage(
       totalOutputTokens: FieldValue.increment(msg.usage.output_tokens),
     }, { merge: true }).catch(() => {});
 
-    if (text) console.log(`[Coaching] "${text}"`);
-    return text;
+    if (!rawText) return null;
+
+    // Defensive validation — rules also live in the system prompt, but Claude
+    // sometimes ignores them. Better to drop the toast than show one that
+    // breaks the elderly-friendly content rules.
+    const validation = CoachingMessageSchema.safeParse(rawText);
+    if (!validation.success) {
+      console.warn(`[Coaching] Schema validation failed | game:${gameId} direction:${direction} | issues:${JSON.stringify(validation.error.issues)} | raw:"${rawText.slice(0, 100)}"`);
+      return null;
+    }
+
+    console.log(`[Coaching] "${validation.data}"`);
+    return validation.data;
   } catch (err) {
     console.error('[Coaching]', (err as Error).message);
     return null;

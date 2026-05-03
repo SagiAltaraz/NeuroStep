@@ -17,18 +17,17 @@ import Anthropic      from '@anthropic-ai/sdk';
 import { FieldValue } from 'firebase-admin/firestore';
 import { getDb }      from '../firebase.js';
 import type { GameId } from '../types/game.types.js';
+import { CoachReportSchema } from './schemas.js';
+import type { CoachReportFromClaude } from './schemas.js';
 
 // ── Types ──────────────────────────────────────────────────────────────────────
 
-export interface CoachReport {
-  gameId:              GameId;
-  generatedAt:         number;
-  sessionCount:        number;
-  overallProgress:     'improving' | 'stable' | 'needs_attention';
-  summaryEn:           string;
-  highlightsEn:        string[];
-  recommendationsEn:   string[];
-  cognitiveInsightEn:  string;
+// Persistence type = Claude-validated payload + agent-supplied metadata.
+// Claude-side fields (overallProgress, summaryEn, ...) come from CoachReportSchema.
+export interface CoachReport extends CoachReportFromClaude {
+  gameId:        GameId;
+  generatedAt:   number;
+  sessionCount:  number;
 }
 
 // ── Prompt ─────────────────────────────────────────────────────────────────────
@@ -139,19 +138,35 @@ Return JSON exactly matching this schema:
 
     const text      = msg.content[0].type === 'text' ? msg.content[0].text : '';
     const jsonMatch = text.match(/\{[\s\S]*\}/);
-    if (!jsonMatch) throw new Error('No JSON in Claude response');
+    if (!jsonMatch) {
+      console.warn(`[Coach] No JSON in Claude response | user:${userId} game:${gameId} | raw:${text.slice(0, 500)}`);
+      return;
+    }
 
-    const parsed = JSON.parse(jsonMatch[0]);
+    let parsedJson: unknown;
+    try {
+      parsedJson = JSON.parse(jsonMatch[0]);
+    } catch (err) {
+      console.warn(`[Coach] JSON parse failed | user:${userId} game:${gameId} | err:${(err as Error).message} | raw:${text.slice(0, 500)}`);
+      return;
+    }
+
+    const validation = CoachReportSchema.safeParse(parsedJson);
+    if (!validation.success) {
+      console.warn(`[Coach] Schema validation failed | user:${userId} game:${gameId} | issues:${JSON.stringify(validation.error.issues)} | raw:${text.slice(0, 500)}`);
+      return;
+    }
+    const validated = validation.data;
 
     const report: CoachReport = {
       gameId,
       generatedAt:        Date.now(),
       sessionCount:       count,
-      overallProgress:    parsed.overallProgress,
-      summaryEn:          parsed.summaryEn,
-      highlightsEn:       parsed.highlightsEn       ?? [],
-      recommendationsEn:  parsed.recommendationsEn  ?? [],
-      cognitiveInsightEn: parsed.cognitiveInsightEn ?? '',
+      overallProgress:    validated.overallProgress,
+      summaryEn:          validated.summaryEn,
+      highlightsEn:       validated.highlightsEn,
+      recommendationsEn:  validated.recommendationsEn,
+      cognitiveInsightEn: validated.cognitiveInsightEn,
     };
 
     await db.collection('users').doc(userId).collection('coachReports').add(report);
