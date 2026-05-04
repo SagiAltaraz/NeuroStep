@@ -1,7 +1,7 @@
 // src/pages/admin/AdminPage.tsx
 import { useState } from "react";
 import { useAuth } from "../../context/AuthContext";
-import { Navigate } from "react-router-dom";
+import { Navigate, useNavigate } from "react-router-dom";
 
 import AdminStats    from "./stats/AdminStats";
 import AdminEvents   from "./events/AdminEvents";
@@ -15,6 +15,7 @@ type AdminView = "stats" | "events" | "users" | "settings" | "activity";
 
 const AdminPage: React.FC = () => {
   const { isAdmin } = useAuth();
+  const navigate = useNavigate();
   const [activeView, setActiveView] = useState<AdminView | null>(null);
 
   if (!isAdmin) return <Navigate to="/" />;
@@ -27,6 +28,9 @@ const AdminPage: React.FC = () => {
         <div className="admin-grid">
           <button className="admin-card" onClick={() => setActiveView("stats")}>
             📊 <span>Statistics</span>
+          </button>
+          <button className="admin-card" onClick={() => navigate("/admin/alerts")}>
+            🚨 <span>Alerts</span>
           </button>
           <button className="admin-card" onClick={() => setActiveView("events")}>
             📅 <span>Events</span>

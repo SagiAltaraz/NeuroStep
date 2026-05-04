@@ -17,27 +17,30 @@ import Anthropic      from '@anthropic-ai/sdk';
 import { FieldValue } from 'firebase-admin/firestore';
 import { getDb }      from '../firebase.js';
 import type { GameId } from '../types/game.types.js';
+import { CoachReportSchema } from './schemas.js';
+import type { CoachReportFromClaude } from './schemas.js';
 
 // ── Types ──────────────────────────────────────────────────────────────────────
 
-export interface CoachReport {
-  gameId:              GameId;
-  generatedAt:         number;
-  sessionCount:        number;
-  overallProgress:     'improving' | 'stable' | 'needs_attention';
-  summaryEn:           string;
-  highlightsEn:        string[];
-  recommendationsEn:   string[];
-  cognitiveInsightEn:  string;
+// Persistence type = Claude-validated payload + agent-supplied metadata.
+// Claude-side fields (overallProgress, summaryEn, ...) come from CoachReportSchema.
+export interface CoachReport extends CoachReportFromClaude {
+  gameId:        GameId;
+  generatedAt:   number;
+  sessionCount:  number;
 }
 
 // ── Prompt ─────────────────────────────────────────────────────────────────────
 
 const SYSTEM = `\
 You are a cognitive health specialist reviewing a senior patient's brain training history.
-Your reports are read by caregivers, family members, and clinicians.
+Your reports are read by caregivers, family members of elderly users, and clinicians.
 
 Tone: warm, encouraging, clinically grounded — never alarmist.
+
+Output language: write summaryHe / highlightsHe / recommendationsHe / cognitiveInsightHe in
+natural, conversational Hebrew. The audience is Hebrew-speaking adults.
+
 Return ONLY valid JSON, no markdown fences, no preamble.`;
 
 // ── Helpers ────────────────────────────────────────────────────────────────────
@@ -88,20 +91,23 @@ export async function checkAndRunCoach(
 
   const sessions = sessionsSnap.docs.map(d => {
     const s = d.data();
+    const rawAccuracy = (s.accuracy ?? null) as number | null;
     return {
       date:       new Date(s.startedAt as number).toLocaleDateString('en-US'),
-      accuracy:   Math.round((s.accuracy as number) * 100),
+      accuracy:   rawAccuracy === null ? null : Math.round(rawAccuracy * 100),
       avgRtMs:    s.avgReactionMs  as number,
       peakStreak: s.peakStreak     as number,
       cogScore:   (s.report?.cognitiveScore ?? null) as number | null,
     };
   });
 
-  const accuracyTrend = trend(sessions.map(s => s.accuracy));
-  const cogScores     = sessions.map(s => s.cogScore).filter((v): v is number => v !== null);
-  const cogTrend      = cogScores.length >= 2 ? trend(cogScores) : 'no cognitive scores yet';
+  // Trends ignore null-accuracy sessions (incomplete games)
+  const definedAccuracies = sessions.map(s => s.accuracy).filter((v): v is number => v !== null);
+  const accuracyTrend     = definedAccuracies.length >= 2 ? trend(definedAccuracies) : 'no completed games yet';
+  const cogScores         = sessions.map(s => s.cogScore).filter((v): v is number => v !== null);
+  const cogTrend          = cogScores.length >= 2 ? trend(cogScores) : 'no cognitive scores yet';
 
-  const apiKey = process.env.ANTHROPIC_API_KEY ?? process.env.Claude_API_KEY;
+  const apiKey = process.env.ANTHROPIC_API_KEY;
   if (!apiKey) return;
 
   const userPrompt = `
@@ -112,16 +118,16 @@ Cognitive score trend: ${cogTrend}
 
 Session data (index 0 = most recent):
 ${sessions.map((s, i) =>
-  `[${i}] ${s.date}: accuracy=${s.accuracy}%  avg_rt=${s.avgRtMs}ms  streak=${s.peakStreak}${s.cogScore != null ? `  cognitive_score=${s.cogScore}` : ''}`
+  `[${i}] ${s.date}: accuracy=${s.accuracy === null ? 'n/a' : s.accuracy + '%'}  avg_rt=${s.avgRtMs}ms  streak=${s.peakStreak}${s.cogScore != null ? `  cognitive_score=${s.cogScore}` : ''}`
 ).join('\n')}
 
-Return JSON exactly matching this schema:
+Return JSON exactly matching this schema. Hebrew text fields must be in natural Hebrew:
 {
   "overallProgress": "improving" | "stable" | "needs_attention",
-  "summaryEn": "<2-3 sentences describing the patient's trajectory>",
-  "highlightsEn": ["<one specific observed strength>", "<another strength>"],
-  "recommendationsEn": ["<one specific, actionable practice suggestion>"],
-  "cognitiveInsightEn": "<one non-alarming clinical observation about attention, processing speed, or memory>"
+  "summaryHe": "<2-3 sentences in Hebrew describing the patient's trajectory>",
+  "highlightsHe": ["<one specific observed strength in Hebrew>", "<another strength in Hebrew>"],
+  "recommendationsHe": ["<one specific, actionable practice suggestion in Hebrew>"],
+  "cognitiveInsightHe": "<one non-alarming clinical observation in Hebrew about attention, processing speed, or memory>"
 }`.trim();
 
   try {
@@ -136,19 +142,35 @@ Return JSON exactly matching this schema:
 
     const text      = msg.content[0].type === 'text' ? msg.content[0].text : '';
     const jsonMatch = text.match(/\{[\s\S]*\}/);
-    if (!jsonMatch) throw new Error('No JSON in Claude response');
+    if (!jsonMatch) {
+      console.warn(`[Coach] No JSON in Claude response | user:${userId} game:${gameId} | raw:${text.slice(0, 500)}`);
+      return;
+    }
 
-    const parsed = JSON.parse(jsonMatch[0]);
+    let parsedJson: unknown;
+    try {
+      parsedJson = JSON.parse(jsonMatch[0]);
+    } catch (err) {
+      console.warn(`[Coach] JSON parse failed | user:${userId} game:${gameId} | err:${(err as Error).message} | raw:${text.slice(0, 500)}`);
+      return;
+    }
+
+    const validation = CoachReportSchema.safeParse(parsedJson);
+    if (!validation.success) {
+      console.warn(`[Coach] Schema validation failed | user:${userId} game:${gameId} | issues:${JSON.stringify(validation.error.issues)} | raw:${text.slice(0, 500)}`);
+      return;
+    }
+    const validated = validation.data;
 
     const report: CoachReport = {
       gameId,
       generatedAt:        Date.now(),
       sessionCount:       count,
-      overallProgress:    parsed.overallProgress,
-      summaryEn:          parsed.summaryEn,
-      highlightsEn:       parsed.highlightsEn       ?? [],
-      recommendationsEn:  parsed.recommendationsEn  ?? [],
-      cognitiveInsightEn: parsed.cognitiveInsightEn ?? '',
+      overallProgress:    validated.overallProgress,
+      summaryHe:          validated.summaryHe,
+      highlightsHe:       validated.highlightsHe,
+      recommendationsHe:  validated.recommendationsHe,
+      cognitiveInsightHe: validated.cognitiveInsightHe,
     };
 
     await db.collection('users').doc(userId).collection('coachReports').add(report);

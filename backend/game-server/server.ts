@@ -9,6 +9,7 @@ import type { GameEvent, GameId }                           from './types/game.t
 import { connectProducer, disconnectProducer,
          sendToKafka, sendGameEvent }                       from './kafka/producer.js';
 import { TOPICS }                                           from './kafka/topics.js';
+import { startAdjustmentsConsumer, getAdjustmentsForSession } from './kafka/adjustments-consumer.js';
 import { getSession, initSession, deleteSession }           from './sessions/session-store.js';
 import { processEvent }                                     from './agents/adaptive-agent.js';
 import { startAnalyticsAgent, getSessionSnapshot }          from './agents/analytics-agent.js';
@@ -18,6 +19,7 @@ import { updateBaseline }                                   from './agents/basel
 import { getCoachingMessage }                               from './agents/coaching-agent.js';
 import { checkAndRunCoach }                                 from './agents/coach-agent.js';
 import { checkAlerts }                                      from './agents/alert-agent.js';
+import { startTokenWatcher }                                from './agents/token-watcher.js';
 
 // ── WebSocket server ───────────────────────────────────────────────────────────
 
@@ -87,16 +89,18 @@ wss.on('connection', (ws: WebSocket) => {
       }));
     }
 
-    // ── 4b. Async coaching message (Claude) ──────────────────────
+    // ── 4b. Async coaching message (Claude + fallback) ───────────
     // Fires after the adjustment is already sent — never blocks the game.
-    // Arrives ~300-600ms later as a separate 'coaching' WS message.
+    // Arrives ~300-600ms later (Claude) or ~1ms later (fallback) as a
+    // separate 'coaching' WS message. Always returns a string now — the
+    // Hebrew fallback bank guarantees a toast even if Claude fails.
     {
       const snap        = getSessionSnapshot(session.sessionId);
       const accuracy    = snap?.accuracy ?? 0;
       const durationSec = snap ? Math.round(snap.durationMs / 1000) : 0;
-      getCoachingMessage(session.gameId, result.direction!, accuracy, durationSec)
+      getCoachingMessage(session.gameId, result.direction!, accuracy, durationSec, session.sessionId)
         .then(message => {
-          if (message && ws.readyState === WebSocket.OPEN) {
+          if (ws.readyState === WebSocket.OPEN) {
             ws.send(JSON.stringify({ type: 'coaching', message }));
           }
         })
@@ -104,11 +108,16 @@ wss.on('connection', (ws: WebSocket) => {
     }
 
     // ── 5. Log adjustment to Kafka ───────────────────────────────
+    // Includes `direction` and `at` so the adjustments-consumer can rebuild
+    // the same AdjustmentRecord shape Report Agent expects (used as crash
+    // recovery when the in-memory adjustmentLog is empty at WS-close).
     sendToKafka(TOPICS.ADJUSTMENTS, event.sessionId, {
       sessionId: event.sessionId,
       userId:    event.userId,
       gameId:    event.gameId,
       reason:    result.reason,
+      direction: result.direction,
+      at:        Date.now(),
       params:    result.params,
     }).catch(err => console.error('[Kafka] adjustments:', (err as Error).message));
   });
@@ -120,6 +129,20 @@ wss.on('connection', (ws: WebSocket) => {
       if (snapshot) {
         const { sessionId, gameId, userId } = session;
 
+        // Crash-recovery: if the in-memory adjustmentLog was wiped (e.g.
+        // server restarted mid-session), fall back to the Kafka-buffered
+        // copy maintained by adjustments-consumer.
+        let adjustmentsForReport = adjustmentLog;
+        let adjustmentSource     = 'memory';
+        if (adjustmentLog.length === 0) {
+          const fromKafka = getAdjustmentsForSession(sessionId);
+          if (fromKafka.length > 0) {
+            adjustmentsForReport = fromKafka;
+            adjustmentSource     = 'kafka';
+          }
+        }
+        console.log(`[Report] adjustments source=${adjustmentSource} count=${adjustmentsForReport.length} session=${sessionId}`);
+
         // All post-session jobs run in parallel, fire-and-forget.
         // Order doesn't matter — each agent is independently idempotent.
 
@@ -127,7 +150,7 @@ wss.on('connection', (ws: WebSocket) => {
           sessionId,
           snapshot,
           adaptive:    session.adaptive,
-          adjustments: adjustmentLog,
+          adjustments: adjustmentsForReport,
         }).catch(err => console.error('[Report]', (err as Error).message));
 
         updateBaseline(userId, gameId, snapshot.reactionTimes)
@@ -153,6 +176,12 @@ async function start() {
   await connectProducer();
   startAnalyticsAgent().catch(err =>
     console.error('[Analytics] Failed to start:', err.message)
+  );
+  startAdjustmentsConsumer().catch(err =>
+    console.error('[AdjustmentsConsumer] Failed to start:', err.message)
+  );
+  startTokenWatcher().catch(err =>
+    console.error('[TokenWatcher] Failed to start:', err.message)
   );
 }
 

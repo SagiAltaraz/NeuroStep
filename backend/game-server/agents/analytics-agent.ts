@@ -63,17 +63,37 @@ function applyEvent(event: GameEvent) {
   buf.totalEvents++;
   buf.dirty = true;
 
-  // ROUND_END carries correct:boolean in payload — use it instead of type alone
+  // Reaction times are independent of hit/miss classification — push whenever
+  // present so neutral events (e.g. tic-tac-toe MOVE_MADE) still feed baseline.
+  const rt = typeof event.reactionMs === 'number' ? event.reactionMs
+           : typeof event.payload?.reactionMs === 'number' ? event.payload.reactionMs as number
+           : null;
+  if (rt !== null && rt > 0) buf.reactionTimes.push(rt);
+
+  // ── Classification ──────────────────────────────────────────────────────────
+  // Three buckets: hit / miss / timeout. Anything else is NEUTRAL — counted in
+  // totalEvents but not in accuracy. This matters for tic-tac-toe where a single
+  // MOVE_MADE is neither correct nor wrong (only the GAME_WON outcome is), and
+  // GAME_DRAW is not a loss.
+  //
+  // ROUND_END carries `correct:boolean` in payload — color-trains uses this.
+  // GAME_WON carries `winner:'player'|'ai'` in payload — tic-tac-toe uses this.
   const roundEndCorrect = type === 'ROUND_END'
     ? event.payload?.correct === true
     : null;
+  const gameWonByPlayer = type === 'GAME_WON' && event.payload?.winner === 'player';
+  const gameWonByAi     = type === 'GAME_WON' && event.payload?.winner === 'ai';
 
   const isHit = type === 'CIRCLE_HIT' || type === 'PAIR_MATCHED' ||
-                type === 'STATION_SELECTED' || roundEndCorrect === true;
+                type === 'STATION_SELECTED' ||
+                roundEndCorrect === true ||
+                gameWonByPlayer;
   const isMiss = type === 'DISTRACTOR_CLICK' || type === 'PAIR_MISSED' ||
-                 type === 'MISSED_SWITCH'     || type === 'MOVE_MADE'   ||
-                 roundEndCorrect === false;
+                 type === 'MISSED_SWITCH' ||
+                 roundEndCorrect === false ||
+                 gameWonByAi;
   const isTimeout = type === 'TIMEOUT';
+  // Implicitly neutral: ROUND_START, MOVE_MADE, GAME_DRAW
 
   if (isHit) {
     buf.hits++;
@@ -84,11 +104,6 @@ function applyEvent(event: GameEvent) {
     if (isTimeout) buf.timeouts++;
     buf.currentStreak = 0;
   }
-
-  const rt = typeof event.reactionMs === 'number' ? event.reactionMs
-           : typeof event.payload?.reactionMs === 'number' ? event.payload.reactionMs as number
-           : null;
-  if (rt !== null && rt > 0) buf.reactionTimes.push(rt);
 }
 
 async function flushAll() {
@@ -101,7 +116,12 @@ async function flushAll() {
   for (const [sessionId, buf] of dirty) {
     buf.dirty = false;
     const scored  = buf.hits + buf.misses + buf.timeouts;
-    const accuracy = scored > 0 ? buf.hits / scored : 0;
+    // accuracy is null when no scored events exist (e.g. tic-tac-toe session
+    // with only MOVE_MADE / ROUND_START / GAME_DRAW). Downstream consumers
+    // (Alert / Coach / Report) skip or label such sessions instead of treating
+    // 0/0 as 0%.
+    const accuracy: number | null = scored > 0 ? buf.hits / scored : null;
+    const accuracyRounded = accuracy === null ? null : Math.round(accuracy * 100) / 100;
     const avgReactionMs = buf.reactionTimes.length > 0
       ? Math.round(buf.reactionTimes.reduce((a, b) => a + b, 0) / buf.reactionTimes.length)
       : 0;
@@ -117,7 +137,7 @@ async function flushAll() {
       hits:         buf.hits,
       misses:       buf.misses,
       timeouts:     buf.timeouts,
-      accuracy:     Math.round(accuracy * 100) / 100,
+      accuracy:     accuracyRounded,
       avgReactionMs,
       peakStreak:   buf.peakStreak,
     }, { merge: true });
@@ -129,7 +149,7 @@ async function flushAll() {
                        .collection('stats').doc(buf.gameId);
     batch.set(statsRef, {
       lastPlayedAt:      buf.lastEventAt,
-      lastAccuracy:      Math.round(accuracy * 100) / 100,
+      lastAccuracy:      accuracyRounded,
       lastAvgReactionMs: avgReactionMs,
     }, { merge: true });
   }
@@ -176,7 +196,7 @@ export interface SessionSnapshot {
   hits:          number;
   misses:        number;
   timeouts:      number;
-  accuracy:      number;
+  accuracy:      number | null;   // null when scored events == 0 (e.g. tic-tac-toe with no game completed)
   avgReactionMs: number;
   peakStreak:    number;
   reactionTimes: number[];   // raw array — baseline-agent uses this for Welford update
@@ -186,7 +206,7 @@ export function getSessionSnapshot(sessionId: string): SessionSnapshot | null {
   const buf = buffers.get(sessionId);
   if (!buf) return null;
   const scored        = buf.hits + buf.misses + buf.timeouts;
-  const accuracy      = scored > 0 ? buf.hits / scored : 0;
+  const accuracy: number | null = scored > 0 ? buf.hits / scored : null;
   const avgReactionMs = buf.reactionTimes.length > 0
     ? Math.round(buf.reactionTimes.reduce((a, b) => a + b, 0) / buf.reactionTimes.length)
     : 0;
@@ -197,7 +217,7 @@ export function getSessionSnapshot(sessionId: string): SessionSnapshot | null {
     hits:          buf.hits,
     misses:        buf.misses,
     timeouts:      buf.timeouts,
-    accuracy:      Math.round(accuracy * 100) / 100,
+    accuracy:      accuracy === null ? null : Math.round(accuracy * 100) / 100,
     avgReactionMs,
     peakStreak:    buf.peakStreak,
     reactionTimes: [...buf.reactionTimes],

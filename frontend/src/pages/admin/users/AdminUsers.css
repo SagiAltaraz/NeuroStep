@@ -290,6 +290,24 @@
   background: #bbdefb;
 }
 
+.btn-trend {
+  background: #ede9fe;
+  color: #5b21b6;
+}
+
+.btn-trend:hover:not(:disabled) {
+  background: #ddd6fe;
+}
+
+.btn-coach {
+  background: #cffafe;
+  color: #0e7490;
+}
+
+.btn-coach:hover:not(:disabled) {
+  background: #a5f3fc;
+}
+
 .btn-delete {
   background: #ffebee;
   color: #c62828;

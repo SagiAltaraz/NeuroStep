@@ -14,6 +14,9 @@ import TicTacToePage from './pages/games/TicTacToePage';
 import MemoryGamePage from './pages/games/MemoryGamePage';
 import ShapesClickPage from './pages/games/ShapesClickPage';
 import AdminPage from './pages/admin/AdminPage';
+import CognitiveTrendPage from './pages/admin/trend/CognitiveTrendPage';
+import AlertsPage from './pages/admin/alerts/AlertsPage';
+import CoachReportsPage from './pages/admin/coach-reports/CoachReportsPage';
 import ProtectedRoute from './components/ProtectedRoute/ProtectedRoute';
 
 function App() {
@@ -68,6 +71,9 @@ function App() {
                }
             />
             <Route path="/admin" element={<AdminPage />} />
+            <Route path="/admin/users/:userId/trend" element={<CognitiveTrendPage />} />
+            <Route path="/admin/users/:userId/coach-reports" element={<CoachReportsPage />} />
+            <Route path="/admin/alerts" element={<AlertsPage />} />
             <Route path="*" element={<div>404 - Page not found</div>} />
          </Routes>
       </div>

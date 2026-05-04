@@ -19,6 +19,8 @@ import { getDb }               from '../firebase.js';
 import type { GameId }         from '../types/game.types.js';
 import type { AdaptiveState }             from './adaptive-agent.js';
 import type { SessionSnapshot }           from './analytics-agent.js';
+import { CognitiveReportSchema }          from './schemas.js';
+import type { CognitiveReportFromClaude } from './schemas.js';
 
 // ── Types ──────────────────────────────────────────────────────────────────────
 
@@ -35,17 +37,16 @@ export interface AdjustmentRecord {
   at:        number; // timestamp
 }
 
-export interface CognitiveReport {
-  sessionId:           string;
-  userId:              string;
-  gameId:              GameId;
-  generatedAt:         number;
-  cognitiveScore:      number;       // 0–100
-  summaryHe:           string;       // one paragraph in Hebrew
-  strengthsHe:         string[];     // 2–3 bullet points
-  recommendationsHe:   string[];     // 1–2 action items
+// Persistence type = Claude-validated payload + agent-supplied metadata.
+// The Claude-side fields (cognitiveScore, summaryHe, ...) are sourced from
+// CognitiveReportSchema in schemas.ts — single source of truth.
+export interface CognitiveReport extends CognitiveReportFromClaude {
+  sessionId:    string;
+  userId:       string;
+  gameId:       GameId;
+  generatedAt:  number;
   rawStats: {
-    accuracy:          number;
+    accuracy:          number | null;  // null when no scored events (e.g. tic-tac-toe with no completed game)
     avgReactionMs:     number;
     peakStreak:        number;
     durationMs:        number;
@@ -90,12 +91,16 @@ function buildUserPrompt(input: ReportInput): string {
       }`
     : 'No prior baseline — this is the first session.';
 
+  const accuracyLine = snapshot.accuracy === null
+    ? 'Accuracy: n/a (no scored events in session)'
+    : `Accuracy: ${Math.round(snapshot.accuracy * 100)}%`;
+
   return `
 ## Session Data
 Game: ${GAME_NAMES[snapshot.gameId as GameId] ?? snapshot.gameId}
 Duration: ${durationSec}s
 Successful responses: ${snapshot.hits}  |  Errors: ${snapshot.misses}  |  Timeouts: ${snapshot.timeouts}
-Accuracy: ${Math.round(snapshot.accuracy * 100)}%
+${accuracyLine}
 Average reaction time: ${snapshot.avgReactionMs}ms
 Peak consecutive streak: ${snapshot.peakStreak}
 
@@ -144,9 +149,9 @@ function computeNetDir(adjustments: AdjustmentRecord[]): 'harder' | 'easier' | '
 // ── Main export ────────────────────────────────────────────────────────────────
 
 export async function generateSessionReport(input: ReportInput): Promise<CognitiveReport | null> {
-  const apiKey = process.env.ANTHROPIC_API_KEY ?? process.env.Claude_API_KEY;
+  const apiKey = process.env.ANTHROPIC_API_KEY;
   if (!apiKey) {
-    console.warn('[Report] Claude API key not set (ANTHROPIC_API_KEY or Claude_API_KEY) — skipping');
+    console.warn('[Report] ANTHROPIC_API_KEY not set — skipping');
     return null;
   }
 
@@ -166,24 +171,35 @@ export async function generateSessionReport(input: ReportInput): Promise<Cogniti
 
     // Extract JSON from response (Claude may wrap in ```json ... ```)
     const jsonMatch = text.match(/\{[\s\S]*\}/);
-    if (!jsonMatch) throw new Error('No JSON in Claude response');
+    if (!jsonMatch) {
+      console.warn(`[Report] No JSON in Claude response | session:${sessionId} | raw:${text.slice(0, 500)}`);
+      return null;
+    }
 
-    const parsed = JSON.parse(jsonMatch[0]) as {
-      cognitiveScore: number;
-      summaryHe: string;
-      strengthsHe: string[];
-      recommendationsHe: string[];
-    };
+    let parsedJson: unknown;
+    try {
+      parsedJson = JSON.parse(jsonMatch[0]);
+    } catch (err) {
+      console.warn(`[Report] JSON parse failed | session:${sessionId} | err:${(err as Error).message} | raw:${text.slice(0, 500)}`);
+      return null;
+    }
+
+    const validation = CognitiveReportSchema.safeParse(parsedJson);
+    if (!validation.success) {
+      console.warn(`[Report] Schema validation failed | session:${sessionId} | issues:${JSON.stringify(validation.error.issues)} | raw:${text.slice(0, 500)}`);
+      return null;
+    }
+    const validated = validation.data;
 
     const report: CognitiveReport = {
       sessionId,
       userId:              snapshot.userId,
       gameId:              snapshot.gameId as GameId,
       generatedAt:         Date.now(),
-      cognitiveScore:      Math.max(0, Math.min(100, Math.round(parsed.cognitiveScore))),
-      summaryHe:           parsed.summaryHe,
-      strengthsHe:         parsed.strengthsHe ?? [],
-      recommendationsHe:   parsed.recommendationsHe ?? [],
+      cognitiveScore:      validated.cognitiveScore,    // schema guarantees integer 0–100
+      summaryHe:           validated.summaryHe,
+      strengthsHe:         validated.strengthsHe,
+      recommendationsHe:   validated.recommendationsHe,
       rawStats: {
         accuracy:        snapshot.accuracy,
         avgReactionMs:   snapshot.avgReactionMs,
@@ -205,7 +221,9 @@ export async function generateSessionReport(input: ReportInput): Promise<Cogniti
       { merge: true },
     );
 
-    // Lightweight index under the user's profile
+    // Lightweight index under the user's profile (consumed by Cognitive Trend page).
+    // accuracy is denormalised here so the trend endpoint avoids N+1 lookups
+    // against sessions/{id}. May be null (per Phase 0 — see analytics-agent).
     batch.set(
       firestore.collection('users').doc(snapshot.userId)
                .collection('reports').doc(sessionId),
@@ -215,6 +233,7 @@ export async function generateSessionReport(input: ReportInput): Promise<Cogniti
         generatedAt:    report.generatedAt,
         cognitiveScore: report.cognitiveScore,
         summaryHe:      report.summaryHe,
+        accuracy:       snapshot.accuracy,
       },
     );
 
