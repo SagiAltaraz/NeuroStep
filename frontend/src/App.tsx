@@ -18,6 +18,7 @@ import CognitiveTrendPage from './pages/admin/trend/CognitiveTrendPage';
 import AlertsPage from './pages/admin/alerts/AlertsPage';
 import CoachReportsPage from './pages/admin/coach-reports/CoachReportsPage';
 import ProtectedRoute from './components/ProtectedRoute/ProtectedRoute';
+import AccessibilityWidget from './components/AccessibilityWidget/AccessibilityWidget';
 
 function App() {
    return (
@@ -76,6 +77,7 @@ function App() {
             <Route path="/admin/alerts" element={<AlertsPage />} />
             <Route path="*" element={<div>404 - Page not found</div>} />
          </Routes>
+         <AccessibilityWidget />
       </div>
    );
 }
