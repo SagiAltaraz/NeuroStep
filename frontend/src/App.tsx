@@ -15,6 +15,7 @@ import MemoryGamePage from './pages/games/MemoryGamePage';
 import ShapesClickPage from './pages/games/ShapesClickPage';
 import AdminPage from './pages/admin/AdminPage';
 import ProtectedRoute from './components/ProtectedRoute/ProtectedRoute';
+import AccessibilityWidget from './components/AccessibilityWidget/AccessibilityWidget';
 
 function App() {
    return (
@@ -70,6 +71,7 @@ function App() {
             <Route path="/admin" element={<AdminPage />} />
             <Route path="*" element={<div>404 - Page not found</div>} />
          </Routes>
+         <AccessibilityWidget />
       </div>
    );
 }
