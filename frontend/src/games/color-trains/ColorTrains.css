@@ -6,7 +6,7 @@
   align-items: center;
   padding: 2rem;
   min-height: 100vh;
-  background: linear-gradient(180deg, #f0f7ff 0%, #e1effe 100%);
+  background: transparent;
 }
 
 .game-back-row {

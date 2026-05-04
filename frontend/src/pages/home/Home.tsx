@@ -15,7 +15,14 @@ const Home = () => {
     <main className="home-page">
       <div className="home-container">
         <section className="hero-section">
-          <img src="/logo5.png" alt="NeuroStep Logo" className="hero-logo" />
+          <img
+            src="/logo5.png"
+            alt="NeuroStep Logo"
+            className="hero-logo"
+            width={1024}
+            height={1024}
+            fetchPriority="high"
+          />
 
           <div className="cta-section">
             <Button variant="black" size="lg" onClick={handlePlayClick}>
