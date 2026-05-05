@@ -1,6 +1,4 @@
 services:
-
-  # ── REST API (existing backend) ────────────────────────────────
   app:
     build:
       context: .
@@ -11,7 +9,21 @@ services:
       - ./backend/.env
     restart: unless-stopped
 
-  # ── Game Server (WebSocket + Kafka producer + analytics agent) ─
+  frontend:
+    image: oven/bun:1
+    working_dir: /frontend
+    command: sh -c "bun install && bun run dev --host 0.0.0.0 --port 5173"
+    ports:
+      - "5173:5173"
+    environment:
+      API_PROXY_TARGET: http://app:3000
+    volumes:
+      - ./frontend:/frontend
+      - /frontend/node_modules
+    depends_on:
+      - app
+    restart: unless-stopped
+
   game-server:
     build:
       context: ./backend/game-server
@@ -21,13 +33,12 @@ services:
     env_file:
       - ./backend/.env
     environment:
-      KAFKA_BROKER: kafka:29092   # inside Docker use internal listener
+      KAFKA_BROKER: kafka:29092
     depends_on:
       kafka:
         condition: service_healthy
     restart: unless-stopped
 
-  # ── Zookeeper ──────────────────────────────────────────────────
   zookeeper:
     image: confluentinc/cp-zookeeper:7.6.0
     container_name: neurostep-zookeeper
@@ -37,7 +48,6 @@ services:
     ports:
       - "2181:2181"
 
-  # ── Kafka broker ───────────────────────────────────────────────
   kafka:
     image: confluentinc/cp-kafka:7.6.0
     container_name: neurostep-kafka
@@ -60,7 +70,6 @@ services:
       timeout: 10s
       retries: 10
 
-  # ── Kafka UI — http://localhost:8080 ───────────────────────────
   kafka-ui:
     image: provectuslabs/kafka-ui:latest
     container_name: neurostep-kafka-ui

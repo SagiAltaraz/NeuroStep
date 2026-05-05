@@ -10,7 +10,6 @@ const Header: React.FC = () => {
    return (
       <header className="header">
          <div className="header-container">
-
             {/* Logo */}
             <div className="logo">
                <h1>
@@ -43,8 +42,12 @@ const Header: React.FC = () => {
                      </>
                   ) : (
                      <>
-                        <li><Link to="/sign-up">Sign Up</Link></li>
-                        <li><Link to="/log-in">Log In</Link></li>
+                        <li>
+                           <Link to="/sign-up">Sign Up</Link>
+                        </li>
+                        <li>
+                           <Link to="/log-in">Log In</Link>
+                        </li>
                      </>
                   )}
                </ul>
@@ -53,7 +56,7 @@ const Header: React.FC = () => {
             {/* Mobile Menu Toggle */}
             <button
                className="menu-toggle"
-               onClick={() => setIsMenuOpen(prev => !prev)}
+               onClick={() => setIsMenuOpen((prev) => !prev)}
             >
                {isMenuOpen ? '✕' : '☰'}
             </button>
