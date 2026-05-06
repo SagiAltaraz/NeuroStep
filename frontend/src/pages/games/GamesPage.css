@@ -1,6 +1,6 @@
 .games-page {
   min-height: 100vh;
-  background: linear-gradient(180deg, #f0f7ff 0%, #e6f0fa 100%);
+  background: transparent;
 }
 
 .games-container {
