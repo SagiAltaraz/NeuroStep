@@ -3,6 +3,7 @@ import type { ReactNode } from "react";
 import { signInWithPopup } from "firebase/auth";
 import { auth, googleProvider } from "../config/firebase";
 import * as authAPI from "../api/auth";
+import { useLang } from "./LanguageContext";
 
 export type UserRole = "user" | "admin";
 
@@ -11,6 +12,7 @@ export interface User {
   name: string;
   email: string;
   role: UserRole;
+  language?: 'he' | 'en';
 }
 
 interface AuthResponse {
@@ -24,7 +26,7 @@ interface AuthContextType {
   token: string | null;
   isAdmin: boolean;
   login: (email: string, password: string) => Promise<AuthResponse>;
-  signup: (name: string, email: string, password: string) => Promise<AuthResponse>;
+  signup: (name: string, email: string, password: string, language?: 'he' | 'en') => Promise<AuthResponse>;
   loginWithGoogle: () => Promise<AuthResponse>;
   logout: () => void;
 }
@@ -32,6 +34,8 @@ interface AuthContextType {
 const AuthContext = createContext<AuthContextType | undefined>(undefined);
 
 export const AuthProvider = ({ children }: { children: ReactNode }) => {
+  const { setLang } = useLang();
+
   const [token, setToken] = useState<string | null>(
     () => localStorage.getItem("token")
   );
@@ -42,6 +46,14 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
   });
 
   const isAdmin = user?.role === "admin";
+
+  // Sync the UI language to the user's saved preference whenever it changes
+  // (login, signup, or hydrate from localStorage on first render).
+  useEffect(() => {
+    if (user?.language === 'he' || user?.language === 'en') {
+      setLang(user.language);
+    }
+  }, [user?.language, setLang]);
 
   const logout = useCallback(() => {
     setUser(null);
@@ -75,8 +87,8 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
     return data;
   };
 
-  const signup = async (name: string, email: string, password: string) => {
-    const data = await authAPI.signup(name, email, password);
+  const signup = async (name: string, email: string, password: string, language?: 'he' | 'en') => {
+    const data = await authAPI.signup(name, email, password, language);
 
     if (data.token && data.user) {
       setUser(data.user);

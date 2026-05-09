@@ -2,17 +2,19 @@ import './Home.css';
 import { Button } from '../../components/ui/button';
 import { useNavigate } from 'react-router-dom';
 import { useAuth } from '../../context/AuthContext';
+import { useLang } from '../../context/LanguageContext';
 
 const Home = () => {
   const navigate = useNavigate();
   const { user } = useAuth();
+  const { t, dir } = useLang();
 
   const handlePlayClick = () => {
     navigate('/games');
   };
 
   return (
-    <main className="home-page">
+    <main className="home-page" dir={dir}>
       <div className="home-container">
         <section className="hero-section">
           <img
@@ -26,54 +28,32 @@ const Home = () => {
 
           <div className="cta-section">
             <Button variant="black" size="lg" onClick={handlePlayClick}>
-              Start Training
+              {t('home.cta.start')}
             </Button>
             {!user && (
-              <p className="cta-hint">Sign up for personalized progress tracking</p>
+              <p className="cta-hint">{t('home.cta.hint')}</p>
             )}
           </div>
 
-          <h1 className="hero-title">Keep Your Mind Sharp</h1>
-          <p className="hero-subtitle">
-            Cognitive training through engaging games designed for adults
-          </p>
+          <h1 className="hero-title">{t('home.title')}</h1>
+          <p className="hero-subtitle">{t('home.subtitle')}</p>
 
           <div className="hero-features">
             <div className="feature-item">
               <span className="feature-icon">🧠</span>
-              <span>Memory</span>
+              <span>{t('home.feature.memory')}</span>
             </div>
             <div className="feature-item">
               <span className="feature-icon">👁️</span>
-              <span>Focus</span>
+              <span>{t('home.feature.focus')}</span>
             </div>
             <div className="feature-item">
               <span className="feature-icon">⚡</span>
-              <span>Speed</span>
+              <span>{t('home.feature.speed')}</span>
             </div>
           </div>
         </section>
 
-        <section className="benefits-section">
-          <h2 className="benefits-title">Why NeuroStep?</h2>
-          <div className="benefits-grid">
-            <div className="benefit-card">
-              <div className="benefit-icon">📊</div>
-              <h3>Track Progress</h3>
-              <p>Monitor your cognitive improvement over time with detailed analytics</p>
-            </div>
-            <div className="benefit-card">
-              <div className="benefit-icon">🎯</div>
-              <h3>Personalized</h3>
-              <p>Games adapt to your level and focus on areas you want to improve</p>
-            </div>
-            <div className="benefit-card">
-              <div className="benefit-icon">🎮</div>
-              <h3>Fun & Engaging</h3>
-              <p>Enjoyable exercises that feel like games, not homework</p>
-            </div>
-          </div>
-        </section>
       </div>
     </main>
   );
