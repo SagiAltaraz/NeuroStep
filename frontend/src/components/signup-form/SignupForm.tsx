@@ -1,5 +1,6 @@
 import { useState } from "react";
 import { useAuth } from "../../context/AuthContext";
+import { useLang, type Lang } from "../../context/LanguageContext";
 import { useNavigate, Link } from "react-router-dom";
 import { Button } from "../ui/button";
 import {
@@ -22,12 +23,14 @@ import * as authAPI from "../../api/auth";
 
 export function SignupForm({ ...props }: React.ComponentProps<typeof Card>) {
   const { signup, loginWithGoogle } = useAuth();
+  const { t, lang: currentLang } = useLang();
   const navigate = useNavigate();
 
   const [name, setName] = useState("");
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
   const [confirm, setConfirm] = useState("");
+  const [language, setLanguage] = useState<Lang>(currentLang);
   const [isLoading, setIsLoading] = useState(false);
   const [showPersonalizationForm, setShowPersonalizationForm] = useState(false);
   const [isPreviewMode, setIsPreviewMode] = useState(false);
@@ -48,7 +51,7 @@ export function SignupForm({ ...props }: React.ComponentProps<typeof Card>) {
 
     setIsLoading(true);
     try {
-      const res = await signup(name, email, password);
+      const res = await signup(name, email, password, language);
 
       if (res?.error) {
         alert(res.error);
@@ -135,16 +138,14 @@ export function SignupForm({ ...props }: React.ComponentProps<typeof Card>) {
   return (
     <Card className="mx-auto max-w-sm" {...props}>
       <CardHeader>
-        <CardTitle>Create an account</CardTitle>
-        <CardDescription>
-          Enter your information below to create your account
-        </CardDescription>
+        <CardTitle>{t('signup.title')}</CardTitle>
+        <CardDescription>{t('signup.subtitle')}</CardDescription>
       </CardHeader>
       <CardContent>
         <form onSubmit={handleSubmit}>
           <FieldGroup>
             <Field>
-              <FieldLabel htmlFor="name">Full Name</FieldLabel>
+              <FieldLabel htmlFor="name">{t('signup.name')}</FieldLabel>
               <Input
                 id="name"
                 type="text"
@@ -156,7 +157,7 @@ export function SignupForm({ ...props }: React.ComponentProps<typeof Card>) {
               />
             </Field>
             <Field>
-              <FieldLabel htmlFor="email">Email</FieldLabel>
+              <FieldLabel htmlFor="email">{t('signup.email')}</FieldLabel>
               <Input
                 id="email"
                 type="email"
@@ -166,13 +167,10 @@ export function SignupForm({ ...props }: React.ComponentProps<typeof Card>) {
                 required
                 disabled={isLoading}
               />
-              <FieldDescription>
-                We'll use this to contact you. We will not share your email with
-                anyone else.
-              </FieldDescription>
+              <FieldDescription>{t('signup.email.hint')}</FieldDescription>
             </Field>
             <Field>
-              <FieldLabel htmlFor="password">Password</FieldLabel>
+              <FieldLabel htmlFor="password">{t('signup.password')}</FieldLabel>
               <Input
                 id="password"
                 type="password"
@@ -181,14 +179,10 @@ export function SignupForm({ ...props }: React.ComponentProps<typeof Card>) {
                 required
                 disabled={isLoading}
               />
-              <FieldDescription>
-                Must be at least 8 characters long.
-              </FieldDescription>
+              <FieldDescription>{t('signup.password.hint')}</FieldDescription>
             </Field>
             <Field>
-              <FieldLabel htmlFor="confirm-password">
-                Confirm Password
-              </FieldLabel>
+              <FieldLabel htmlFor="confirm-password">{t('signup.confirm')}</FieldLabel>
               <Input
                 id="confirm-password"
                 type="password"
@@ -197,7 +191,40 @@ export function SignupForm({ ...props }: React.ComponentProps<typeof Card>) {
                 required
                 disabled={isLoading}
               />
-              <FieldDescription>Please confirm your password.</FieldDescription>
+              <FieldDescription>{t('signup.confirm.hint')}</FieldDescription>
+            </Field>
+
+            <Field>
+              <FieldLabel>{t('signup.lang.label')}</FieldLabel>
+              <div role="radiogroup" className="flex gap-2">
+                <button
+                  type="button"
+                  className={`flex-1 px-3 py-2 rounded-md border text-sm font-medium transition ${
+                    language === 'he'
+                      ? 'bg-indigo-50 border-indigo-400 text-indigo-700'
+                      : 'bg-white border-slate-200 text-slate-600 hover:bg-slate-50'
+                  }`}
+                  onClick={() => setLanguage('he')}
+                  disabled={isLoading}
+                  aria-pressed={language === 'he'}
+                >
+                  עברית
+                </button>
+                <button
+                  type="button"
+                  className={`flex-1 px-3 py-2 rounded-md border text-sm font-medium transition ${
+                    language === 'en'
+                      ? 'bg-indigo-50 border-indigo-400 text-indigo-700'
+                      : 'bg-white border-slate-200 text-slate-600 hover:bg-slate-50'
+                  }`}
+                  onClick={() => setLanguage('en')}
+                  disabled={isLoading}
+                  aria-pressed={language === 'en'}
+                >
+                  English
+                </button>
+              </div>
+              <FieldDescription>{t('signup.lang.hint')}</FieldDescription>
             </Field>
 
             <FieldGroup>
@@ -208,11 +235,11 @@ export function SignupForm({ ...props }: React.ComponentProps<typeof Card>) {
                   variant="black"
                   disabled={isLoading}
                 >
-                  {isLoading ? "Creating Account..." : "Create Account"}
+                  {isLoading ? t('signup.submit.loading') : t('signup.submit')}
                 </Button>
               </Field>
 
-              <FieldSeparator>or</FieldSeparator>
+              <FieldSeparator>{t('signup.or')}</FieldSeparator>
 
               <Field>
                 <Button
@@ -240,14 +267,14 @@ export function SignupForm({ ...props }: React.ComponentProps<typeof Card>) {
                       fill="#EA4335"
                     />
                   </svg>
-                  Sign up with Google
+                  {t('signup.google')}
                 </Button>
               </Field>
 
               <FieldDescription className="text-center">
-                Already have an account?{" "}
+                {t('signup.have.account')}{" "}
                 <Link to="/log-in" className="underline">
-                  Sign in
+                  {t('signup.signin.link')}
                 </Link>
               </FieldDescription>
 

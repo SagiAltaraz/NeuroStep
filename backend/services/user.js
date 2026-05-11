@@ -12,6 +12,7 @@ const USERS_COLLECTION = 'users';
  * - email: string (unique)
  * - password: string (bcrypt hash)
  * - role: 'user' | 'admin'
+ * - language: 'he' | 'en'   (default 'he')
  * - personalizationAnswers: object | null
  * - personalizationPrompt: string | null
  * - profileCompletedAt: Date | null
@@ -22,7 +23,7 @@ export const userFirebaseService = {
   /**
    * יצירת משתמש חדש
    */
-  async createUser({ name, email, password, role = 'user' }) {
+  async createUser({ name, email, password, role = 'user', language = 'he' }) {
     if (!firestore) {
       throw new Error('Firebase not initialized');
     }
@@ -36,12 +37,16 @@ export const userFirebaseService = {
     // Hash password
     const hashedPassword = await bcrypt.hash(password, 10);
 
+    // Validate language (defensive — only 'he' or 'en' allowed)
+    const lang = language === 'en' ? 'en' : 'he';
+
     // נתוני המשתמש
     const userData = {
       name,
       email,
       password: hashedPassword,
       role,
+      language: lang,
       personalizationAnswers: null,
       personalizationPrompt: null,
       profileCompletedAt: null,
@@ -61,10 +66,12 @@ export const userFirebaseService = {
   /**
    * יצירת משתמש חדש דרך Google (ללא סיסמה)
    */
-  async createGoogleUser({ name, email, googleUid, role = 'user' }) {
+  async createGoogleUser({ name, email, googleUid, role = 'user', language = 'he' }) {
     if (!firestore) {
       throw new Error('Firebase not initialized');
     }
+
+    const lang = language === 'en' ? 'en' : 'he';
 
     // נתוני המשתמש
     const userData = {
@@ -73,6 +80,7 @@ export const userFirebaseService = {
       password: null, // אין סיסמה למשתמשי Google
       googleUid,
       role,
+      language: lang,
       personalizationAnswers: null,
       personalizationPrompt: null,
       profileCompletedAt: null,

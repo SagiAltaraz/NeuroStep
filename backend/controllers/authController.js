@@ -16,14 +16,15 @@ async function recordActivity(userId, name, email, method) {
 
 // ===== SIGNUP =====
 export const signup = async (req, res) => {
-  const { name, email, password } = req.body;
+  const { name, email, password, language } = req.body;
 
   try {
     const user = await userFirebaseService.createUser({
       name,
       email,
       password,
-      role: "user"
+      role: "user",
+      language,
     });
 
     const token = generateToken(user);
@@ -33,7 +34,8 @@ export const signup = async (req, res) => {
         id: user.id,
         name: user.name,
         email: user.email,
-        role: user.role
+        role: user.role,
+        language: user.language ?? 'he',
       },
       token
     });
@@ -67,7 +69,8 @@ export const login = async (req, res) => {
         id: user.id,
         name: user.name,
         email: user.email,
-        role: user.role
+        role: user.role,
+        language: user.language ?? 'he',
       },
       token
     });
@@ -122,7 +125,8 @@ export const googleAuth = async (req, res) => {
         id: user.id,
         name: user.name,
         email: user.email,
-        role: user.role
+        role: user.role,
+        language: user.language ?? 'he',
       },
       token
     });

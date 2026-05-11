@@ -1,11 +1,14 @@
 import React, { useState } from 'react';
 import { Link } from 'react-router-dom';
+import { Globe } from 'lucide-react';
 import { useAuth } from '../../context/AuthContext';
+import { useLang } from '../../context/LanguageContext';
 import './Header.css';
 
 const Header: React.FC = () => {
    const [isMenuOpen, setIsMenuOpen] = useState(false);
    const { user, isAdmin, logout } = useAuth();
+   const { t, toggle, lang } = useLang();
 
    return (
       <header className="header">
@@ -24,29 +27,42 @@ const Header: React.FC = () => {
                   {user ? (
                      <>
                         <li className="welcome">
-                           Hello, <strong>{user.name}</strong>
+                           {t('header.welcome')}, <strong>{user.name}</strong>
                         </li>
 
                         {isAdmin && (
                            <li>
                               <Link to="/admin" className="admin-link">
-                                 Admin Panel
+                                 {t('header.admin')}
                               </Link>
                            </li>
                         )}
 
                         <li>
                            <button className="logout-btn" onClick={logout}>
-                              Logout
+                              {t('header.logout')}
                            </button>
                         </li>
                      </>
                   ) : (
                      <>
-                        <li><Link to="/sign-up">Sign Up</Link></li>
-                        <li><Link to="/log-in">Log In</Link></li>
+                        <li><Link to="/sign-up">{t('header.signup')}</Link></li>
+                        <li><Link to="/log-in">{t('header.login')}</Link></li>
                      </>
                   )}
+
+                  {/* Language toggle */}
+                  <li>
+                     <button
+                        type="button"
+                        className="lang-toggle"
+                        onClick={toggle}
+                        aria-label={lang === 'he' ? 'Switch to English' : 'החלף לעברית'}
+                     >
+                        <Globe size={14} />
+                        <span>{t('header.lang.toggle')}</span>
+                     </button>
+                  </li>
                </ul>
             </nav>
 

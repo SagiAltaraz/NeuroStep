@@ -1,8 +1,8 @@
-export async function signup(name: string, email: string, password: string) {
+export async function signup(name: string, email: string, password: string, language?: 'he' | 'en') {
   const res = await fetch("/api/auth/signup", {
     method: "POST",
     headers: { "Content-Type": "application/json" },
-    body: JSON.stringify({ name, email, password }),
+    body: JSON.stringify({ name, email, password, language }),
   });
   const data = await res.json();
   if (!res.ok) {
