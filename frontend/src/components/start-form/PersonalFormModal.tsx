@@ -26,8 +26,8 @@ const QUESTIONS: Question[] = [
     id: 1,
     titleHe: "מהי קבוצת הגיל שלך?",
     titleEn: "What is your age group?",
-    subtitleHe: "בחירה יחידה",
-    subtitleEn: "Single choice",
+    subtitleHe: "",
+    subtitleEn: "",
     minSelections: 1,
     maxSelections: 1,
     options: [
@@ -42,8 +42,8 @@ const QUESTIONS: Question[] = [
     id: 2,
     titleHe: "מהו המגדר שלך?",
     titleEn: "What is your gender?",
-    subtitleHe: "בחירה יחידה",
-    subtitleEn: "Single choice",
+    subtitleHe: "",
+    subtitleEn: "",
     minSelections: 1,
     maxSelections: 1,
     options: [
@@ -60,8 +60,8 @@ const QUESTIONS: Question[] = [
     id: 3,
     titleHe: "אילו מהפעילויות הבאות אתה נוהג לבצע בשעות הפנאי?",
     titleEn: "Which of the following do you usually do in your free time?",
-    subtitleHe: "בחירה מרובה",
-    subtitleEn: "Multiple choice",
+    subtitleHe: "",
+    subtitleEn: "",
     minSelections: 1,
     maxSelections: 6,
     exclusiveOptionIds: ["none-of-the-above"],
@@ -98,8 +98,8 @@ const QUESTIONS: Question[] = [
     id: 4,
     titleHe: "באיזו תדירות אתה שוכח היכן הנחת חפצים יומיומיים?",
     titleEn: "How often do you forget where you placed daily items?",
-    subtitleHe: "זיכרון - בחירה יחידה",
-    subtitleEn: "Memory - single choice",
+    subtitleHe: "זיכרון",
+    subtitleEn: "Memory",
     minSelections: 1,
     maxSelections: 1,
     options: [
@@ -113,8 +113,8 @@ const QUESTIONS: Question[] = [
     id: 5,
     titleHe: "כשאתה פוגש אנשים חדשים, עד כמה קשה לזכור את השמות שלהם?",
     titleEn: "When meeting new people, how hard is it to remember their names?",
-    subtitleHe: "זיכרון - בחירה יחידה",
-    subtitleEn: "Memory - single choice",
+    subtitleHe: "זיכרון",
+    subtitleEn: "Memory",
     minSelections: 1,
     maxSelections: 1,
     options: [
@@ -144,8 +144,8 @@ const QUESTIONS: Question[] = [
     id: 6,
     titleHe: "האם אתה נעזר ברשימות כדי לזכור דברים שעליך לעשות?",
     titleEn: "Do you use lists/reminders to remember tasks?",
-    subtitleHe: "זיכרון - בחירה יחידה",
-    subtitleEn: "Memory - single choice",
+    subtitleHe: "זיכרון",
+    subtitleEn: "Memory",
     minSelections: 1,
     maxSelections: 1,
     options: [
@@ -170,8 +170,8 @@ const QUESTIONS: Question[] = [
     id: 7,
     titleHe: "כשאתה קורא או צופה בטלוויזיה ויש רעש ברקע, כיצד זה משפיע עליך?",
     titleEn: "When reading/watching TV with background noise, how does it affect you?",
-    subtitleHe: "קשב וריכוז - בחירה יחידה",
-    subtitleEn: "Attention - single choice",
+    subtitleHe: "קשב וריכוז",
+    subtitleEn: "Attention",
     minSelections: 1,
     maxSelections: 1,
     options: [
@@ -201,8 +201,8 @@ const QUESTIONS: Question[] = [
     id: 8,
     titleHe: "כמה זמן ברצף אתה מצליח לשמור על ריכוז במשימה אחת?",
     titleEn: "How long can you stay focused on one demanding task?",
-    subtitleHe: "קשב וריכוז - בחירה יחידה",
-    subtitleEn: "Attention - single choice",
+    subtitleHe: "קשב וריכוז",
+    subtitleEn: "Attention",
     minSelections: 1,
     maxSelections: 1,
     options: [
@@ -216,8 +216,8 @@ const QUESTIONS: Question[] = [
     id: 9,
     titleHe: "איך אתה מרגיש כשאתה נדרש לבצע שתי משימות במקביל?",
     titleEn: "How do you feel when doing two tasks at once?",
-    subtitleHe: "תפקודים ניהוליים - בחירה יחידה",
-    subtitleEn: "Executive functions - single choice",
+    subtitleHe: "תפקודים ניהוליים",
+    subtitleEn: "Executive functions",
     minSelections: 1,
     maxSelections: 1,
     options: [
@@ -247,8 +247,8 @@ const QUESTIONS: Question[] = [
     id: 10,
     titleHe: "כאשר מוקצב זמן מוגבל לסיום משימה, כיצד זה משפיע עליך?",
     titleEn: "When under time pressure, how are you affected?",
-    subtitleHe: "תפקודים ניהוליים - בחירה יחידה",
-    subtitleEn: "Executive functions - single choice",
+    subtitleHe: "תפקודים ניהוליים",
+    subtitleEn: "Executive functions",
     minSelections: 1,
     maxSelections: 1,
     options: [
@@ -278,8 +278,8 @@ const QUESTIONS: Question[] = [
     id: 11,
     titleHe: "כשמתעוררת בעיה בלתי צפויה במהלך היום, כמה מהר אתה מוצא פתרון חלופי?",
     titleEn: "When an unexpected problem appears, how quickly do you find an alternative?",
-    subtitleHe: "גמישות מחשבתית - בחירה יחידה",
-    subtitleEn: "Cognitive flexibility - single choice",
+    subtitleHe: "גמישות מחשבתית",
+    subtitleEn: "Cognitive flexibility",
     minSelections: 1,
     maxSelections: 1,
     options: [
@@ -309,8 +309,8 @@ const QUESTIONS: Question[] = [
     id: 12,
     titleHe: "אם חפץ נופל מהשולחן, מה הסיכוי שתתפוס אותו לפני שייפול?",
     titleEn: "If an object falls from a table, how likely are you to catch it?",
-    subtitleHe: "מהירות תגובה - בחירה יחידה",
-    subtitleEn: "Reaction speed - single choice",
+    subtitleHe: "מהירות תגובה",
+    subtitleEn: "Reaction speed",
     minSelections: 1,
     maxSelections: 1,
     options: [
@@ -332,8 +332,8 @@ const QUESTIONS: Question[] = [
     id: 13,
     titleHe: "עד כמה אתה בטוח ביכולת שלך לנווט למקום חדש שאינך מכיר?",
     titleEn: "How confident are you navigating to an unfamiliar place?",
-    subtitleHe: "התמצאות מרחבית - בחירה יחידה",
-    subtitleEn: "Spatial orientation - single choice",
+    subtitleHe: "התמצאות מרחבית",
+    subtitleEn: "Spatial orientation",
     minSelections: 1,
     maxSelections: 1,
     options: [
@@ -363,8 +363,8 @@ const QUESTIONS: Question[] = [
     id: 14,
     titleHe: "אילו תחומים תרצה במיוחד לשפר באמצעות המשחקים באתר?",
     titleEn: "Which areas would you most like to improve with the games?",
-    subtitleHe: "העדפות אישיות - בחירה מרובה",
-    subtitleEn: "Personal goals - multiple choice",
+    subtitleHe: "העדפות אישיות",
+    subtitleEn: "Personal goals",
     minSelections: 1,
     maxSelections: 5,
     options: [
@@ -399,8 +399,8 @@ const QUESTIONS: Question[] = [
     id: 15,
     titleHe: "אילו סוגי משחקים או פעילויות מחשב אתה מעדיף בדרך כלל?",
     titleEn: "Which types of games or computer activities do you usually prefer?",
-    subtitleHe: "העדפות אישיות - בחירה מרובה",
-    subtitleEn: "Personal preferences - multiple choice",
+    subtitleHe: "העדפות אישיות",
+    subtitleEn: "Personal preferences",
     minSelections: 1,
     maxSelections: 5,
     exclusiveOptionIds: ["no-preference"],
@@ -608,9 +608,11 @@ const PersonalFormModal: React.FC<PersonalFormModalProps> = ({
               <h2 className="question-text">
                 {locale === "he" ? question.titleHe : question.titleEn}
               </h2>
-              <p className="question-subtitle">
-                {locale === "he" ? question.subtitleHe : question.subtitleEn}
-              </p>
+              {(locale === "he" ? question.subtitleHe : question.subtitleEn) && (
+                <p className="question-subtitle">
+                  {locale === "he" ? question.subtitleHe : question.subtitleEn}
+                </p>
+              )}
               <p className="selection-meta">{selectedCountMessage}</p>
 
               <div className="answers-grid">
