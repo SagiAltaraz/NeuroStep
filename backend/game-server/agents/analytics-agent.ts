@@ -10,31 +10,14 @@
  *     accuracy, avgReactionMs, peakStreak
  *
  *   users/{userId}/stats/{gameId}
- *     sessionsCount, avgAccuracy, avgReactionMs, lastPlayedAt
+ *     lastPlayedAt, lastAccuracy, lastAvgReactionMs
+ *     (avgReactionMs / stdDevReactionMs / sessionsCount are owned by baseline-agent)
  */
 
 import { Kafka } from 'kafkajs';
-import { initializeApp, cert, getApps } from 'firebase-admin/app';
-import { getFirestore, type Firestore } from 'firebase-admin/firestore';
 import type { GameEvent } from '../types/game.types.js';
-import { computeSessionStats } from './adaptive-agent.js';
 import { TOPICS } from '../kafka/topics.js';
-
-// ── Firebase Admin init ────────────────────────────────────────────────────────
-// Uses the same credentials already in backend/.env
-
-function getFirestoreClient(): Firestore {
-  if (getApps().length === 0) {
-    initializeApp({
-      credential: cert({
-        projectId:    process.env.FIREBASE_PROJECT_ID,
-        clientEmail:  process.env.FIREBASE_CLIENT_EMAIL,
-        privateKey:   process.env.FIREBASE_PRIVATE_KEY?.replace(/\\n/g, '\n'),
-      }),
-    });
-  }
-  return getFirestore();
-}
+import { getDb } from '../firebase.js';
 
 // ── In-memory session buffer ───────────────────────────────────────────────────
 // We accumulate events per session and flush to Firestore every FLUSH_INTERVAL_MS
@@ -80,11 +63,37 @@ function applyEvent(event: GameEvent) {
   buf.totalEvents++;
   buf.dirty = true;
 
+  // Reaction times are independent of hit/miss classification — push whenever
+  // present so neutral events (e.g. tic-tac-toe MOVE_MADE) still feed baseline.
+  const rt = typeof event.reactionMs === 'number' ? event.reactionMs
+           : typeof event.payload?.reactionMs === 'number' ? event.payload.reactionMs as number
+           : null;
+  if (rt !== null && rt > 0) buf.reactionTimes.push(rt);
+
+  // ── Classification ──────────────────────────────────────────────────────────
+  // Three buckets: hit / miss / timeout. Anything else is NEUTRAL — counted in
+  // totalEvents but not in accuracy. This matters for tic-tac-toe where a single
+  // MOVE_MADE is neither correct nor wrong (only the GAME_WON outcome is), and
+  // GAME_DRAW is not a loss.
+  //
+  // ROUND_END carries `correct:boolean` in payload — color-trains uses this.
+  // GAME_WON carries `winner:'player'|'ai'` in payload — tic-tac-toe uses this.
+  const roundEndCorrect = type === 'ROUND_END'
+    ? event.payload?.correct === true
+    : null;
+  const gameWonByPlayer = type === 'GAME_WON' && event.payload?.winner === 'player';
+  const gameWonByAi     = type === 'GAME_WON' && event.payload?.winner === 'ai';
+
   const isHit = type === 'CIRCLE_HIT' || type === 'PAIR_MATCHED' ||
-                type === 'STATION_SELECTED' || type === 'ROUND_END';
+                type === 'STATION_SELECTED' ||
+                roundEndCorrect === true ||
+                gameWonByPlayer;
   const isMiss = type === 'DISTRACTOR_CLICK' || type === 'PAIR_MISSED' ||
-                 type === 'MISSED_SWITCH' || type === 'MOVE_MADE';
+                 type === 'MISSED_SWITCH' ||
+                 roundEndCorrect === false ||
+                 gameWonByAi;
   const isTimeout = type === 'TIMEOUT';
+  // Implicitly neutral: ROUND_START, MOVE_MADE, GAME_DRAW
 
   if (isHit) {
     buf.hits++;
@@ -95,14 +104,10 @@ function applyEvent(event: GameEvent) {
     if (isTimeout) buf.timeouts++;
     buf.currentStreak = 0;
   }
-
-  const rt = typeof event.reactionMs === 'number' ? event.reactionMs
-           : typeof event.payload?.reactionMs === 'number' ? event.payload.reactionMs as number
-           : null;
-  if (rt !== null && rt > 0) buf.reactionTimes.push(rt);
 }
 
-async function flushAll(db: Firestore) {
+async function flushAll() {
+  const db = getDb();
   const dirty = [...buffers.entries()].filter(([, buf]) => buf.dirty);
   if (dirty.length === 0) return;
 
@@ -111,7 +116,12 @@ async function flushAll(db: Firestore) {
   for (const [sessionId, buf] of dirty) {
     buf.dirty = false;
     const scored  = buf.hits + buf.misses + buf.timeouts;
-    const accuracy = scored > 0 ? buf.hits / scored : 0;
+    // accuracy is null when no scored events exist (e.g. tic-tac-toe session
+    // with only MOVE_MADE / ROUND_START / GAME_DRAW). Downstream consumers
+    // (Alert / Coach / Report) skip or label such sessions instead of treating
+    // 0/0 as 0%.
+    const accuracy: number | null = scored > 0 ? buf.hits / scored : null;
+    const accuracyRounded = accuracy === null ? null : Math.round(accuracy * 100) / 100;
     const avgReactionMs = buf.reactionTimes.length > 0
       ? Math.round(buf.reactionTimes.reduce((a, b) => a + b, 0) / buf.reactionTimes.length)
       : 0;
@@ -127,23 +137,20 @@ async function flushAll(db: Firestore) {
       hits:         buf.hits,
       misses:       buf.misses,
       timeouts:     buf.timeouts,
-      accuracy:     Math.round(accuracy * 100) / 100,
+      accuracy:     accuracyRounded,
       avgReactionMs,
       peakStreak:   buf.peakStreak,
     }, { merge: true });
 
-    // Update per-user per-game rolling stats
+    // Update per-user per-game last-session snapshot.
+    // avgReactionMs / stdDevReactionMs / sessionsCount are written by baseline-agent
+    // (once per session close, using Welford cross-session statistics).
     const statsRef = db.collection('users').doc(buf.userId)
                        .collection('stats').doc(buf.gameId);
     batch.set(statsRef, {
       lastPlayedAt:      buf.lastEventAt,
-      lastAccuracy:      Math.round(accuracy * 100) / 100,
+      lastAccuracy:      accuracyRounded,
       lastAvgReactionMs: avgReactionMs,
-      // stdDev is used by adaptive-agent as the personal baseline spread
-      ...(computeSessionStats(buf.reactionTimes) && {
-        avgReactionMs:    computeSessionStats(buf.reactionTimes)!.mean,
-        stdDevReactionMs: computeSessionStats(buf.reactionTimes)!.stdDev,
-      }),
     }, { merge: true });
   }
 
@@ -154,8 +161,6 @@ async function flushAll(db: Firestore) {
 // ── Kafka consumer ─────────────────────────────────────────────────────────────
 
 export async function startAnalyticsAgent(): Promise<void> {
-  const db = getFirestoreClient();
-
   const kafka    = new Kafka({ clientId: 'analytics-agent', brokers: [process.env.KAFKA_BROKER ?? 'localhost:9092'] });
   const consumer = kafka.consumer({ groupId: 'analytics-group' });
 
@@ -164,7 +169,7 @@ export async function startAnalyticsAgent(): Promise<void> {
 
   // Flush every 5 seconds
   setInterval(() => {
-    flushAll(db).catch(err => console.error('[Analytics] Flush error:', err));
+    flushAll().catch(err => console.error('[Analytics] Flush error:', err));
   }, FLUSH_INTERVAL_MS);
 
   await consumer.run({
@@ -180,4 +185,41 @@ export async function startAnalyticsAgent(): Promise<void> {
   });
 
   console.log('[Analytics] Agent running — consuming game-events → Firestore');
+}
+
+// ── Session snapshot (used by report-agent on session end) ─────────────────────
+
+export interface SessionSnapshot {
+  userId:        string;
+  gameId:        string;
+  durationMs:    number;
+  hits:          number;
+  misses:        number;
+  timeouts:      number;
+  accuracy:      number | null;   // null when scored events == 0 (e.g. tic-tac-toe with no game completed)
+  avgReactionMs: number;
+  peakStreak:    number;
+  reactionTimes: number[];   // raw array — baseline-agent uses this for Welford update
+}
+
+export function getSessionSnapshot(sessionId: string): SessionSnapshot | null {
+  const buf = buffers.get(sessionId);
+  if (!buf) return null;
+  const scored        = buf.hits + buf.misses + buf.timeouts;
+  const accuracy: number | null = scored > 0 ? buf.hits / scored : null;
+  const avgReactionMs = buf.reactionTimes.length > 0
+    ? Math.round(buf.reactionTimes.reduce((a, b) => a + b, 0) / buf.reactionTimes.length)
+    : 0;
+  return {
+    userId:        buf.userId,
+    gameId:        buf.gameId,
+    durationMs:    buf.lastEventAt - buf.startedAt,
+    hits:          buf.hits,
+    misses:        buf.misses,
+    timeouts:      buf.timeouts,
+    accuracy:      accuracy === null ? null : Math.round(accuracy * 100) / 100,
+    avgReactionMs,
+    peakStreak:    buf.peakStreak,
+    reactionTimes: [...buf.reactionTimes],
+  };
 }

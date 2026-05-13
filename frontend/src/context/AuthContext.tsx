@@ -1,4 +1,4 @@
-import { createContext, useContext, useState } from "react";
+import { createContext, useContext, useState, useEffect, useCallback } from "react";
 import type { ReactNode } from "react";
 import { signInWithPopup } from "firebase/auth";
 import { auth, googleProvider } from "../config/firebase";
@@ -42,6 +42,25 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
   });
 
   const isAdmin = user?.role === "admin";
+
+  const logout = useCallback(() => {
+    setUser(null);
+    setToken(null);
+    localStorage.removeItem("token");
+    localStorage.removeItem("user");
+  }, []);
+
+  // Auto-logout when token is expired — intercept 401 responses globally
+  useEffect(() => {
+    if (!token) return;
+    try {
+      const payload = JSON.parse(atob(token.split(".")[1]));
+      const msUntilExpiry = payload.exp * 1000 - Date.now();
+      if (msUntilExpiry <= 0) { logout(); return; }
+      const t = setTimeout(logout, msUntilExpiry);
+      return () => clearTimeout(t);
+    } catch { logout(); }
+  }, [token, logout]);
 
   const login = async (email: string, password: string) => {
     const data = await authAPI.login(email, password);
@@ -92,13 +111,6 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
       console.error("Google sign-in error:", error);
       return { error: "Google sign-in failed. Please try again." };
     }
-  };
-
-  const logout = () => {
-    setUser(null);
-    setToken(null);
-    localStorage.removeItem("token");
-    localStorage.removeItem("user");
   };
 
   return (

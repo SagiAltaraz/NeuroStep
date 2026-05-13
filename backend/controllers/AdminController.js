@@ -1,4 +1,6 @@
 import { userFirebaseService } from "../services/user.js";
+import { firestore } from "../config/firebase.js";
+import { FieldValue } from "firebase-admin/firestore";
 
 // ===== GET ALL USERS =====
 export const getAllUsers = async (req, res) => {
@@ -49,5 +51,226 @@ export const deleteUser = async (req, res) => {
     res.json({ message: "User deleted successfully" });
   } catch (err) {
     res.status(500).json({ message: "Failed to delete user" });
+  }
+};
+
+// ===== GAME SESSIONS =====
+export const getSessions = async (req, res) => {
+  try {
+    const snap = await firestore
+      .collection('sessions')
+      .orderBy('startedAt', 'desc')
+      .limit(50)
+      .get();
+
+    const sessions = snap.docs.map(doc => ({
+      id: doc.id,
+      ...doc.data(),
+      report: doc.data().report
+        ? {
+            cognitiveScore: doc.data().report.cognitiveScore,
+            summaryHe:      doc.data().report.summaryHe,
+            generatedAt:    doc.data().report.generatedAt,
+          }
+        : null,
+    }));
+
+    // Batch-fetch usernames for all unique userIds
+    const uniqueIds = [...new Set(sessions.map(s => s.userId).filter(Boolean))];
+    const userDocs = await Promise.all(
+      uniqueIds.map(id => firestore.collection('users').doc(id).get())
+    );
+    const nameMap = Object.fromEntries(
+      userDocs.map(doc => [doc.id, doc.exists ? doc.data().name : null])
+    );
+
+    res.json(sessions.map(s => ({ ...s, username: nameMap[s.userId] ?? null })));
+  } catch (err) {
+    res.status(500).json({ message: "Failed to fetch sessions", error: err.message });
+  }
+};
+
+// ===== USER ACTIVITY (login history) =====
+export const getActivity = async (req, res) => {
+  try {
+    const snap = await firestore
+      .collection('activityLogs')
+      .orderBy('timestamp', 'desc')
+      .limit(100)
+      .get();
+
+    const logs = snap.docs.map(doc => ({
+      id: doc.id,
+      ...doc.data(),
+      timestamp: doc.data().timestamp?.toDate?.()?.getTime() ?? doc.data().timestamp,
+    }));
+
+    res.json(logs);
+  } catch (err) {
+    res.status(500).json({ message: "Failed to fetch activity", error: err.message });
+  }
+};
+
+// ===== CLAUDE TOKEN USAGE =====
+export const getTokenUsage = async (req, res) => {
+  try {
+    const doc = await firestore.collection('meta').doc('tokenUsage').get();
+    res.json(doc.exists ? doc.data() : { totalInputTokens: 0, totalOutputTokens: 0, totalReports: 0 });
+  } catch (err) {
+    res.status(500).json({ message: "Failed to fetch token usage", error: err.message });
+  }
+};
+
+// ===== COGNITIVE TREND (per-user time series) =====
+const VALID_GAMES   = new Set(['shapes-click', 'color-trains', 'tictactoe', 'memory', 'all']);
+const VALID_PERIODS = new Set(['7d', '30d', '90d', 'all']);
+
+const PERIOD_DAYS = { '7d': 7, '30d': 30, '90d': 90 };
+
+export const getUserCognitiveTrend = async (req, res) => {
+  try {
+    const { userId } = req.params;
+    const game   = VALID_GAMES.has(req.query.game)     ? req.query.game     : 'all';
+    const period = VALID_PERIODS.has(req.query.period) ? req.query.period   : '30d';
+
+    // Look up the user's display name (use 'name' field per existing schema)
+    const userSnap    = await firestore.collection('users').doc(userId).get();
+    const displayName = userSnap.exists ? (userSnap.data().name ?? null) : null;
+
+    // Build the query against users/{userId}/reports
+    let q = firestore.collection('users').doc(userId).collection('reports');
+
+    if (game !== 'all')   q = q.where('gameId',      '==', game);
+    if (period !== 'all') {
+      const cutoff = Date.now() - PERIOD_DAYS[period] * 24 * 60 * 60 * 1000;
+      q = q.where('generatedAt', '>=', cutoff);
+    }
+
+    const snap = await q.orderBy('generatedAt', 'asc').limit(500).get();
+
+    const series = snap.docs.map(d => {
+      const data = d.data();
+      return {
+        sessionId:      data.sessionId      ?? d.id,
+        generatedAt:    data.generatedAt    ?? null,
+        gameId:         data.gameId         ?? null,
+        cognitiveScore: data.cognitiveScore ?? null,
+        accuracy:       data.accuracy       ?? null,   // may be null for older records
+        summaryHe:      data.summaryHe      ?? '',
+      };
+    });
+
+    // Compute summary
+    const scores         = series.map(s => s.cognitiveScore).filter(v => typeof v === 'number');
+    const latestScore    = scores.length > 0 ? scores[scores.length - 1] : null;
+    const periodAverage  = scores.length > 0
+      ? Math.round(scores.reduce((a, b) => a + b, 0) / scores.length)
+      : null;
+    const periodChange   = scores.length >= 2 ? scores[scores.length - 1] - scores[0] : null;
+    const sessionsCount  = series.length;
+
+    res.json({
+      user:    { userId, displayName },
+      series,
+      summary: { latestScore, periodAverage, periodChange, sessionsCount },
+    });
+  } catch (err) {
+    console.error('[getUserCognitiveTrend]', err);
+    res.status(500).json({ message: "Failed to fetch cognitive trend", error: err.message });
+  }
+};
+
+// ===== ACTIVE ALERTS (admin queue) =====
+// Reads admin/pendingAlerts (a single doc keyed by `${userId}_${gameId}`),
+// joins each alert with the user's displayName, returns sorted newest-first.
+export const getAlerts = async (req, res) => {
+  try {
+    const doc = await firestore.collection('admin').doc('pendingAlerts').get();
+    if (!doc.exists) return res.json([]);
+
+    const data    = doc.data() ?? {};
+    const entries = Object.entries(data);
+    if (entries.length === 0) return res.json([]);
+
+    // Batch-fetch user names for all unique userIds
+    const userIds = [...new Set(entries.map(([, alert]) => alert.userId).filter(Boolean))];
+    const userDocs = await Promise.all(
+      userIds.map(id => firestore.collection('users').doc(id).get())
+    );
+    const nameMap = Object.fromEntries(
+      userDocs.map(d => [d.id, d.exists ? (d.data().name ?? null) : null])
+    );
+
+    const alerts = entries
+      .map(([, alert]) => ({
+        alertId:      alert.alertId      ?? null,
+        userId:       alert.userId,
+        displayName:  nameMap[alert.userId] ?? null,
+        gameId:       alert.gameId,
+        type:         alert.type         ?? 'performance_decline',
+        trigger:      alert.trigger      ?? null,
+        accuracyDrop: alert.accuracyDrop ?? null,
+        createdAt:    alert.createdAt    ?? null,
+        acknowledged: alert.acknowledged ?? false,
+      }))
+      .sort((a, b) => (b.createdAt ?? 0) - (a.createdAt ?? 0));
+
+    res.json(alerts);
+  } catch (err) {
+    console.error('[getAlerts]', err);
+    res.status(500).json({ message: "Failed to fetch alerts", error: err.message });
+  }
+};
+
+// ===== ACKNOWLEDGE ALERT =====
+// Marks the audit doc as acknowledged AND removes the entry from
+// admin/pendingAlerts so it stops appearing in the active queue.
+// Both writes go in one batch — atomic, idempotent on retry.
+export const acknowledgeAlert = async (req, res) => {
+  const { userId, gameId, alertId } = req.body ?? {};
+  if (!userId || !gameId || !alertId) {
+    return res.status(400).json({ message: "userId, gameId, and alertId are required" });
+  }
+
+  try {
+    const batch = firestore.batch();
+
+    // 1. Mark the per-user audit doc — preserves history.
+    const auditRef = firestore.collection('users').doc(userId)
+                              .collection('alerts').doc(alertId);
+    batch.set(auditRef, {
+      acknowledged:   true,
+      acknowledgedAt: Date.now(),
+    }, { merge: true });
+
+    // 2. Remove the entry from the admin queue so it stops showing up.
+    const pendingRef = firestore.collection('admin').doc('pendingAlerts');
+    batch.update(pendingRef, {
+      [`${userId}_${gameId}`]: FieldValue.delete(),
+    });
+
+    await batch.commit();
+    res.json({ ok: true });
+  } catch (err) {
+    console.error('[acknowledgeAlert]', err);
+    res.status(500).json({ message: "Failed to acknowledge alert", error: err.message });
+  }
+};
+
+// ===== USER COACH REPORTS (longitudinal, every 5 sessions) =====
+export const getUserCoachReports = async (req, res) => {
+  try {
+    const { userId } = req.params;
+
+    let q = firestore.collection('users').doc(userId).collection('coachReports');
+    if (req.query.game) q = q.where('gameId', '==', req.query.game);
+
+    const snap = await q.orderBy('generatedAt', 'desc').limit(100).get();
+    const reports = snap.docs.map(d => ({ id: d.id, ...d.data() }));
+
+    res.json(reports);
+  } catch (err) {
+    console.error('[getUserCoachReports]', err);
+    res.status(500).json({ message: "Failed to fetch coach reports", error: err.message });
   }
 };

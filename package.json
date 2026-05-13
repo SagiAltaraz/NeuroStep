@@ -3,7 +3,8 @@
   "private": true,
   "type": "module",
   "scripts": {
-    "prepare": "husky"
+    "prepare": "husky",
+    "deploy:indexes": "firebase deploy --only firestore:indexes"
   },
   "devDependencies": {
     "@types/bun": "latest",

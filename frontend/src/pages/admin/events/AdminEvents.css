@@ -1,0 +1,97 @@
+.ev-toolbar {
+  display: flex;
+  align-items: center;
+  gap: 1rem;
+  margin-bottom: 1rem;
+}
+
+.ev-filter {
+  padding: 0.45rem 0.75rem;
+  border: 1px solid #e2e8f0;
+  border-radius: 8px;
+  font-size: 0.875rem;
+  background: #fff;
+  cursor: pointer;
+}
+
+.ev-count {
+  font-size: 0.8rem;
+  color: #94a3b8;
+}
+
+.ev-state {
+  text-align: center;
+  color: #94a3b8;
+  padding: 3rem 0;
+  font-size: 0.9rem;
+  direction: rtl;
+}
+
+.ev-error {
+  background: #fef2f2;
+  border: 1px solid #fca5a5;
+  border-radius: 10px;
+  padding: 1rem 1.25rem;
+  color: #dc2626;
+  font-size: 0.875rem;
+  direction: rtl;
+}
+
+.ev-table-wrap {
+  overflow-x: auto;
+  border: 1px solid #e2e8f0;
+  border-radius: 12px;
+}
+
+.ev-table {
+  width: 100%;
+  border-collapse: collapse;
+  font-size: 0.875rem;
+}
+
+.ev-table th {
+  background: #f8fafc;
+  padding: 0.75rem 1rem;
+  text-align: right;
+  font-weight: 600;
+  color: #475569;
+  font-size: 0.78rem;
+  text-transform: uppercase;
+  letter-spacing: 0.03em;
+  border-bottom: 1px solid #e2e8f0;
+  white-space: nowrap;
+}
+
+.ev-table td {
+  padding: 0.7rem 1rem;
+  border-bottom: 1px solid #f1f5f9;
+  color: #334155;
+  text-align: right;
+  white-space: nowrap;
+}
+
+.ev-table tr:last-child td { border-bottom: none; }
+.ev-table tr:hover td { background: #f8fafc; }
+
+.ev-game-tag {
+  background: #ede9fe;
+  color: #6d28d9;
+  padding: 0.2rem 0.6rem;
+  border-radius: 20px;
+  font-size: 0.78rem;
+  font-weight: 600;
+}
+
+.ev-uid { color: #94a3b8; font-family: monospace; font-size: 0.8rem; }
+
+.ev-acc, .ev-score {
+  padding: 0.2rem 0.55rem;
+  border-radius: 20px;
+  font-size: 0.8rem;
+  font-weight: 700;
+}
+.ev-acc.good, .ev-score.good { background: #dcfce7; color: #16a34a; }
+.ev-acc.mid,  .ev-score.mid  { background: #fef9c3; color: #ca8a04; }
+.ev-acc.low,  .ev-score.low  { background: #fee2e2; color: #dc2626; }
+
+.ev-dash { color: #cbd5e1; }

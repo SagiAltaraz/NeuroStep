@@ -1,0 +1,208 @@
+.coach-reports-page {
+  max-width: 900px;
+  margin: 0 auto;
+  padding: 24px 20px 64px;
+  font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Tahoma, sans-serif;
+  color: #0f172a;
+  background: #f8fafc;
+  min-height: 100vh;
+}
+
+.cr-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: flex-start;
+  gap: 16px;
+  margin-bottom: 8px;
+  flex-wrap: wrap;
+}
+.cr-header h1 {
+  margin: 0;
+  font-size: 1.8rem;
+  font-weight: 700;
+  color: #1a365d;
+}
+.cr-header .subtitle {
+  margin: 4px 0 0;
+  font-size: 0.95rem;
+  color: #64748b;
+}
+
+.cr-back-btn {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  padding: 8px 14px;
+  border: 1px solid #cbd5e1;
+  border-radius: 999px;
+  background: #fff;
+  color: #2563eb;
+  font-size: 0.9rem;
+  font-weight: 600;
+  cursor: pointer;
+  transition: background 120ms;
+}
+.cr-back-btn:hover { background: #eff6ff; }
+
+.cr-game-tabs {
+  display: flex;
+  gap: 6px;
+  flex-wrap: wrap;
+  margin: 24px 0 16px;
+}
+.cr-game-tab {
+  padding: 7px 14px;
+  border: 1px solid #cbd5e1;
+  border-radius: 999px;
+  background: #fff;
+  font-size: 0.9rem;
+  color: #475569;
+  font-weight: 600;
+  cursor: pointer;
+  transition: all 120ms;
+}
+.cr-game-tab:hover { background: #eff6ff; }
+.cr-game-tab.active {
+  background: #4338ca;
+  border-color: #4338ca;
+  color: #fff;
+}
+.cr-game-tab:focus { outline: 2px solid #6366f1; outline-offset: 2px; }
+
+.cr-list {
+  display: flex;
+  flex-direction: column;
+  gap: 14px;
+}
+
+.cr-card {
+  background: #fff;
+  border: 1px solid #e2e8f0;
+  border-radius: 14px;
+  padding: 18px 20px;
+  box-shadow: 0 1px 3px -1px rgba(15, 23, 42, 0.06);
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+}
+.cr-card-head {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 8px;
+}
+.cr-card-meta {
+  display: flex;
+  gap: 12px;
+  align-items: center;
+  font-size: 0.85rem;
+  color: #475569;
+}
+.cr-card-game {
+  font-weight: 700;
+  color: #1a365d;
+  font-size: 1rem;
+}
+.cr-progress-badge {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  padding: 4px 12px;
+  border-radius: 999px;
+  font-size: 0.85rem;
+  font-weight: 700;
+}
+.cr-progress-badge.improving        { background: #dcfce7; color: #166534; }
+.cr-progress-badge.stable           { background: #f1f5f9; color: #475569; }
+.cr-progress-badge.needs_attention  { background: #fef3c7; color: #92400e; }
+
+.cr-summary {
+  margin: 0;
+  color: #334155;
+  font-size: 0.95rem;
+  line-height: 1.55;
+}
+
+.cr-toggle {
+  align-self: flex-start;
+  background: none;
+  border: none;
+  color: #2563eb;
+  font-size: 0.9rem;
+  font-weight: 600;
+  cursor: pointer;
+  padding: 4px 0 0;
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+}
+.cr-toggle:hover { text-decoration: underline; }
+
+.cr-details {
+  margin-top: 4px;
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+  padding: 14px 16px;
+  background: #f8fafc;
+  border: 1px solid #e2e8f0;
+  border-radius: 10px;
+}
+.cr-section h3 {
+  margin: 0 0 6px;
+  font-size: 0.95rem;
+  font-weight: 700;
+  color: #1a365d;
+}
+.cr-section ul,
+.cr-section p {
+  margin: 0;
+  padding-inline-start: 22px;
+  color: #334155;
+  font-size: 0.9rem;
+  line-height: 1.55;
+}
+.cr-section p { padding-inline-start: 0; }
+.cr-section li { margin-bottom: 4px; }
+
+.cr-card-footer {
+  margin-top: 6px;
+  padding-top: 10px;
+  border-top: 1px dashed #e2e8f0;
+  font-size: 0.8rem;
+  color: #64748b;
+}
+
+.empty-state, .error-state, .loading-state {
+  background: #fff;
+  border: 1px solid #e2e8f0;
+  border-radius: 14px;
+  padding: 48px 20px;
+  text-align: center;
+  color: #475569;
+  margin-top: 24px;
+}
+.empty-state .emoji,
+.error-state .emoji { font-size: 2.5rem; display: block; margin-bottom: 8px; }
+.empty-state h2,
+.error-state h2 { margin: 0 0 6px; font-size: 1.15rem; color: #1a365d; }
+.empty-state p,
+.error-state p { margin: 0; font-size: 0.95rem; }
+.retry-btn {
+  margin-top: 16px;
+  padding: 8px 18px;
+  border: 1px solid #2563eb;
+  border-radius: 8px;
+  background: #2563eb;
+  color: #fff;
+  font-size: 0.9rem;
+  font-weight: 600;
+  cursor: pointer;
+}
+.retry-btn:hover { background: #1d4ed8; }
+
+@media (max-width: 480px) {
+  .cr-header h1 { font-size: 1.4rem; }
+  .cr-card      { padding: 14px; }
+}
