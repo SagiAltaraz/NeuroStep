@@ -12,6 +12,7 @@ const USERS_COLLECTION = 'users';
  * - email: string (unique)
  * - password: string (bcrypt hash)
  * - role: 'user' | 'admin'
+ * - language: 'he' | 'en'   (default 'he')
  * - personalizationAnswers: object | null
  * - personalizationPrompt: string | null
  * - profileCompletedAt: Date | null
@@ -19,201 +20,202 @@ const USERS_COLLECTION = 'users';
  * - updatedAt: Date
  */
 export const userFirebaseService = {
-   /**
-    * יצירת משתמש חדש
-    */
-   async createUser({ name, email, password, role = 'user' }) {
-      if (!firestore) {
-         throw new Error('Firebase not initialized');
-      }
+  /**
+   * יצירת משתמש חדש
+   */
+  async createUser({ name, email, password, role = 'user', language = 'he' }) {
+    if (!firestore) {
+      throw new Error('Firebase not initialized');
+    }
 
-      // בדיקה אם המשתמש קיים
-      const existingUser = await this.findByEmail(email);
-      if (existingUser) {
-         throw new Error('User already exists');
-      }
+    // בדיקה אם המשתמש קיים
+    const existingUser = await this.findByEmail(email);
+    if (existingUser) {
+      throw new Error('User already exists');
+    }
 
-      // Hash password
-      const hashedPassword = await bcrypt.hash(password, 10);
+    // Hash password
+    const hashedPassword = await bcrypt.hash(password, 10);
 
-      // נתוני המשתמש
-      const userData = {
-         name,
-         email,
-         password: hashedPassword,
-         role,
-         personalizationAnswers: null,
-         personalizationPrompt: null,
-         profileCompletedAt: null,
-         createdAt: new Date(),
-         updatedAt: new Date(),
-      };
+    // Validate language (defensive — only 'he' or 'en' allowed)
+    const lang = language === 'en' ? 'en' : 'he';
 
-      // יצירה עם ID אוטומטי של Firestore
-      const docRef = await firestore.collection(USERS_COLLECTION).add(userData);
+    // נתוני המשתמש
+    const userData = {
+      name,
+      email,
+      password: hashedPassword,
+      role,
+      language: lang,
+      personalizationAnswers: null,
+      personalizationPrompt: null,
+      profileCompletedAt: null,
+      createdAt: new Date(),
+      updatedAt: new Date(),
+    };
 
-      return {
-         id: docRef.id,
-         ...userData,
-      };
-   },
+    // יצירה עם ID אוטומטי של Firestore
+    const docRef = await firestore.collection(USERS_COLLECTION).add(userData);
 
-   /**
-    * יצירת משתמש חדש דרך Google (ללא סיסמה)
-    */
-   async createGoogleUser({ name, email, googleUid, role = 'user' }) {
-      if (!firestore) {
-         throw new Error('Firebase not initialized');
-      }
+    return {
+      id: docRef.id,
+      ...userData,
+    };
+  },
 
-      // נתוני המשתמש
-      const userData = {
-         name,
-         email,
-         password: null, // אין סיסמה למשתמשי Google
-         googleUid,
-         role,
-         personalizationAnswers: null,
-         personalizationPrompt: null,
-         profileCompletedAt: null,
-         createdAt: new Date(),
-         updatedAt: new Date(),
-      };
+  /**
+   * יצירת משתמש חדש דרך Google (ללא סיסמה)
+   */
+  async createGoogleUser({ name, email, googleUid, role = 'user', language = 'he' }) {
+    if (!firestore) {
+      throw new Error('Firebase not initialized');
+    }
 
-      // יצירה עם ID אוטומטי של Firestore
-      const docRef = await firestore.collection(USERS_COLLECTION).add(userData);
+    const lang = language === 'en' ? 'en' : 'he';
 
-      return {
-         id: docRef.id,
-         ...userData,
-      };
-   },
+    // נתוני המשתמש
+    const userData = {
+      name,
+      email,
+      password: null, // אין סיסמה למשתמשי Google
+      googleUid,
+      role,
+      language: lang,
+      personalizationAnswers: null,
+      personalizationPrompt: null,
+      profileCompletedAt: null,
+      createdAt: new Date(),
+      updatedAt: new Date(),
+    };
 
-   /**
-    * חיפוש משתמש לפי email
-    */
-   async findByEmail(email) {
-      if (!firestore) {
-         throw new Error('Firebase not initialized');
-      }
+    // יצירה עם ID אוטומטי של Firestore
+    const docRef = await firestore.collection(USERS_COLLECTION).add(userData);
 
-      const snapshot = await firestore
-         .collection(USERS_COLLECTION)
-         .where('email', '==', email)
-         .limit(1)
-         .get();
+    return {
+      id: docRef.id,
+      ...userData,
+    };
+  },
 
-      if (snapshot.empty) {
-         return null;
-      }
+  /**
+   * חיפוש משתמש לפי email
+   */
+  async findByEmail(email) {
+    if (!firestore) {
+      throw new Error('Firebase not initialized');
+    }
 
-      const doc = snapshot.docs[0];
-      return {
-         id: doc.id,
-         ...doc.data(),
-      };
-   },
+    const snapshot = await firestore
+      .collection(USERS_COLLECTION)
+      .where('email', '==', email)
+      .limit(1)
+      .get();
 
-   /**
-    * חיפוש משתמש לפי ID
-    */
-   async findById(userId) {
-      if (!firestore) {
-         throw new Error('Firebase not initialized');
-      }
+    if (snapshot.empty) {
+      return null;
+    }
 
-      const doc = await firestore
-         .collection(USERS_COLLECTION)
-         .doc(userId)
-         .get();
+    const doc = snapshot.docs[0];
+    return {
+      id: doc.id,
+      ...doc.data(),
+    };
+  },
 
-      if (!doc.exists) {
-         return null;
-      }
+  /**
+   * חיפוש משתמש לפי ID
+   */
+  async findById(userId) {
+    if (!firestore) {
+      throw new Error('Firebase not initialized');
+    }
 
-      return {
-         id: doc.id,
-         ...doc.data(),
-      };
-   },
+    const doc = await firestore.collection(USERS_COLLECTION).doc(userId).get();
 
-   /**
-    * עדכון משתמש
-    */
-   async updateUser(userId, updates) {
-      if (!firestore) {
-         throw new Error('Firebase not initialized');
-      }
+    if (!doc.exists) {
+      return null;
+    }
 
-      const updateData = {
-         ...updates,
-         updatedAt: new Date(),
-      };
+    return {
+      id: doc.id,
+      ...doc.data(),
+    };
+  },
 
-      await firestore
-         .collection(USERS_COLLECTION)
-         .doc(userId)
-         .update(updateData);
+  /**
+   * עדכון משתמש
+   */
+  async updateUser(userId, updates) {
+    if (!firestore) {
+      throw new Error('Firebase not initialized');
+    }
 
-      return this.findById(userId);
-   },
+    const updateData = {
+      ...updates,
+      updatedAt: new Date(),
+    };
 
-   /**
-    * עדכון personalization
-    */
-   async updatePersonalization(userId, { answers, prompt }) {
-      return this.updateUser(userId, {
-         personalizationAnswers: answers,
-         personalizationPrompt: prompt,
-         profileCompletedAt: new Date(),
-      });
-   },
+    await firestore.collection(USERS_COLLECTION).doc(userId).update(updateData);
 
-   /**
-    * אימות סיסמה (login)
-    */
-   async verifyPassword(email, password) {
-      const user = await this.findByEmail(email);
-      if (!user) {
-         return null;
-      }
+    return this.findById(userId);
+  },
 
-      const isMatch = await bcrypt.compare(password, user.password);
-      if (!isMatch) {
-         return null;
-      }
+  /**
+   * עדכון personalization
+   */
+  async updatePersonalization(userId, { answers, prompt }) {
+    return this.updateUser(userId, {
+      personalizationAnswers: answers,
+      personalizationPrompt: prompt,
+      profileCompletedAt: new Date(),
+    });
+  },
 
-      return user;
-   },
+  /**
+   * אימות סיסמה (login)
+   */
+  async verifyPassword(email, password) {
+    const user = await this.findByEmail(email);
+    if (!user) {
+      return null;
+    }
 
-   /**
-    * שליפת כל המשתמשים
-    */
-   async findAll() {
-      if (!firestore) {
-         throw new Error('Firebase not initialized');
-      }
+    const isMatch = await bcrypt.compare(password, user.password);
+    if (!isMatch) {
+      return null;
+    }
 
-      const snapshot = await firestore.collection(USERS_COLLECTION).get();
+    return user;
+  },
 
-      return snapshot.docs.map((doc) => ({
-         id: doc.id,
-         ...doc.data(),
-      }));
-   },
+  /**
+   * שליפת כל המשתמשים
+   */
+  async findAll() {
+    if (!firestore) {
+      throw new Error('Firebase not initialized');
+    }
 
-   /**
-    * מחיקת משתמש
-    */
-   async deleteUser(userId) {
-      if (!firestore) {
-         throw new Error('Firebase not initialized');
-      }
+    const snapshot = await firestore.collection(USERS_COLLECTION).get();
 
-      await firestore.collection(USERS_COLLECTION).doc(userId).delete();
+    return snapshot.docs.map(doc => ({
+      id: doc.id,
+      ...doc.data(),
+    }));
+  },
 
-      return true;
-   },
+  /**
+   * מחיקת משתמש
+   */
+  async deleteUser(userId) {
+    if (!firestore) {
+      throw new Error('Firebase not initialized');
+    }
+
+    await firestore.collection(USERS_COLLECTION).doc(userId).delete();
+
+    return true;
+  },
 };
 
 export default userFirebaseService;

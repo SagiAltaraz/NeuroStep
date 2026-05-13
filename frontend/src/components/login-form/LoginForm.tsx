@@ -1,5 +1,6 @@
 import { useState } from "react";
 import { useAuth } from "../../context/AuthContext";
+import { useLang } from "../../context/LanguageContext";
 import { useNavigate, Link } from "react-router-dom";
 import { Button } from "../ui/button";
 import {
@@ -20,6 +21,7 @@ import { Input } from "../ui/input";
 
 export function LoginForm({ ...props }: React.ComponentProps<typeof Card>) {
   const { login, loginWithGoogle } = useAuth();
+  const { t } = useLang();
   const navigate = useNavigate();
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
@@ -65,15 +67,15 @@ export function LoginForm({ ...props }: React.ComponentProps<typeof Card>) {
   return (
     <Card className="mx-auto max-w-sm" {...props}>
       <CardHeader>
-        <CardTitle>Login to your account</CardTitle>
-        <CardDescription>Enter your email below to login</CardDescription>
+        <CardTitle>{t('login.title')}</CardTitle>
+        <CardDescription>{t('login.subtitle')}</CardDescription>
       </CardHeader>
 
       <CardContent>
         <form onSubmit={handleSubmit}>
           <FieldGroup>
             <Field>
-              <FieldLabel htmlFor="email">Email</FieldLabel>
+              <FieldLabel htmlFor="email">{t('login.email')}</FieldLabel>
               <Input
                 id="email"
                 type="email"
@@ -87,7 +89,7 @@ export function LoginForm({ ...props }: React.ComponentProps<typeof Card>) {
               />
             </Field>
             <Field>
-              <FieldLabel htmlFor="password">Password</FieldLabel>
+              <FieldLabel htmlFor="password">{t('login.password')}</FieldLabel>
               <Input
                 id="password"
                 type="password"
@@ -108,11 +110,11 @@ export function LoginForm({ ...props }: React.ComponentProps<typeof Card>) {
                   variant="black"
                   disabled={isLoading}
                 >
-                  {isLoading ? "Logging in..." : "Login"}
+                  {isLoading ? t('login.submit.loading') : t('login.submit')}
                 </Button>
               </Field>
 
-              <FieldSeparator>or</FieldSeparator>
+              <FieldSeparator>{t('login.or')}</FieldSeparator>
 
               <Field>
                 <Button
@@ -140,14 +142,14 @@ export function LoginForm({ ...props }: React.ComponentProps<typeof Card>) {
                       fill="#EA4335"
                     />
                   </svg>
-                  Sign in with Google
+                  {t('login.google')}
                 </Button>
               </Field>
 
               <FieldDescription className="text-center">
-                Don't have an account?{" "}
+                {t('login.no.account')}{" "}
                 <Link to="/sign-up" className="underline">
-                  Sign Up
+                  {t('login.signup.link')}
                 </Link>
               </FieldDescription>
             </FieldGroup>

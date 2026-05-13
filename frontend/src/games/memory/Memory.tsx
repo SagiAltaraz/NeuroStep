@@ -1,9 +1,13 @@
-import { useEffect, useRef, useCallback } from 'react';
+import { useEffect, useMemo, useRef, useCallback } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { ChevronRight } from 'lucide-react';
 import Phaser from 'phaser';
 import type { GameAdjustment } from '../../hooks/useGameSession';
+import { getGameLabels, type GameLabels } from '../../data/gameLabels';
+import { useLang } from '../../context/LanguageContext';
 import './Memory.css';
+
+type MemoryLabels = GameLabels<'memory'>;
 
 // ─── Types ────────────────────────────────────────────────────────
 
@@ -88,17 +92,43 @@ class MemoryScene extends Phaser.Scene {
   private newRoundBtn!:    Phaser.GameObjects.Container;
   private bgStars!:        Phaser.GameObjects.Graphics;
 
+  // Localized label refs (updated by applyLabels)
+  private pairsLabel!:     Phaser.GameObjects.Text;
+  private exposureLabel!:  Phaser.GameObjects.Text;
+  private movesLabel!:     Phaser.GameObjects.Text;
+  private newRoundBtnText!:Phaser.GameObjects.Text;
+  private gameFinished     = false; // when true, statusText shows the finished template
+
+  private labels: MemoryLabels = getGameLabels('memory', 'he');
+
   constructor() { super({ key: 'MemoryScene' }); }
 
   init(data: {
     config?:   Partial<GameConfig>;
     onAction?: (a: GameAction) => void;
     onReady?:  (s: MemoryScene) => void;
+    labels?:   MemoryLabels;
   }) {
     if (data.config)   this.cfg      = { ...DEFAULT_CONFIG, ...data.config };
     if (data.onAction) this.onAction = data.onAction;
     if (data.onReady)  this.onReady  = data.onReady;
+    if (data.labels)   this.labels   = data.labels;
     this.cfg.cardCount = this.normaliseCardCount(this.cfg.cardCount);
+  }
+
+  /** Replace localized text without disrupting game state. */
+  applyLabels(labels: MemoryLabels) {
+    this.labels = labels;
+    this.pairsLabel?.setText(labels.pairs);
+    this.exposureLabel?.setText(labels.exposureTime);
+    this.movesLabel?.setText(labels.moves);
+    this.newRoundBtnText?.setText(labels.newRound);
+    this.flipTimeText?.setText(labels.timeSec.replace('{n}', (this.cfg.flipTimeMs / 1000).toFixed(1)));
+    this.statusText?.setText(
+      this.gameFinished
+        ? labels.finished.replace('{moves}', String(this.moves))
+        : labels.statusInitial,
+    );
   }
 
   create() {
@@ -121,7 +151,7 @@ class MemoryScene extends Phaser.Scene {
     if (typeof params.flipTimeMs === 'number') {
       const next = Math.max(MIN_FLIP, Math.min(MAX_FLIP, this.cfg.flipTimeMs + params.flipTimeMs));
       this.cfg.flipTimeMs = next;
-      this.flipTimeText.setText(`${(next / 1000).toFixed(1)}ש׳`);
+      this.flipTimeText.setText(this.labels.timeSec.replace('{n}', (next / 1000).toFixed(1)));
     }
   }
 
@@ -162,24 +192,25 @@ class MemoryScene extends Phaser.Scene {
     this.add.rectangle(W / 2, 76, W, 2, 0x3730a3, 1).setDepth(10);
 
     // Pairs (right)
-    this.add.text(W - 90, 20, 'זוגות', { fontSize: '11px', color: '#94a3b8', fontFamily: 'Arial' }).setOrigin(0.5).setDepth(10);
+    this.pairsLabel = this.add.text(W - 90, 20, this.labels.pairs, { fontSize: '11px', color: '#94a3b8', fontFamily: 'Arial' }).setOrigin(0.5).setDepth(10);
     this.pairsText = this.add.text(W - 90, 44, '0/0', {
       fontSize: '24px', fontFamily: 'Arial Black', color: '#a5b4fc',
     }).setOrigin(0.5).setDepth(10);
 
     // Flip time (center)
-    this.add.text(W / 2, 18, 'זמן חשיפה', { fontSize: '11px', color: '#94a3b8', fontFamily: 'Arial' }).setOrigin(0.5).setDepth(10);
-    this.flipTimeText = this.add.text(W / 2, 44, `${(this.cfg.flipTimeMs / 1000).toFixed(1)}ש׳`, {
+    this.exposureLabel = this.add.text(W / 2, 18, this.labels.exposureTime, { fontSize: '11px', color: '#94a3b8', fontFamily: 'Arial' }).setOrigin(0.5).setDepth(10);
+    this.flipTimeText = this.add.text(W / 2, 44,
+      this.labels.timeSec.replace('{n}', (this.cfg.flipTimeMs / 1000).toFixed(1)), {
       fontSize: '22px', fontFamily: 'Arial Black', color: '#cbd5e1',
     }).setOrigin(0.5).setDepth(10);
 
     // Moves (left)
-    this.add.text(90, 20, 'מהלכים', { fontSize: '11px', color: '#94a3b8', fontFamily: 'Arial' }).setOrigin(0.5).setDepth(10);
+    this.movesLabel = this.add.text(90, 20, this.labels.moves, { fontSize: '11px', color: '#94a3b8', fontFamily: 'Arial' }).setOrigin(0.5).setDepth(10);
     this.movesText = this.add.text(90, 44, '0', {
       fontSize: '26px', fontFamily: 'Arial Black', color: '#e0e7ff',
     }).setOrigin(0.5).setDepth(10);
 
-    this.statusText = this.add.text(W / 2, H - 22, 'הפוך שני קלפים — מצא זוגות תואמים', {
+    this.statusText = this.add.text(W / 2, H - 22, this.labels.statusInitial, {
       fontSize: '13px', fontFamily: 'Arial', color: '#94a3b8', fontStyle: 'bold',
     }).setOrigin(0.5).setDepth(10);
 
@@ -187,11 +218,16 @@ class MemoryScene extends Phaser.Scene {
       fontSize: '64px', fontFamily: 'Arial Black', color: '#fff',
     }).setOrigin(0.5).setAlpha(0).setDepth(25);
 
-    this.newRoundBtn = this.createButton(W / 2, H / 2 + 80, 'סיבוב חדש', () => this.startRound());
+    const btn = this.createButton(W / 2, H / 2 + 80, this.labels.newRound, () => this.startRound());
+    this.newRoundBtn     = btn.container;
+    this.newRoundBtnText = btn.text;
     this.newRoundBtn.setVisible(false);
   }
 
-  private createButton(x: number, y: number, label: string, onClick: () => void): Phaser.GameObjects.Container {
+  private createButton(x: number, y: number, label: string, onClick: () => void): {
+    container: Phaser.GameObjects.Container;
+    text:      Phaser.GameObjects.Text;
+  } {
     const c = this.add.container(x, y).setDepth(26);
     const bg = this.add.rectangle(0, 0, 180, 48, 0x4338ca);
     bg.setStrokeStyle(2, 0x818cf8);
@@ -204,7 +240,7 @@ class MemoryScene extends Phaser.Scene {
     c.on('pointerover', () => bg.setFillStyle(0x4f46e5));
     c.on('pointerout',  () => bg.setFillStyle(0x4338ca));
     c.on('pointerdown', () => { onClick(); });
-    return c;
+    return { container: c, text: txt };
   }
 
   // ── Layout helper ───────────────────────────────────────────────
@@ -253,7 +289,8 @@ class MemoryScene extends Phaser.Scene {
 
     this.movesText.setText('0');
     this.pairsText.setText(`0/${this.totalPairs}`);
-    this.statusText.setText('הפוך שני קלפים — מצא זוגות תואמים');
+    this.gameFinished = false;
+    this.statusText.setText(this.labels.statusInitial);
     this.newRoundBtn.setVisible(false);
 
     // Build deck
@@ -426,8 +463,9 @@ class MemoryScene extends Phaser.Scene {
   }
 
   private endRound() {
-    this.statusText.setText(`סיימת ב־${this.moves} מהלכים 🎉`);
-    this.showBigFeedback(`כל הזוגות נמצאו!`, '#a5b4fc');
+    this.gameFinished = true;
+    this.statusText.setText(this.labels.finished.replace('{moves}', String(this.moves)));
+    this.showBigFeedback(this.labels.allFound, '#a5b4fc');
     this.time.delayedCall(700, () => this.newRoundBtn.setVisible(true));
   }
 
@@ -468,12 +506,19 @@ export default function Memory({ config, onAction, adjustment }: MemoryProps) {
   const containerRef = useRef<HTMLDivElement>(null);
   const gameRef      = useRef<Phaser.Game | null>(null);
   const sceneRef     = useRef<MemoryScene | null>(null);
+  const { lang }     = useLang();
+
+  const labels = useMemo(() => getGameLabels('memory', lang), [lang]);
 
   const handleAction = useCallback((a: GameAction) => { onAction?.(a); }, [onAction]);
 
   useEffect(() => {
     if (adjustment) sceneRef.current?.applyParams(adjustment);
   }, [adjustment]);
+
+  useEffect(() => {
+    sceneRef.current?.applyLabels(labels);
+  }, [labels]);
 
   useEffect(() => {
     if (!containerRef.current) return;
@@ -491,6 +536,7 @@ export default function Memory({ config, onAction, adjustment }: MemoryProps) {
       config:   mergedCfg,
       onAction: handleAction,
       onReady:  (s: MemoryScene) => { sceneRef.current = s; },
+      labels,
     });
     return () => {
       gameRef.current?.destroy(true);

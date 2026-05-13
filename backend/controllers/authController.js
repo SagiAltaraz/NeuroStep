@@ -16,36 +16,38 @@ async function recordActivity(userId, name, email, method) {
 
 // ===== SIGNUP =====
 export const signup = async (req, res) => {
-   const { name, email, password } = req.body;
+  const { name, email, password, language } = req.body;
 
-   try {
-      const user = await userFirebaseService.createUser({
-         name,
-         email,
-         password,
-         role: 'user',
-      });
+  try {
+    const user = await userFirebaseService.createUser({
+      name,
+      email,
+      password,
+      role: "user",
+      language,
+    });
 
       const token = generateToken(user);
 
-      return res.status(201).json({
-         user: {
-            id: user.id,
-            name: user.name,
-            email: user.email,
-            role: user.role,
-         },
-         token,
-      });
-   } catch (err) {
-      if (err.message === 'User already exists') {
-         return res.status(400).json({ message: 'User already exists' });
-      }
-      return res.status(500).json({
-         message: 'Server error',
-         error: err.message,
-      });
-   }
+    return res.status(201).json({
+      user: {
+        id: user.id,
+        name: user.name,
+        email: user.email,
+        role: user.role,
+        language: user.language ?? 'he',
+      },
+      token
+    });
+  } catch (err) {
+    if (err.message === "User already exists") {
+      return res.status(400).json({ message: "User already exists" });
+    }
+    return res.status(500).json({
+      message: "Server error",
+      error: err.message
+    });
+  }
 };
 
 // ===== LOGIN =====
@@ -62,21 +64,22 @@ export const login = async (req, res) => {
     const token = generateToken(user);
     recordActivity(user.id, user.name, user.email, 'email');
 
-      return res.status(200).json({
-         user: {
-            id: user.id,
-            name: user.name,
-            email: user.email,
-            role: user.role,
-         },
-         token,
-      });
-   } catch (err) {
-      return res.status(500).json({
-         message: 'Server error',
-         error: err.message,
-      });
-   }
+    return res.status(200).json({
+      user: {
+        id: user.id,
+        name: user.name,
+        email: user.email,
+        role: user.role,
+        language: user.language ?? 'he',
+      },
+      token
+    });
+  } catch (err) {
+    return res.status(500).json({
+      message: "Server error",
+      error: err.message
+    });
+  }
 };
 
 // ===== LOGOUT =====
@@ -119,20 +122,21 @@ export const googleAuth = async (req, res) => {
     const token = generateToken(user);
     recordActivity(user.id, user.name, user.email, 'google');
 
-      return res.status(200).json({
-         user: {
-            id: user.id,
-            name: user.name,
-            email: user.email,
-            role: user.role,
-         },
-         token,
-      });
-   } catch (err) {
-      console.error('Google auth error:', err);
-      return res.status(401).json({
-         message: 'Invalid Google token',
-         error: err.message,
-      });
-   }
+    return res.status(200).json({
+      user: {
+        id: user.id,
+        name: user.name,
+        email: user.email,
+        role: user.role,
+        language: user.language ?? 'he',
+      },
+      token
+    });
+  } catch (err) {
+    console.error("Google auth error:", err);
+    return res.status(401).json({
+      message: "Invalid Google token",
+      error: err.message
+    });
+  }
 };

@@ -6,7 +6,7 @@ import HomePage from './pages/home/Home';
 import SignupPage from './pages/sign-up/SignUp';
 import LoginPage from './pages/log-in/LogIn';
 
-import Features from './components/features/Features';
+import ProblemsCarousel from './components/ProblemsCarousel/ProblemsCarousel';
 import ChatAssistant from './components/chat-assistant/ChatAssistant';
 import ColorTrackingPage from './pages/games/ColorTrainsPage';
 import GamesPage from './pages/games/GamesPage';
@@ -31,7 +31,7 @@ function App() {
                element={
                   <>
                      <HomePage />
-                     <Features />
+                     <ProblemsCarousel />
                      <ChatAssistant />
                   </>
                }

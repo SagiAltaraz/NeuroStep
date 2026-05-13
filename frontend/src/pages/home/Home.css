@@ -1,6 +1,6 @@
 .home-page {
   min-height: 100vh;
-  background: linear-gradient(180deg, #f0f7ff 0%, #e6f0fa 100%);
+  background: transparent;
 }
 
 .home-container {
@@ -20,6 +20,7 @@
 
 .hero-logo {
   width: clamp(220px, 35vw, 340px);
+  aspect-ratio: 1 / 1;
   height: auto;
   filter: drop-shadow(0 6px 16px rgba(0, 123, 255, 0.15));
 }

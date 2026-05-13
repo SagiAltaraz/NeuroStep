@@ -1,6 +1,6 @@
-import dotenv from 'dotenv';
-// Load environment variables FIRST - before any other imports that need them
-dotenv.config();
+// Load environment variables FIRST - ESM imports are hoisted, so we use
+// the side-effect form of dotenv to ensure it runs before any other import.
+import 'dotenv/config';
 
 import express from 'express';
 import { fileURLToPath } from 'url';
@@ -33,7 +33,7 @@ console.log('Firebase Connected!');
 
 app.use(
    cors({
-      origin: 'http://localhost:5173',
+      origin: ['http://localhost:5173', 'http://localhost:5174', 'http://localhost:3000'],
       credentials: true,
    })
 );
