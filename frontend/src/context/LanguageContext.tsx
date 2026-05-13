@@ -51,19 +51,31 @@ const TRANSLATIONS = {
   'problems.prev':       { he: 'הקודם',           en: 'Previous' },
   'problems.next':       { he: 'הבא',              en: 'Next' },
 
-  // Cognitive problems (titles + descriptions)
-  'problem.short-term-memory.title':  { he: 'זיכרון לטווח קצר',     en: 'Short-term Memory' },
-  'problem.short-term-memory.desc':   { he: 'קושי לזכור מידע חדש שנאמר לפני רגע — שמות, מיקום של חפצים, רשימת קניות', en: 'Trouble remembering new information just heard — names, where things were placed, shopping lists' },
-  'problem.attention.title':          { he: 'קשב וריכוז',           en: 'Attention & Focus' },
-  'problem.attention.desc':           { he: 'קושי לשמור על קשב לאורך זמן או להתעלם מגירויים מסיחים בסביבה', en: 'Difficulty staying focused or filtering out distractions in the environment' },
-  'problem.processing-speed.title':   { he: 'מהירות עיבוד',          en: 'Processing Speed' },
-  'problem.processing-speed.desc':    { he: 'הזמן שלוקח לעבד מידע ולקבל החלטה — נוטה להאט עם הגיל', en: 'How quickly information is processed and decisions are made — tends to slow with age' },
-  'problem.reaction-time.title':      { he: 'זמן תגובה',            en: 'Reaction Time' },
-  'problem.reaction-time.desc':       { he: 'הזמן בין הגירוי לתגובה — חשוב להתמודדות מהירה עם שינויים בסביבה', en: 'The gap between stimulus and response — vital for reacting to a changing environment' },
-  'problem.strategic-thinking.title': { he: 'חשיבה אסטרטגית',       en: 'Strategic Thinking' },
-  'problem.strategic-thinking.desc':  { he: 'יכולת לתכנן צעדים קדימה, לחשב סיכונים ולקבל החלטות מורכבות', en: 'Planning steps ahead, weighing risk, and making complex decisions' },
-  'problem.response-inhibition.title':{ he: 'עיכוב תגובה',          en: 'Response Inhibition' },
-  'problem.response-inhibition.desc': { he: 'היכולת לעצור פעולה אוטומטית ולבחור באופן מודע — שליטה בדחפים', en: 'Holding back an automatic action to choose deliberately — impulse control' },
+  // Cognitive problems (8 domains — titles + descriptions)
+  'problem.working-memory.title':       { he: 'זיכרון עבודה',              en: 'Working Memory' },
+  'problem.working-memory.desc':        { he: 'היכולת להחזיק מידע חדש בראש ולפעול לפיו — שמות, מיקומים, רשימות',
+                                          en: 'Holding new information in mind and acting on it — names, locations, lists' },
+  'problem.selective-attention.title':  { he: 'קשב סלקטיבי',               en: 'Selective Attention' },
+  'problem.selective-attention.desc':   { he: 'להתמקד במה שחשוב ולסנן הסחות דעת מהסביבה',
+                                          en: 'Focusing on what matters and filtering out distractions in the environment' },
+  'problem.divided-attention.title':    { he: 'קשב מחולק',                 en: 'Divided Attention' },
+  'problem.divided-attention.desc':     { he: 'לעקוב אחר כמה דברים במקביל ולעבור ביניהם בלי לאבד פוקוס',
+                                          en: 'Tracking multiple things simultaneously and switching between them without losing focus' },
+  'problem.processing-speed.title':     { he: 'מהירות עיבוד',              en: 'Processing Speed' },
+  'problem.processing-speed.desc':      { he: 'הזמן שלוקח לעבד מידע ולקבל החלטה — נוטה להאט עם הגיל',
+                                          en: 'How quickly information is processed and decisions are made — slows with age' },
+  'problem.reaction-time.title':        { he: 'זמן תגובה',                en: 'Reaction Time' },
+  'problem.reaction-time.desc':         { he: 'הזמן בין הגירוי לתגובה — חשוב להתמודדות מהירה עם שינויים בסביבה',
+                                          en: 'The gap between stimulus and response — vital for reacting to a changing environment' },
+  'problem.response-inhibition.title':  { he: 'עיכוב תגובה',              en: 'Response Inhibition' },
+  'problem.response-inhibition.desc':   { he: 'לעצור פעולה אוטומטית ולבחור באופן מודע — שליטה בדחפים',
+                                          en: 'Holding back an automatic action to choose deliberately — impulse control' },
+  'problem.strategic-thinking.title':   { he: 'חשיבה אסטרטגית',           en: 'Strategic Thinking' },
+  'problem.strategic-thinking.desc':    { he: 'לתכנן צעדים קדימה, לשקול סיכונים ולקבל החלטות מורכבות',
+                                          en: 'Planning ahead, weighing risk, and making complex decisions' },
+  'problem.visual-spatial.title':       { he: 'חשיבה חזותית-מרחבית',      en: 'Visual-Spatial Reasoning' },
+  'problem.visual-spatial.desc':        { he: 'לזכור מיקומים, להבין יחסים מרחביים ולנווט בסביבה',
+                                          en: 'Remembering positions, understanding spatial relationships, and navigating environments' },
 
   // Signup form
   'signup.title':        { he: 'יצירת חשבון',     en: 'Create an account' },
@@ -105,6 +117,28 @@ const TRANSLATIONS = {
   'games.empty':         { he: 'בקרוב נוסיף משחק שמתאמן על',  en: 'A game training this is coming soon —' },
   'games.empty.cta':     { he: 'חזור לכל המשחקים',  en: 'Back to all games' },
   'games.play':          { he: 'שחק ←',             en: 'Play →' },
+  'games.coming.soon':   { he: 'בקרוב',             en: 'Coming soon' },
+
+  // New upcoming games (names + one-line descriptions)
+  'game.greenLight.name':    { he: 'אור ירוק',                 en: 'Green Light' },
+  'game.greenLight.desc':    { he: 'הקש כשהאור הופך לירוק — לא לפני!',  en: 'Tap the moment the light turns green — not a moment sooner!' },
+  'game.spotDifference.name':{ he: 'מצא את ההבדל',             en: 'Spot the Difference' },
+  'game.spotDifference.desc':{ he: 'אתר את הצורה השונה בין השאר במהירות',  en: 'Find the one shape that differs — as fast as you can' },
+  'game.whereWasIt.name':    { he: 'איפה זה היה?',             en: 'Where Was It?' },
+  'game.whereWasIt.desc':    { he: 'זכור היכן נדלקו המשבצות והקש עליהן',   en: 'Remember which squares lit up — then tap them' },
+  'game.findLetter.name':    { he: 'מצא את האות',              en: 'Find the Letter' },
+  'game.findLetter.desc':    { he: 'אתר את כל המופעים של האות בזמן הקצוב',  en: 'Find every instance of the letter before time runs out' },
+
+  // Cognitive-area labels used in game instructions + game cards
+  'training.primary':   { he: 'יכולת עיקרית',  en: 'Primary skill' },
+  'training.secondary': { he: 'גם מאמן',        en: 'Also trains' },
+  'training.what.trains': { he: 'על מה המשחק הזה מאמן',  en: 'What this game trains' },
+
+  // Generic instruction-screen labels
+  'inst.back':           { he: 'חזור',                 en: 'Back' },
+  'inst.start':          { he: 'התחל משחק',           en: 'Start game' },
+  'inst.rules.heading':  { he: 'הוראות המשחק',        en: 'How to play' },
+  'inst.tips.heading':   { he: 'טיפים להצלחה',        en: 'Tips for success' },
 } as const;
 
 export type TKey = keyof typeof TRANSLATIONS;

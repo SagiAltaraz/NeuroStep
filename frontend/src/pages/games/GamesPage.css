@@ -218,6 +218,60 @@
   transform: translateX(-4px);
 }
 
+/* ===== PRIMARY-SKILL BADGE ===== */
+.game-primary-skill {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.3rem;
+  font-size: 0.78rem;
+  font-weight: 600;
+  color: var(--card-color);
+  background: color-mix(in srgb, var(--card-color) 10%, transparent);
+  border: 1px solid color-mix(in srgb, var(--card-color) 22%, transparent);
+  padding: 0.3rem 0.7rem;
+  border-radius: var(--radius-pill);
+  margin: 0.5rem 0 0.25rem;
+  align-self: flex-start;
+  white-space: nowrap;
+}
+
+/* ===== COMING SOON GAMES ===== */
+.game-card--coming-soon {
+  cursor: not-allowed;
+  opacity: 0.72;
+}
+
+.game-card--coming-soon:hover {
+  transform: none;
+  box-shadow: var(--shadow-card, 0 2px 12px rgba(45, 36, 32, 0.06));
+}
+
+.game-card--coming-soon .game-card-header {
+  filter: saturate(0.7);
+}
+
+.game-card--coming-soon .game-play-cue {
+  opacity: 0.85;
+  color: #9b8b80;
+  font-style: italic;
+}
+
+.game-coming-badge {
+  position: absolute;
+  top: 10px;
+  right: 10px;
+  background: rgba(255, 255, 255, 0.94);
+  color: #4a5568;
+  font-size: 0.7rem;
+  font-weight: 700;
+  letter-spacing: 0.05em;
+  text-transform: uppercase;
+  padding: 0.25rem 0.6rem;
+  border-radius: var(--radius-pill);
+  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.08);
+  z-index: 2;
+}
+
 /* ===== RESPONSIVE ===== */
 @media (max-width: 620px) {
   .games-grid {

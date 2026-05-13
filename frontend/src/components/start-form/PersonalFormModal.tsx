@@ -366,32 +366,49 @@ const QUESTIONS: Question[] = [
     subtitleHe: "העדפות אישיות",
     subtitleEn: "Personal goals",
     minSelections: 1,
-    maxSelections: 5,
+    maxSelections: 8,
+    // NOTE: option IDs match ProblemId in data/cognitiveProblems.ts so the
+    // saved personalization answer maps cleanly to cognitive domains.
     options: [
       {
-        id: "improve-memory",
-        labelHe: "שיפור הזיכרון (שמות, פרטים, רשימות)",
-        labelEn: "Improve memory (names, details, lists)"
+        id: "working-memory",
+        labelHe: "זיכרון עבודה (שמות, פרטים, רשימות)",
+        labelEn: "Working memory (names, details, lists)"
       },
       {
-        id: "improve-reaction",
-        labelHe: "הגברת מהירות התגובה",
-        labelEn: "Increase reaction speed"
+        id: "selective-attention",
+        labelHe: "קשב סלקטיבי (מיקוד וסינון הסחות דעת)",
+        labelEn: "Selective attention (focus and filtering distractions)"
       },
       {
-        id: "improve-focus",
-        labelHe: "שיפור יכולת הריכוז והמיקוד",
-        labelEn: "Improve concentration and focus"
+        id: "divided-attention",
+        labelHe: "קשב מחולק (מעקב אחר כמה דברים במקביל)",
+        labelEn: "Divided attention (multitasking)"
       },
       {
-        id: "improve-multitask",
-        labelHe: "שיפור היכולת לבצע מספר דברים במקביל",
-        labelEn: "Improve multitasking ability"
+        id: "processing-speed",
+        labelHe: "מהירות עיבוד (החלטות מהירות)",
+        labelEn: "Processing speed (quick decisions)"
       },
       {
-        id: "improve-logic-flex",
-        labelHe: "פתרון בעיות לוגיות וגמישות מחשבתית",
-        labelEn: "Logical problem solving and flexibility"
+        id: "reaction-time",
+        labelHe: "זמן תגובה (תגובה מהירה לגירוי)",
+        labelEn: "Reaction time (fast response to stimuli)"
+      },
+      {
+        id: "response-inhibition",
+        labelHe: "עיכוב תגובה (שליטה בדחפים)",
+        labelEn: "Response inhibition (impulse control)"
+      },
+      {
+        id: "strategic-thinking",
+        labelHe: "חשיבה אסטרטגית ותכנון",
+        labelEn: "Strategic thinking and planning"
+      },
+      {
+        id: "visual-spatial",
+        labelHe: "חשיבה חזותית-מרחבית (מיקומים, ניווט)",
+        labelEn: "Visual-spatial reasoning (locations, navigation)"
       }
     ]
   },

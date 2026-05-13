@@ -1,9 +1,13 @@
-import { useEffect, useRef, useCallback } from 'react';
+import { useEffect, useMemo, useRef, useCallback } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { ChevronRight } from 'lucide-react';
 import Phaser from 'phaser';
 import type { GameAdjustment } from '../../hooks/useGameSession';
+import { getGameLabels, type GameLabels } from '../../data/gameLabels';
+import { useLang } from '../../context/LanguageContext';
 import './ColorTrains.css';
+
+type TrainsLabels = GameLabels<'colorTracking'>;
 
 // ─── Types ────────────────────────────────────────────────────────
 
@@ -68,12 +72,49 @@ class TrainScene extends Phaser.Scene {
   private timerBar!:  Phaser.GameObjects.Rectangle;
   private feedbackTx!: Phaser.GameObjects.Text;
 
+  // Localized label refs (updated by applyLabels)
+  private trackLabel!:       Phaser.GameObjects.Text;
+  private scoreLabel!:       Phaser.GameObjects.Text;
+  private instructionLabel!: Phaser.GameObjects.Text;
+  private stationLabels:     Map<string, Phaser.GameObjects.Text> = new Map();
+
+  private labels: TrainsLabels = getGameLabels('colorTracking', 'he');
+
   constructor() { super({ key: 'TrainScene' }); }
 
-  init(data: { config?: Partial<GameConfig>; onAction?: (a: GameAction) => void; onReady?: (s: TrainScene) => void }) {
+  init(data: {
+    config?:   Partial<GameConfig>;
+    onAction?: (a: GameAction) => void;
+    onReady?:  (s: TrainScene) => void;
+    labels?:   TrainsLabels;
+  }) {
     if (data.config)   this.cfg      = { ...DEFAULT_CONFIG, ...data.config };
     if (data.onAction) this.onAction = data.onAction;
     if (data.onReady)  this.onReady  = data.onReady;
+    if (data.labels)   this.labels   = data.labels;
+  }
+
+  /** Localize a station id → its current-language colour name. */
+  private stationLabel(id: string): string {
+    return this.labels[`color_${id}` as keyof TrainsLabels] as string;
+  }
+
+  /** Replace localized text on every visible element without disrupting state. */
+  applyLabels(labels: TrainsLabels) {
+    this.labels = labels;
+    this.trackLabel?.setText(labels.track);
+    this.scoreLabel?.setText(labels.score);
+    this.instructionLabel?.setText(labels.instruction);
+    // Station signs
+    this.stationLabels.forEach((textObj, id) => {
+      textObj.setText(this.stationLabel(id));
+    });
+    // Round prompt — only update if a round is active so we don't blank it out
+    if (this.isActive && this.targetId) {
+      this.roundText.setText(
+        labels.sendTo.replace('{station}', this.stationLabel(this.targetId)),
+      );
+    }
   }
 
   create() {
@@ -195,7 +236,7 @@ class TrainScene extends Phaser.Scene {
     g.fillStyle(0x374151); g.fillCircle(this.switchX, this.trackY, 16);
     g.fillStyle(0x4b5563); g.fillCircle(this.switchX, this.trackY, 10);
     g.fillStyle(0x6b7280); g.fillCircle(this.switchX, this.trackY, 5);
-    this.add.text(this.switchX, this.trackY - 34, 'מסלול', {
+    this.trackLabel = this.add.text(this.switchX, this.trackY - 34, this.labels.track, {
       fontSize: '11px', fontFamily: 'Arial', color: '#94a3b8', fontStyle: 'bold',
     }).setOrigin(0.5);
   }
@@ -219,9 +260,10 @@ class TrainScene extends Phaser.Scene {
       const door = this.add.rectangle(30, 14, 18, 32, 0x92400e).setStrokeStyle(2, 0x78350f);
       // Sign
       const sign = this.add.rectangle(30, -52, 68, 22, st.colorHex).setStrokeStyle(2, 0xffffff);
-      const lbl  = this.add.text(30, -52, st.label, {
+      const lbl  = this.add.text(30, -52, this.stationLabel(st.id), {
         fontSize: '13px', fontFamily: 'Arial Black', color: '#ffffff',
       }).setOrigin(0.5);
+      this.stationLabels.set(st.id, lbl);
 
       c.add([plat, bld, stripe, w1, w2, door, sign, lbl]);
       c.setSize(120, 110);
@@ -247,7 +289,7 @@ class TrainScene extends Phaser.Scene {
   private buildUI() {
     // Score box
     this.add.rectangle(68, 36, 110, 48, 0xffffff, 0.92).setStrokeStyle(2, 0x3b82f6).setDepth(10);
-    this.add.text(68, 20, 'ניקוד', { fontSize: '11px', color: '#94a3b8', fontFamily: 'Arial' }).setOrigin(0.5).setDepth(10);
+    this.scoreLabel = this.add.text(68, 20, this.labels.score, { fontSize: '11px', color: '#94a3b8', fontFamily: 'Arial' }).setOrigin(0.5).setDepth(10);
     this.scoreText = this.add.text(68, 42, '0', {
       fontSize: '24px', fontFamily: 'Arial Black', color: '#1d4ed8',
     }).setOrigin(0.5).setDepth(10);
@@ -267,7 +309,7 @@ class TrainScene extends Phaser.Scene {
     // Bottom hint
     this.add.rectangle(this.W / 2, this.H - 22, 340, 28, 0xffffff, 0.8)
       .setStrokeStyle(1, 0xbfdbfe).setDepth(10);
-    this.add.text(this.W / 2, this.H - 22, 'לחץ על התחנה לפי צבע הרכבת לפני שתגיע לצומת', {
+    this.instructionLabel = this.add.text(this.W / 2, this.H - 22, this.labels.instruction, {
       fontSize: '12px', fontFamily: 'Arial', color: '#475569', fontStyle: 'bold',
     }).setOrigin(0.5).setDepth(10);
 
@@ -290,7 +332,9 @@ class TrainScene extends Phaser.Scene {
     this.trainPathY = this.trackY;
 
     this.timerBar.setFillStyle(0x3b82f6);
-    this.roundText.setText(`שלח לתחנה: ${st.label}`).setColor(st.cssColor);
+    this.roundText
+      .setText(this.labels.sendTo.replace('{station}', this.stationLabel(st.id)))
+      .setColor(st.cssColor);
 
     if (this.trainContainer) { this.trainContainer.destroy(); this.trainContainer = null; }
     this.trainContainer = this.buildTrain(st.colorHex);
@@ -481,12 +525,19 @@ export default function ColorTrains({ config, onAction, adjustment }: ColorTrain
   const containerRef = useRef<HTMLDivElement>(null);
   const gameRef      = useRef<Phaser.Game | null>(null);
   const sceneRef     = useRef<TrainScene | null>(null);
+  const { lang }     = useLang();
+
+  const labels = useMemo(() => getGameLabels('colorTracking', lang), [lang]);
 
   const handleAction = useCallback((a: GameAction) => { onAction?.(a); }, [onAction]);
 
   useEffect(() => {
     if (adjustment) sceneRef.current?.applyParams(adjustment);
   }, [adjustment]);
+
+  useEffect(() => {
+    sceneRef.current?.applyLabels(labels);
+  }, [labels]);
 
   useEffect(() => {
     if (!containerRef.current) return;
@@ -503,6 +554,7 @@ export default function ColorTrains({ config, onAction, adjustment }: ColorTrain
       config:   config ?? {},
       onAction: handleAction,
       onReady:  (s: TrainScene) => { sceneRef.current = s; },
+      labels,
     });
     return () => {
       gameRef.current?.destroy(true);

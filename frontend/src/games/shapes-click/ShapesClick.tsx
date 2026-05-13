@@ -1,9 +1,13 @@
-import { useEffect, useRef, useCallback } from 'react';
+import { useEffect, useMemo, useRef, useCallback } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { ChevronRight } from 'lucide-react';
 import Phaser from 'phaser';
 import type { GameAdjustment } from '../../hooks/useGameSession';
+import { getGameLabels, type GameLabels } from '../../data/gameLabels';
+import { useLang } from '../../context/LanguageContext';
 import './ShapesClick.css';
+
+type ShapesLabels = GameLabels<'shapesClick'>;
 
 // ─── Types ────────────────────────────────────────────────────────
 
@@ -69,16 +73,36 @@ class ShapesScene extends Phaser.Scene {
   private waitDot!:    Phaser.GameObjects.Text;
   private bgStars!:    Phaser.GameObjects.Graphics;
 
+  // Localized label refs — kept so applyLabels() can update them in place
+  private scoreLabel!:       Phaser.GameObjects.Text;
+  private streakLabel!:      Phaser.GameObjects.Text;
+  private levelLabel!:       Phaser.GameObjects.Text;
+  private instructionLabel!: Phaser.GameObjects.Text;
+
+  // Current localized strings — default to Hebrew until init runs
+  private labels: ShapesLabels = getGameLabels('shapesClick', 'he');
+
   constructor() { super({ key: 'ShapesScene' }); }
 
   init(data: {
     config?:   Partial<GameConfig>;
     onAction?: (a: GameAction) => void;
     onReady?:  (s: ShapesScene) => void;
+    labels?:   ShapesLabels;
   }) {
     if (data.config)   this.cfg      = { ...DEFAULT_CONFIG, ...data.config };
     if (data.onAction) this.onAction = data.onAction;
     if (data.onReady)  this.onReady  = data.onReady;
+    if (data.labels)   this.labels   = data.labels;
+  }
+
+  /** Replace the localized text on every label without disrupting state. */
+  applyLabels(labels: ShapesLabels) {
+    this.labels = labels;
+    this.scoreLabel?.setText(labels.score);
+    this.streakLabel?.setText(labels.streak);
+    this.levelLabel?.setText(labels.level);
+    this.instructionLabel?.setText(labels.instruction);
   }
 
   create() {
@@ -130,19 +154,19 @@ class ShapesScene extends Phaser.Scene {
     this.add.rectangle(W / 2, 76, W, 2, 0x3730a3, 1).setDepth(10);
 
     // Score
-    this.add.text(72, 20, 'ניקוד', { fontSize: '11px', color: '#94a3b8', fontFamily: 'Arial' }).setOrigin(0.5).setDepth(10);
+    this.scoreLabel = this.add.text(72, 20, this.labels.score, { fontSize: '11px', color: '#94a3b8', fontFamily: 'Arial' }).setOrigin(0.5).setDepth(10);
     this.scoreText = this.add.text(72, 44, '0', {
       fontSize: '26px', fontFamily: 'Arial Black', color: '#e0e7ff',
     }).setOrigin(0.5).setDepth(10);
 
     // Streak
-    this.add.text(W - 72, 20, 'רצף', { fontSize: '11px', color: '#94a3b8', fontFamily: 'Arial' }).setOrigin(0.5).setDepth(10);
+    this.streakLabel = this.add.text(W - 72, 20, this.labels.streak, { fontSize: '11px', color: '#94a3b8', fontFamily: 'Arial' }).setOrigin(0.5).setDepth(10);
     this.streakText = this.add.text(W - 72, 44, '0', {
       fontSize: '26px', fontFamily: 'Arial Black', color: '#e0e7ff',
     }).setOrigin(0.5).setDepth(10);
 
     // Level
-    this.add.text(W / 2, 18, 'רמה', { fontSize: '11px', color: '#94a3b8', fontFamily: 'Arial' }).setOrigin(0.5).setDepth(10);
+    this.levelLabel = this.add.text(W / 2, 18, this.labels.level, { fontSize: '11px', color: '#94a3b8', fontFamily: 'Arial' }).setOrigin(0.5).setDepth(10);
     this.levelText = this.add.text(W / 2, 40, '1', {
       fontSize: '22px', fontFamily: 'Arial Black', color: '#a5b4fc',
     }).setOrigin(0.5).setDepth(10);
@@ -155,7 +179,7 @@ class ShapesScene extends Phaser.Scene {
     this.updateLevelBar();
 
     // Instruction
-    this.add.text(W / 2, H - 18, 'לחץ על העיגול — אל תיגע בצורות האחרות', {
+    this.instructionLabel = this.add.text(W / 2, H - 18, this.labels.instruction, {
       fontSize: '13px', fontFamily: 'Arial', color: '#94a3b8', fontStyle: 'bold',
     }).setOrigin(0.5).setDepth(10);
 
@@ -298,7 +322,7 @@ class ShapesScene extends Phaser.Scene {
     if (newLevel > this.level) {
       this.level = newLevel;
       this.levelText.setText(String(this.level));
-      this.showBigFeedback(`רמה ${this.level}!`, '#a5b4fc');
+      this.showBigFeedback(this.labels.levelUp.replace('{n}', String(this.level)), '#a5b4fc');
     } else {
       this.showFeedback('✓', '#4ade80');
     }
@@ -391,12 +415,23 @@ export default function ShapesClick({ config, onAction, adjustment }: ShapesClic
   const containerRef = useRef<HTMLDivElement>(null);
   const gameRef      = useRef<Phaser.Game | null>(null);
   const sceneRef     = useRef<ShapesScene | null>(null);
+  const { lang }     = useLang();
+
+  // Re-compute labels whenever the user changes language. useMemo keeps
+  // the object identity stable across renders so the effect below only
+  // fires when lang actually changes.
+  const labels = useMemo(() => getGameLabels('shapesClick', lang), [lang]);
 
   const handleAction = useCallback((a: GameAction) => { onAction?.(a); }, [onAction]);
 
   useEffect(() => {
     if (adjustment) sceneRef.current?.applyParams(adjustment);
   }, [adjustment]);
+
+  // Mid-session language switch — update labels in place without restarting.
+  useEffect(() => {
+    sceneRef.current?.applyLabels(labels);
+  }, [labels]);
 
   useEffect(() => {
     if (!containerRef.current) return;
@@ -414,6 +449,7 @@ export default function ShapesClick({ config, onAction, adjustment }: ShapesClic
       config:   mergedCfg,
       onAction: handleAction,
       onReady:  (s: ShapesScene) => { sceneRef.current = s; },
+      labels,
     });
     return () => {
       gameRef.current?.destroy(true);
