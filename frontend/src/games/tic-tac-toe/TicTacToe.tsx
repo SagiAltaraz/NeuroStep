@@ -1,9 +1,14 @@
-import { useEffect, useRef, useCallback } from 'react';
+import { useEffect, useMemo, useRef, useCallback } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { ChevronRight } from 'lucide-react';
 import Phaser from 'phaser';
 import type { GameAdjustment } from '../../hooks/useGameSession';
+import { getGameLabels, type GameLabels } from '../../data/gameLabels';
+import { useLang } from '../../context/LanguageContext';
 import './TicTacToe.css';
+
+type TTTLabels = GameLabels<'ticTacToe'>;
+type StatusState = 'yourTurn' | 'thinking' | 'won' | 'lost' | 'draw';
 
 // ─── Types ────────────────────────────────────────────────────────
 
@@ -63,16 +68,58 @@ class TicTacToeScene extends Phaser.Scene {
   private boardLines!:      Phaser.GameObjects.Graphics;
   private bgStars!:         Phaser.GameObjects.Graphics;
 
+  // Localized label refs (updated by applyLabels)
+  private playerLabel!:      Phaser.GameObjects.Text;
+  private drawLabel!:        Phaser.GameObjects.Text;
+  private computerLabel!:    Phaser.GameObjects.Text;
+  private newRoundBtnText!:  Phaser.GameObjects.Text;
+  private statusState:       StatusState = 'yourTurn';
+
+  private labels: TTTLabels = getGameLabels('ticTacToe', 'he');
+
   constructor() { super({ key: 'TicTacToeScene' }); }
 
   init(data: {
     config?:   Partial<GameConfig>;
     onAction?: (a: GameAction) => void;
     onReady?:  (s: TicTacToeScene) => void;
+    labels?:   TTTLabels;
   }) {
     if (data.config)   this.cfg      = { ...DEFAULT_CONFIG, ...data.config };
     if (data.onAction) this.onAction = data.onAction;
     if (data.onReady)  this.onReady  = data.onReady;
+    if (data.labels)   this.labels   = data.labels;
+  }
+
+  /** Replace localized text without disrupting game state. */
+  applyLabels(labels: TTTLabels) {
+    this.labels = labels;
+    this.playerLabel?.setText(labels.you);
+    this.drawLabel?.setText(labels.draw);
+    this.computerLabel?.setText(labels.computer);
+    this.newRoundBtnText?.setText(labels.newRound);
+    this.depthText?.setText(this.depthLabel(this.cfg.aiDepth));
+    // Re-render status based on current logical state
+    const map: Record<StatusState, string> = {
+      yourTurn: labels.statusYourTurn,
+      thinking: labels.statusThinking,
+      won:      labels.statusWon,
+      lost:     labels.statusLost,
+      draw:     labels.statusDraw,
+    };
+    this.statusText?.setText(map[this.statusState]);
+  }
+
+  private setStatus(state: StatusState) {
+    this.statusState = state;
+    const map: Record<StatusState, string> = {
+      yourTurn: this.labels.statusYourTurn,
+      thinking: this.labels.statusThinking,
+      won:      this.labels.statusWon,
+      lost:     this.labels.statusLost,
+      draw:     this.labels.statusDraw,
+    };
+    this.statusText.setText(map[state]);
   }
 
   create() {
@@ -124,13 +171,13 @@ class TicTacToeScene extends Phaser.Scene {
     this.add.rectangle(W / 2, 76, W, 2, 0x3730a3, 1).setDepth(10);
 
     // Player score (right side in RTL feel)
-    this.add.text(W - 90, 20, 'אתה ✖', { fontSize: '11px', color: '#94a3b8', fontFamily: 'Arial' }).setOrigin(0.5).setDepth(10);
+    this.playerLabel = this.add.text(W - 90, 20, this.labels.you, { fontSize: '11px', color: '#94a3b8', fontFamily: 'Arial' }).setOrigin(0.5).setDepth(10);
     this.playerScoreText = this.add.text(W - 90, 44, '0', {
       fontSize: '26px', fontFamily: 'Arial Black', color: '#a5b4fc',
     }).setOrigin(0.5).setDepth(10);
 
     // Draws (center)
-    this.add.text(W / 2, 18, 'תיקו', { fontSize: '11px', color: '#94a3b8', fontFamily: 'Arial' }).setOrigin(0.5).setDepth(10);
+    this.drawLabel = this.add.text(W / 2, 18, this.labels.draw, { fontSize: '11px', color: '#94a3b8', fontFamily: 'Arial' }).setOrigin(0.5).setDepth(10);
     this.drawScoreText = this.add.text(W / 2, 40, '0', {
       fontSize: '22px', fontFamily: 'Arial Black', color: '#cbd5e1',
     }).setOrigin(0.5).setDepth(10);
@@ -139,13 +186,13 @@ class TicTacToeScene extends Phaser.Scene {
     }).setOrigin(0.5).setDepth(10);
 
     // AI score
-    this.add.text(90, 20, 'מחשב ⭕', { fontSize: '11px', color: '#94a3b8', fontFamily: 'Arial' }).setOrigin(0.5).setDepth(10);
+    this.computerLabel = this.add.text(90, 20, this.labels.computer, { fontSize: '11px', color: '#94a3b8', fontFamily: 'Arial' }).setOrigin(0.5).setDepth(10);
     this.aiScoreText = this.add.text(90, 44, '0', {
       fontSize: '26px', fontFamily: 'Arial Black', color: '#fca5a5',
     }).setOrigin(0.5).setDepth(10);
 
     // Status
-    this.statusText = this.add.text(W / 2, this.cfg.canvasHeight - 26, 'התור שלך — בחר משבצת', {
+    this.statusText = this.add.text(W / 2, this.cfg.canvasHeight - 26, this.labels.statusYourTurn, {
       fontSize: '14px', fontFamily: 'Arial', color: '#94a3b8', fontStyle: 'bold',
     }).setOrigin(0.5).setDepth(10);
 
@@ -155,18 +202,23 @@ class TicTacToeScene extends Phaser.Scene {
     }).setOrigin(0.5).setAlpha(0).setDepth(25);
 
     // New round button (hidden by default)
-    this.newRoundBtn = this.createButton(W / 2, this.cfg.canvasHeight / 2 + 80, 'סיבוב חדש', () => this.startRound());
+    const btn = this.createButton(W / 2, this.cfg.canvasHeight / 2 + 80, this.labels.newRound, () => this.startRound());
+    this.newRoundBtn     = btn.container;
+    this.newRoundBtnText = btn.text;
     this.newRoundBtn.setVisible(false);
   }
 
   private depthLabel(depth: number): string {
-    if (depth <= 2) return `קל · ${depth}`;
-    if (depth <= 5) return `בינוני · ${depth}`;
-    if (depth <= 7) return `קשה · ${depth}`;
-    return `מומחה · ${depth}`;
+    if (depth <= 2) return `${this.labels.diffEasy} · ${depth}`;
+    if (depth <= 5) return `${this.labels.diffMedium} · ${depth}`;
+    if (depth <= 7) return `${this.labels.diffHard} · ${depth}`;
+    return `${this.labels.diffExpert} · ${depth}`;
   }
 
-  private createButton(x: number, y: number, label: string, onClick: () => void): Phaser.GameObjects.Container {
+  private createButton(x: number, y: number, label: string, onClick: () => void): {
+    container: Phaser.GameObjects.Container;
+    text:      Phaser.GameObjects.Text;
+  } {
     const c = this.add.container(x, y).setDepth(26);
     const bg = this.add.rectangle(0, 0, 180, 48, 0x4338ca);
     bg.setStrokeStyle(2, 0x818cf8);
@@ -179,7 +231,7 @@ class TicTacToeScene extends Phaser.Scene {
     c.on('pointerover', () => bg.setFillStyle(0x4f46e5));
     c.on('pointerout',  () => bg.setFillStyle(0x4338ca));
     c.on('pointerdown', () => { onClick(); });
-    return c;
+    return { container: c, text: txt };
   }
 
   // ── Board ───────────────────────────────────────────────────────
@@ -233,7 +285,7 @@ class TicTacToeScene extends Phaser.Scene {
     this.gameOver = false;
     this.isPlayerTurn = true;
     this.moveStart = Date.now();
-    this.statusText.setText('התור שלך — בחר משבצת');
+    this.setStatus('yourTurn');
     this.newRoundBtn.setVisible(false);
     this.fireAction('ROUND_START', { aiDepth: this.cfg.aiDepth });
   }
@@ -248,7 +300,7 @@ class TicTacToeScene extends Phaser.Scene {
     if (result) { this.endGame(result); return; }
 
     this.isPlayerTurn = false;
-    this.statusText.setText('המחשב חושב…');
+    this.setStatus('thinking');
     this.time.delayedCall(380, () => this.aiMove());
   }
 
@@ -264,7 +316,7 @@ class TicTacToeScene extends Phaser.Scene {
 
     this.isPlayerTurn = true;
     this.moveStart    = Date.now();
-    this.statusText.setText('התור שלך — בחר משבצת');
+    this.setStatus('yourTurn');
   }
 
   private endGame(result: 'X' | 'O' | 'draw') {
@@ -273,20 +325,20 @@ class TicTacToeScene extends Phaser.Scene {
     if (result === PLAYER) {
       this.playerWins++;
       this.playerScoreText.setText(String(this.playerWins));
-      this.showFeedback('ניצחת!', '#a5b4fc');
-      this.statusText.setText('כל הכבוד 🎉');
+      this.showFeedback(this.labels.feedbackWin, '#a5b4fc');
+      this.setStatus('won');
       this.fireAction('GAME_WON', { winner: 'player', aiDepth: this.cfg.aiDepth });
     } else if (result === AI) {
       this.aiWins++;
       this.aiScoreText.setText(String(this.aiWins));
-      this.showFeedback('הפסדת', '#fca5a5');
-      this.statusText.setText('המחשב ניצח');
+      this.showFeedback(this.labels.feedbackLose, '#fca5a5');
+      this.setStatus('lost');
       this.fireAction('GAME_WON', { winner: 'ai', aiDepth: this.cfg.aiDepth });
     } else {
       this.draws++;
       this.drawScoreText.setText(String(this.draws));
-      this.showFeedback('תיקו', '#cbd5e1');
-      this.statusText.setText('המשחק הסתיים בתיקו');
+      this.showFeedback(this.labels.feedbackDraw, '#cbd5e1');
+      this.setStatus('draw');
       this.fireAction('GAME_DRAW', { aiDepth: this.cfg.aiDepth });
     }
     this.drawWinningLine(result);
@@ -443,12 +495,19 @@ export default function TicTacToe({ config, onAction, adjustment }: TicTacToePro
   const containerRef = useRef<HTMLDivElement>(null);
   const gameRef      = useRef<Phaser.Game | null>(null);
   const sceneRef     = useRef<TicTacToeScene | null>(null);
+  const { lang }     = useLang();
+
+  const labels = useMemo(() => getGameLabels('ticTacToe', lang), [lang]);
 
   const handleAction = useCallback((a: GameAction) => { onAction?.(a); }, [onAction]);
 
   useEffect(() => {
     if (adjustment) sceneRef.current?.applyParams(adjustment);
   }, [adjustment]);
+
+  useEffect(() => {
+    sceneRef.current?.applyLabels(labels);
+  }, [labels]);
 
   useEffect(() => {
     if (!containerRef.current) return;
@@ -466,6 +525,7 @@ export default function TicTacToe({ config, onAction, adjustment }: TicTacToePro
       config:   mergedCfg,
       onAction: handleAction,
       onReady:  (s: TicTacToeScene) => { sceneRef.current = s; },
+      labels,
     });
     return () => {
       gameRef.current?.destroy(true);
