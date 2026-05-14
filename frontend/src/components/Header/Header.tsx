@@ -13,7 +13,6 @@ const Header: React.FC = () => {
    return (
       <header className="header">
          <div className="header-container">
-
             {/* Logo */}
             <div className="logo">
                <h1>
@@ -69,7 +68,7 @@ const Header: React.FC = () => {
             {/* Mobile Menu Toggle */}
             <button
                className="menu-toggle"
-               onClick={() => setIsMenuOpen(prev => !prev)}
+               onClick={() => setIsMenuOpen((prev) => !prev)}
             >
                {isMenuOpen ? '✕' : '☰'}
             </button>

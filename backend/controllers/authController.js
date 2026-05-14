@@ -27,7 +27,7 @@ export const signup = async (req, res) => {
       language,
     });
 
-    const token = generateToken(user);
+      const token = generateToken(user);
 
     return res.status(201).json({
       user: {
@@ -52,14 +52,14 @@ export const signup = async (req, res) => {
 
 // ===== LOGIN =====
 export const login = async (req, res) => {
-  const { email, password } = req.body;
+   const { email, password } = req.body;
 
-  try {
-    const user = await userFirebaseService.verifyPassword(email, password);
+   try {
+      const user = await userFirebaseService.verifyPassword(email, password);
 
-    if (!user) {
-      return res.status(400).json({ message: "Invalid credentials" });
-    }
+      if (!user) {
+         return res.status(400).json({ message: 'Invalid credentials' });
+      }
 
     const token = generateToken(user);
     recordActivity(user.id, user.name, user.email, 'email');
@@ -84,38 +84,40 @@ export const login = async (req, res) => {
 
 // ===== LOGOUT =====
 export const logout = async (req, res) => {
-  return res.status(200).json({ message: "Logged out successfully" });
+   return res.status(200).json({ message: 'Logged out successfully' });
 };
 
 // ===== GOOGLE AUTH =====
 export const googleAuth = async (req, res) => {
-  const { idToken } = req.body;
+   const { idToken } = req.body;
 
-  if (!idToken) {
-    return res.status(400).json({ message: "ID token is required" });
-  }
+   if (!idToken) {
+      return res.status(400).json({ message: 'ID token is required' });
+   }
 
-  try {
-    // Verify the Firebase ID token
-    const decodedToken = await firebaseAuth.verifyIdToken(idToken);
-    const { email, name, uid } = decodedToken;
+   try {
+      // Verify the Firebase ID token
+      const decodedToken = await firebaseAuth.verifyIdToken(idToken);
+      const { email, name, uid } = decodedToken;
 
-    if (!email) {
-      return res.status(400).json({ message: "Email not found in Google account" });
-    }
+      if (!email) {
+         return res
+            .status(400)
+            .json({ message: 'Email not found in Google account' });
+      }
 
-    // Check if user already exists
-    let user = await userFirebaseService.findByEmail(email);
+      // Check if user already exists
+      let user = await userFirebaseService.findByEmail(email);
 
-    if (!user) {
-      // Create new user with Google data (no password needed)
-      user = await userFirebaseService.createGoogleUser({
-        name: name || email.split("@")[0],
-        email,
-        googleUid: uid,
-        role: "user"
-      });
-    }
+      if (!user) {
+         // Create new user with Google data (no password needed)
+         user = await userFirebaseService.createGoogleUser({
+            name: name || email.split('@')[0],
+            email,
+            googleUid: uid,
+            role: 'user',
+         });
+      }
 
     const token = generateToken(user);
     recordActivity(user.id, user.name, user.email, 'google');

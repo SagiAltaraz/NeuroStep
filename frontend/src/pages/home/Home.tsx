@@ -9,9 +9,9 @@ const Home = () => {
   const { user } = useAuth();
   const { t, dir } = useLang();
 
-  const handlePlayClick = () => {
-    navigate('/games');
-  };
+   const handlePlayClick = () => {
+      navigate('/games');
+   };
 
   return (
     <main className="home-page" dir={dir}>
