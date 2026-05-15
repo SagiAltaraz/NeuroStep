@@ -1,0 +1,29 @@
+.where-was-it-game {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  padding: 2rem;
+  min-height: 100vh;
+  background: transparent;
+}
+
+.where-was-it-game .game-back-row {
+  width: 100%;
+  display: flex;
+  justify-content: flex-start;
+  margin-bottom: 0.75rem;
+}
+
+.where-was-it-game .game-canvas {
+  border-radius: 16px;
+  overflow: hidden;
+  box-shadow:
+    0 4px 6px -1px rgba(0, 0, 0, 0.1),
+    0 10px 20px -5px rgba(168, 85, 247, 0.15),
+    0 0 0 1px rgba(168, 85, 247, 0.1);
+}
+
+.where-was-it-game .game-canvas canvas {
+  display: block;
+  border-radius: 16px;
+}

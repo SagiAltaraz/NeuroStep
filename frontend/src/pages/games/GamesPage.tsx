@@ -71,7 +71,7 @@ const games: GameEntry[] = [
     route: '/games/shapesClick',
   },
 
-  // ── Upcoming games (no route yet) ────────────────────────────────
+  // ── Newly released games ─────────────────────────────────────────
   {
     id: 'greenLight',
     nameKey: 'game.greenLight.name',
@@ -79,7 +79,7 @@ const games: GameEntry[] = [
     icon: '🚦',
     color: '#10B981',
     glow: 'rgba(16, 185, 129, 0.22)',
-    comingSoon: true,
+    route: '/games/greenLight',
   },
   {
     id: 'spotDifference',
@@ -88,7 +88,7 @@ const games: GameEntry[] = [
     icon: '🔍',
     color: '#F59E0B',
     glow: 'rgba(245, 158, 11, 0.22)',
-    comingSoon: true,
+    route: '/games/spotDifference',
   },
   {
     id: 'whereWasIt',
@@ -97,7 +97,7 @@ const games: GameEntry[] = [
     icon: '🧩',
     color: '#F97316',
     glow: 'rgba(249, 115, 22, 0.22)',
-    comingSoon: true,
+    route: '/games/whereWasIt',
   },
   {
     id: 'findLetter',
@@ -106,7 +106,7 @@ const games: GameEntry[] = [
     icon: '🔤',
     color: '#0EA5E9',
     glow: 'rgba(14, 165, 233, 0.22)',
-    comingSoon: true,
+    route: '/games/findLetter',
   },
 ];
 

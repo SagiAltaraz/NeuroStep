@@ -32,10 +32,14 @@ Rules (strictly enforced):
 - Plain text only: no quotes, no punctuation at the end, no emoji`;
 
 const GAME_NAMES: Record<GameId, string> = {
-  'shapes-click': 'shape recognition',
-  'color-trains': 'color trains switching',
-  'tictactoe':    'strategic tic-tac-toe',
-  'memory':       'memory card matching',
+  'shapes-click':    'shape recognition',
+  'color-trains':    'color trains switching',
+  'tictactoe':       'strategic tic-tac-toe',
+  'memory':          'memory card matching',
+  'green-light':     'green-light reaction',
+  'spot-difference': 'spot the difference',
+  'where-was-it':    'Corsi-style spatial memory',
+  'find-letter':     'find the letter',
 };
 
 function useFallback(direction: 'harder' | 'easier', sessionId: string, reason: string): string {

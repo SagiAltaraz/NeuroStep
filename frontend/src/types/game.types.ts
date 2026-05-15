@@ -4,7 +4,11 @@ export type GameId =
   | 'shapes-click'
   | 'color-trains'
   | 'tictactoe'
-  | 'memory';
+  | 'memory'
+  | 'green-light'
+  | 'spot-difference'
+  | 'where-was-it'
+  | 'find-letter';
 
 export type GameEventType =
   // shapes-click
@@ -23,7 +27,22 @@ export type GameEventType =
   // memory
   | 'CARD_FLIP'
   | 'PAIR_MATCHED'
-  | 'PAIR_MISSED';
+  | 'PAIR_MISSED'
+  // green-light
+  | 'GO_HIT'
+  | 'FALSE_START'
+  | 'MISS'
+  // spot-difference
+  | 'ODD_HIT'
+  | 'WRONG_PICK'
+  // where-was-it
+  | 'SEQUENCE_SHOWN'
+  | 'CELL_TAP'
+  | 'SEQUENCE_COMPLETE'
+  | 'SEQUENCE_FAIL'
+  // find-letter
+  | 'LETTER_HIT'
+  | 'ROUND_COMPLETE';
 
 export interface GameEvent {
   // identity

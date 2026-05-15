@@ -69,10 +69,14 @@ The "summaryHe", "strengthsHe", and "recommendationsHe" fields must be written i
 conversational Hebrew — the target reader is an elderly Hebrew-speaking adult.`;
 
 const GAME_NAMES: Record<GameId, string> = {
-  'shapes-click': 'Shape Recognition (Shapes Click)',
-  'color-trains': 'Color Trains (attention switching)',
-  'tictactoe':    'Tic-Tac-Toe (strategic planning)',
-  'memory':       'Memory Card Matching',
+  'shapes-click':    'Shape Recognition (Shapes Click)',
+  'color-trains':    'Color Trains (attention switching)',
+  'tictactoe':       'Tic-Tac-Toe (strategic planning)',
+  'memory':          'Memory Card Matching',
+  'green-light':     'Green Light (reaction time + go/no-go)',
+  'spot-difference': 'Spot the Difference (processing speed + selective attention)',
+  'where-was-it':    'Where Was It? (Corsi-style visual-spatial memory)',
+  'find-letter':     'Find the Letter (selective attention + visual search)',
 };
 
 function buildUserPrompt(input: ReportInput): string {
