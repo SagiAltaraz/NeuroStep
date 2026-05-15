@@ -314,6 +314,7 @@ Render does not provide a native Kafka service in the same way as PostgreSQL/Red
    - `KAFKA_PASSWORD=<aiven-password>`
    - `KAFKA_SSL=true`
    - `KAFKA_SASL_MECHANISM=scram-sha-256` (or `scram-sha-512`, based on Aiven settings)
+   - Optional if cert validation fails: `KAFKA_CA_CERT="<pem-with-\\n-escapes>"`
 6. Redeploy `game-server`.
 
 Where to add these keys in Render:
@@ -330,6 +331,7 @@ Aiven commonly uses SSL + SASL. This repository now supports env-driven Kafka au
 - `KAFKA_USERNAME`
 - `KAFKA_PASSWORD`
 - `KAFKA_SASL_MECHANISM`
+- `KAFKA_CA_CERT` (optional)
 
 #### Required topics
 

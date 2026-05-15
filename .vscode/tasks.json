@@ -1,0 +1,16 @@
+{
+	"version": "2.0.0",
+	"tasks": [
+		{
+			"type": "npm",
+			"script": "prepare",
+			"problemMatcher": [],
+			"label": "npm: prepare",
+			"detail": "husky",
+			"group": {
+				"kind": "build",
+				"isDefault": true
+			}
+		}
+	]
+}
