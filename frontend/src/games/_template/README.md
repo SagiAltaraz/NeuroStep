@@ -25,7 +25,7 @@ Each step maps to a `// STEP N:` comment in the template files.
   - Never call WebSocket or Kafka directly from a scene
 - [ ] Implement `applyParams(params)` — apply relevant difficulty fields to your config
 - [ ] Add a route in `frontend/src/App.tsx`
-- [ ] Add a `computeAdjustment` case in `backend/game-server/server.ts` for your gameId
+- [ ] Add a `computeAdjustment` case in `game-server/server.ts` for your gameId
   - Add your event types to `SCORED_TYPES`
   - Add difficulty adjustment logic (or delegate to a new file under `agents/`)
 - [ ] Add your game card to `frontend/src/pages/games/GamesPage.tsx`

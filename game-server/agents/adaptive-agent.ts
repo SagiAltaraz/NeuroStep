@@ -11,7 +11,7 @@
  * Works for ALL games — only the final param mapping is game-specific.
  *
  * Library: simple-statistics (mean, standardDeviation, linearRegression)
- *   → installed in backend/game-server/node_modules/simple-statistics
+ *   → installed in game-server/node_modules/simple-statistics
  *   → provides the maths so we don't hand-roll moving averages
  */
 

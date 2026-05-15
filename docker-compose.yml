@@ -34,7 +34,7 @@ services:
 
    game-server:
       build:
-         context: ./backend/game-server
+         context: ./game-server
          dockerfile: Dockerfile
       ports:
          - '3001:3001'

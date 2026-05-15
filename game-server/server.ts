@@ -2,7 +2,7 @@ import { config }          from 'dotenv';
 import { fileURLToPath }   from 'url';
 import { resolve, dirname } from 'path';
 
-config({ path: resolve(dirname(fileURLToPath(import.meta.url)), '../.env') });
+config({ path: resolve(dirname(fileURLToPath(import.meta.url)), '../backend/.env') });
 
 import { WebSocketServer, WebSocket }                        from 'ws';
 import type { GameEvent, GameId }                           from './types/game.types.js';

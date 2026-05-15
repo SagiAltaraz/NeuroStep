@@ -17,13 +17,13 @@ The system is built around adaptive game difficulty: live game events are sent o
 - JWT-protected backend routes
 - Personalized onboarding profile form saved to Firestore
 - Two working games:
-  - `shapes-click` (Phaser)
-  - `color-trains` (Phaser)
+   - `shapes-click` (Phaser)
+   - `color-trains` (Phaser)
 - Real-time adaptive difficulty engine
 - Kafka producer + analytics consumer pipeline
 - Admin dashboard shell with:
-  - working users management
-  - placeholder stats/events/settings pages
+   - working users management
+   - placeholder stats/events/settings pages
 - Website chat widget calling `/api/askAI`
 
 ## High-level architecture
@@ -53,8 +53,11 @@ NeuroStep/
 |  |- controllers/            auth/admin/chat controllers
 |  |- routes/                 API routes
 |  |- services/user.js        Firestore user service
-|  |- middleware/authMiddleware.js
-|  `- game-server/            WebSocket + Kafka + adaptive agents (TS)
+|  `- middleware/authMiddleware.js
+|- game-server/               WebSocket + Kafka + adaptive agents (TS)
+|  |- agents/
+|  |- kafka/
+|  `- sessions/
 |     |- server.ts
 |     |- agents/
 |     |- kafka/
@@ -68,22 +71,26 @@ NeuroStep/
 Base URL (dev): `http://localhost:3000`
 
 Auth:
+
 - `POST /api/auth/signup`
 - `POST /api/auth/login`
 - `POST /api/auth/logout`
 - `POST /api/auth/google`
 
 Personalization (requires Bearer token):
+
 - `POST /api/personalization/profile/save`
 - `GET /api/personalization/profile`
 
 Admin (requires Bearer token + admin role):
+
 - `GET /api/admin/users`
 - `PATCH /api/admin/users/:id/role`
 - `PUT /api/admin/users/:id`
 - `DELETE /api/admin/users/:id`
 
 Chat:
+
 - `POST /api/askAI`
 
 ## Environment variables
@@ -120,6 +127,7 @@ VITE_FIREBASE_APP_ID=...
 ## Running locally (development)
 
 Prerequisites:
+
 - Bun
 - Node.js (for some scripts/tooling)
 - Docker (if running Kafka with compose)
@@ -136,7 +144,7 @@ cd ../backend
 bun install
 
 # game-server
-cd game-server
+cd ../game-server
 npm install
 ```
 
@@ -151,7 +159,7 @@ cd backend
 bun run start
 
 # Terminal 3: game-server (WebSocket + agents)
-cd backend/game-server
+cd game-server
 npm run dev
 
 # Terminal 4: frontend
@@ -170,6 +178,7 @@ docker compose up --build
 ```
 
 This starts:
+
 - `app` on `http://localhost:3000`
 - `game-server` on `ws://localhost:3001`
 - Kafka on `localhost:9092`
@@ -184,6 +193,101 @@ This starts:
 ## Security note
 
 If secrets were ever committed to Git history, rotate them immediately:
+
 - Firebase service account private key
 - OpenAI API key
 - JWT secret
+
+## Deploy to Render (step by step)
+
+This project should run on Render as:
+
+- `app` web service (Docker): backend API + built frontend
+- `game-server` web service (Docker): WebSocket + Kafka agents
+- managed Kafka provider (Confluent Cloud/Aiven/Upstash Kafka)
+
+### 1) Prepare production environment values
+
+You will need:
+
+- `JWT_SECRET`
+- `OPENAI_API_KEY`
+- `FIREBASE_PROJECT_ID`
+- `FIREBASE_CLIENT_EMAIL`
+- `FIREBASE_PRIVATE_KEY` (keep newline escapes as `\n`)
+- `FIREBASE_DATABASE_URL`
+- `KAFKA_BROKER` (managed Kafka endpoint, e.g. `host:9092`)
+- `VITE_FIREBASE_API_KEY`
+- `VITE_FIREBASE_MESSAGING_SENDER_ID`
+- `VITE_FIREBASE_APP_ID`
+
+### 2) Push repo to GitHub/GitLab
+
+Render deploys from your git repository, so commit/push first.
+
+### 3) Create `app` service on Render
+
+In Render:
+
+1. New `Web Service`
+2. Connect your repo
+3. Environment: `Docker`
+4. Root Directory: repository root
+5. Dockerfile Path: `./Dockerfile`
+6. Add env vars:
+   - Backend vars from step 1
+   - `PORT=3000`
+   - `VITE_WS_URL=wss://<your-game-server>.onrender.com`
+   - `CORS_ORIGINS=https://<your-app>.onrender.com`
+7. Create service and wait for deploy
+
+Notes:
+
+- Render injects Docker service env vars as Docker build args, so `VITE_*` values are available during frontend build in the Dockerfile.
+- Frontend is served by Express from `frontend/dist`; no separate static site is required.
+
+### 4) Create `game-server` service on Render
+
+In Render:
+
+1. New `Web Service`
+2. Connect same repo
+3. Environment: `Docker`
+4. Root Directory: `game-server`
+5. Dockerfile Path: `./Dockerfile`
+6. Add env vars:
+   - `WS_PORT=3001`
+   - `KAFKA_BROKER=<managed-kafka-broker:port>`
+   - Firebase vars used by agents (`FIREBASE_PROJECT_ID`, `FIREBASE_CLIENT_EMAIL`, `FIREBASE_PRIVATE_KEY`, `FIREBASE_DATABASE_URL`)
+   - Any optional AI-related keys your agents use
+7. Create service and wait for deploy
+
+### 5) Wire domains
+
+After `game-server` is live:
+
+1. Copy its public URL
+2. Update `app` env var `VITE_WS_URL` to `wss://<game-server-url>`
+3. Redeploy `app`
+
+If you use a custom domain:
+
+1. Add custom domain to `app`
+2. Set `CORS_ORIGINS` to include each frontend origin as comma-separated values
+   - Example: `https://app.example.com,https://www.app.example.com`
+3. Redeploy `app`
+
+### 6) Validate deployment
+
+1. Open `https://<app>.onrender.com`
+2. Confirm signup/login works
+3. Open browser dev tools and verify WebSocket connects to `wss://<game-server>.onrender.com`
+4. Start a game and confirm session events are processed (no Kafka connection errors in game-server logs)
+
+### 7) Recommended Render settings
+
+- Set both services to auto-deploy on push
+- Add health checks:
+   - `app`: `GET /api/auth/login` is not ideal (POST route), use a simple GET route if you add one later
+   - `game-server`: TCP health on exposed port is sufficient if no HTTP endpoint exists
+- Use Render Environment Groups to share common secrets across both services

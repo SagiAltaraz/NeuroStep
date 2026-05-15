@@ -1,4 +1,4 @@
-// sync with backend/game-server/types/game.types.ts
+// sync with game-server/types/game.types.ts
 
 export type GameId =
   | 'shapes-click'

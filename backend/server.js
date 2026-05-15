@@ -31,9 +31,22 @@ const app = express();
 
 console.log('Firebase Connected!');
 
+const defaultOrigins = ['http://localhost:5173', 'http://localhost:5174', 'http://localhost:3000'];
+const configuredOrigins = (process.env.CORS_ORIGINS ?? '')
+  .split(',')
+  .map(origin => origin.trim())
+  .filter(Boolean);
+const allowedOrigins = configuredOrigins.length > 0 ? configuredOrigins : defaultOrigins;
+
 app.use(
    cors({
-      origin: ['http://localhost:5173', 'http://localhost:5174', 'http://localhost:3000'],
+      origin(origin, callback) {
+        if (!origin || allowedOrigins.includes(origin)) {
+          callback(null, true);
+          return;
+        }
+        callback(new Error(`CORS blocked for origin: ${origin}`));
+      },
       credentials: true,
    })
 );
