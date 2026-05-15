@@ -1,0 +1,29 @@
+.find-letter-game {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  padding: 2rem;
+  min-height: 100vh;
+  background: transparent;
+}
+
+.find-letter-game .game-back-row {
+  width: 100%;
+  display: flex;
+  justify-content: flex-start;
+  margin-bottom: 0.75rem;
+}
+
+.find-letter-game .game-canvas {
+  border-radius: 16px;
+  overflow: hidden;
+  box-shadow:
+    0 4px 6px -1px rgba(0, 0, 0, 0.1),
+    0 10px 20px -5px rgba(14, 165, 233, 0.15),
+    0 0 0 1px rgba(14, 165, 233, 0.1);
+}
+
+.find-letter-game .game-canvas canvas {
+  display: block;
+  border-radius: 16px;
+}

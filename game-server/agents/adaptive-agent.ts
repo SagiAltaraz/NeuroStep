@@ -101,17 +101,25 @@ export interface AdaptiveResult {
 
 // Hit event types per game
 const HIT_TYPES: Record<string, Set<string>> = {
-  'shapes-click': new Set(['CIRCLE_HIT']),
-  'color-trains': new Set(['STATION_SELECTED']),
-  'tictactoe':    new Set(['GAME_WON', 'MOVE_MADE']),
-  'memory':       new Set(['PAIR_MATCHED']),
+  'shapes-click':     new Set(['CIRCLE_HIT']),
+  'color-trains':     new Set(['STATION_SELECTED']),
+  'tictactoe':        new Set(['GAME_WON', 'MOVE_MADE']),
+  'memory':           new Set(['PAIR_MATCHED']),
+  'green-light':      new Set(['GO_HIT']),
+  'spot-difference':  new Set(['ODD_HIT']),
+  'where-was-it':     new Set(['SEQUENCE_COMPLETE']),
+  'find-letter':      new Set(['LETTER_HIT', 'ROUND_COMPLETE']),
 };
 
 const SCORED_TYPES: Record<string, Set<string>> = {
-  'shapes-click': new Set(['CIRCLE_HIT', 'DISTRACTOR_CLICK', 'TIMEOUT']),
-  'color-trains': new Set(['STATION_SELECTED', 'MISSED_SWITCH', 'ROUND_END']),
-  'tictactoe':    new Set(['GAME_WON', 'GAME_DRAW', 'MOVE_MADE']),
-  'memory':       new Set(['PAIR_MATCHED', 'PAIR_MISSED']),
+  'shapes-click':     new Set(['CIRCLE_HIT', 'DISTRACTOR_CLICK', 'TIMEOUT']),
+  'color-trains':     new Set(['STATION_SELECTED', 'MISSED_SWITCH', 'ROUND_END']),
+  'tictactoe':        new Set(['GAME_WON', 'GAME_DRAW', 'MOVE_MADE']),
+  'memory':           new Set(['PAIR_MATCHED', 'PAIR_MISSED']),
+  'green-light':      new Set(['GO_HIT', 'FALSE_START', 'MISS']),
+  'spot-difference':  new Set(['ODD_HIT', 'WRONG_PICK', 'TIMEOUT']),
+  'where-was-it':     new Set(['SEQUENCE_COMPLETE', 'SEQUENCE_FAIL']),
+  'find-letter':      new Set(['LETTER_HIT', 'ROUND_COMPLETE', 'WRONG_PICK', 'TIMEOUT']),
 };
 
 export async function processEvent(
@@ -249,6 +257,37 @@ function buildParams(gameId: GameId, dir: 'harder' | 'easier', emaMs: number | n
       return {
         cardCount:    harder ? +2 : -2,      // number of card pairs delta
         flipTimeMs:   harder ? -200 : +300,  // how long cards stay visible
+      };
+
+    case 'green-light':
+      // narrower tap window + wider variability of the red hold.
+      return {
+        greenWindowMs:    harder ? -150 : +250,  // shorter window when harder
+        redHoldMinDeltaMs: harder ? +200 : -200,  // longer minimum red hold = harder anticipation
+        redHoldMaxDeltaMs: harder ? +300 : -300,
+      };
+
+    case 'spot-difference':
+      // bigger grid + more similar odd cell + shorter timer = harder.
+      return {
+        gridSize:        harder ? +1   : -1,
+        similarity:      harder ? +0.1 : -0.1,    // 0..1 — fraction of color delta removed
+        roundTimeoutMs:  harder ? -800 : +1200,
+      };
+
+    case 'where-was-it':
+      // longer sequence + shorter flash duration = harder.
+      return {
+        sequenceLength:  harder ? +1   : -1,
+        flashDurationMs: harder ? -80  : +120,
+      };
+
+    case 'find-letter':
+      // bigger grid + tighter time + more similar distractors = harder.
+      return {
+        gridSize:         harder ? +1    : -1,
+        roundTimeoutMs:   harder ? -1500 : +2000,
+        distractorBoost:  harder ? +0.1  : -0.1,
       };
 
     default:

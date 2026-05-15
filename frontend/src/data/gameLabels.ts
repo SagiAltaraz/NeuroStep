@@ -60,6 +60,43 @@ const TABLE = {
     diffExpert:     { he: 'מומחה',                 en: 'Expert' },
     newRound:       { he: 'סיבוב חדש',             en: 'New round' },
   },
+  greenLight: {
+    score:        { he: 'ניקוד',                            en: 'SCORE' },
+    bestMs:       { he: 'שיא',                              en: 'BEST' },
+    instruction:  { he: 'לחץ כשהאור הופך לירוק — לא לפני!', en: 'Tap when it turns green — not before!' },
+    waitRed:      { he: 'חכה…',                             en: 'Wait…' },
+    go:           { he: 'עכשיו!',                           en: 'GO!' },
+    falseStart:   { he: 'מוקדם מדי',                        en: 'Too early' },
+    miss:         { he: 'איחרת',                            en: 'Too late' },
+    reactionMs:   { he: '{n} מ״ש',                          en: '{n} ms' },
+  },
+  spotDifference: {
+    score:        { he: 'ניקוד',                            en: 'SCORE' },
+    round:        { he: 'סיבוב',                            en: 'ROUND' },
+    timeLeft:     { he: 'זמן',                              en: 'TIME' },
+    instruction:  { he: 'מצא את הצורה השונה — מהר ככל האפשר', en: 'Find the odd shape — as fast as you can' },
+    correct:      { he: 'מצאת!',                            en: 'Found it!' },
+    wrong:        { he: 'לא נכון',                          en: 'Not that one' },
+    timeout:      { he: 'נגמר הזמן',                        en: "Time's up" },
+  },
+  whereWasIt: {
+    score:        { he: 'ניקוד',                            en: 'SCORE' },
+    sequence:     { he: 'רצף',                              en: 'SEQUENCE' },
+    watch:        { he: 'צפה בסדר',                         en: 'Watch the order' },
+    yourTurn:     { he: 'עכשיו הקש באותו סדר',              en: 'Tap in the same order' },
+    correct:      { he: 'מצוין!',                           en: 'Excellent!' },
+    wrong:        { he: 'לא נכון — נתחיל מחדש',             en: 'Wrong — try again' },
+    instruction:  { he: 'שנן היכן נדלקו המשבצות, ואז הקש בסדר', en: 'Remember which squares lit up, then tap them in order' },
+  },
+  findLetter: {
+    score:        { he: 'ניקוד',                            en: 'SCORE' },
+    findLabel:    { he: 'מצא:',                             en: 'FIND:' },
+    found:        { he: '{n} / {total} נמצאו',              en: '{n} / {total} found' },
+    timeLeft:     { he: 'זמן',                              en: 'TIME' },
+    instruction:  { he: 'הקש על כל המופעים של האות לפני שהזמן ייגמר', en: 'Tap every instance of the letter before time runs out' },
+    roundDone:    { he: 'כל הכבוד 🎉',                      en: 'Well done 🎉' },
+    timeout:      { he: 'נגמר הזמן',                        en: "Time's up" },
+  },
 } as const satisfies Record<string, Record<string, Bi>>;
 
 // ── Types ──────────────────────────────────────────────────────────────────────

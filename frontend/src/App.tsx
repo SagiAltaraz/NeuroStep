@@ -13,6 +13,10 @@ import GamesPage from './pages/games/GamesPage';
 import TicTacToePage from './pages/games/TicTacToePage';
 import MemoryGamePage from './pages/games/MemoryGamePage';
 import ShapesClickPage from './pages/games/ShapesClickPage';
+import GreenLightPage from './pages/games/GreenLightPage';
+import SpotDifferencePage from './pages/games/SpotDifferencePage';
+import WhereWasItPage from './pages/games/WhereWasItPage';
+import FindLetterPage from './pages/games/FindLetterPage';
 import AdminPage from './pages/admin/AdminPage';
 import CognitiveTrendPage from './pages/admin/trend/CognitiveTrendPage';
 import AlertsPage from './pages/admin/alerts/AlertsPage';
@@ -68,6 +72,38 @@ function App() {
                element={
                   <ProtectedRoute>
                      <ShapesClickPage />
+                  </ProtectedRoute>
+               }
+            />
+            <Route
+               path="/games/greenLight"
+               element={
+                  <ProtectedRoute>
+                     <GreenLightPage />
+                  </ProtectedRoute>
+               }
+            />
+            <Route
+               path="/games/spotDifference"
+               element={
+                  <ProtectedRoute>
+                     <SpotDifferencePage />
+                  </ProtectedRoute>
+               }
+            />
+            <Route
+               path="/games/whereWasIt"
+               element={
+                  <ProtectedRoute>
+                     <WhereWasItPage />
+                  </ProtectedRoute>
+               }
+            />
+            <Route
+               path="/games/findLetter"
+               element={
+                  <ProtectedRoute>
+                     <FindLetterPage />
                   </ProtectedRoute>
                }
             />
