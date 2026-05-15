@@ -16,6 +16,7 @@
 import { Kafka } from 'kafkajs';
 import { TOPICS } from './topics.js';
 import type { AdjustmentRecord } from '../agents/report-agent.js';
+import { createKafkaConfig } from './client-config.js';
 
 // ── Public API ─────────────────────────────────────────────────────────────────
 
@@ -53,10 +54,7 @@ function evictStale() {
 }
 
 export async function startAdjustmentsConsumer(): Promise<void> {
-  const kafka    = new Kafka({
-    clientId: 'adjustments-buffer',
-    brokers:  [process.env.KAFKA_BROKER ?? 'localhost:9092'],
-  });
+  const kafka    = new Kafka(createKafkaConfig('adjustments-buffer'));
   const consumer = kafka.consumer({ groupId: 'adjustments-buffer-group' });
 
   await consumer.connect();

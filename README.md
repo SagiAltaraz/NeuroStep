@@ -288,6 +288,62 @@ If you use a custom domain:
 
 - Set both services to auto-deploy on push
 - Add health checks:
-   - `app`: `GET /api/auth/login` is not ideal (POST route), use a simple GET route if you add one later
-   - `game-server`: TCP health on exposed port is sufficient if no HTTP endpoint exists
+  - `app`: `GET /api/auth/login` is not ideal (POST route), use a simple GET route if you add one later
+  - `game-server`: TCP health on exposed port is sufficient if no HTTP endpoint exists
 - Use Render Environment Groups to share common secrets across both services
+
+### 8) Deploy Kafka for production with Aiven
+
+Render does not provide a native Kafka service in the same way as PostgreSQL/Redis, so use Aiven Kafka and connect `game-server` to it.
+
+#### Aiven setup
+
+1. Create an Aiven account and create a Kafka service.
+2. Open the Kafka service `Overview` / `Connection information`.
+3. Copy:
+   - bootstrap server endpoint (host:port)
+   - username
+   - password
+   - CA certificate (if required by your security mode)
+4. Create topics in Aiven:
+   - `game-events`
+   - `adjustments`
+5. In Render `game-server` service, set:
+   - `KAFKA_BROKER=<bootstrap-host:port>`
+   - `KAFKA_USERNAME=<aiven-username>`
+   - `KAFKA_PASSWORD=<aiven-password>`
+   - `KAFKA_SSL=true`
+   - `KAFKA_SASL_MECHANISM=scram-sha-256` (or `scram-sha-512`, based on Aiven settings)
+6. Redeploy `game-server`.
+
+Where to add these keys in Render:
+1. Open Render dashboard
+2. Open `game-server` service
+3. Go to `Environment`
+4. Add the Kafka vars above
+5. Click `Save Changes` and redeploy
+
+#### Security/auth note
+
+Aiven commonly uses SSL + SASL. This repository now supports env-driven Kafka auth via:
+- `KAFKA_SSL`
+- `KAFKA_USERNAME`
+- `KAFKA_PASSWORD`
+- `KAFKA_SASL_MECHANISM`
+
+#### Required topics
+
+Your game-server expects these topics:
+- `game-events`
+- `adjustments`
+
+When `KAFKA_AUTO_CREATE_TOPICS_ENABLE` is unavailable (typical in managed Kafka), create them manually in provider UI/CLI.
+
+#### Post-deploy verification
+
+1. Open Render logs for `game-server`.
+2. Confirm startup includes:
+   - `[Kafka] Connecting to broker: ...`
+   - `[Kafka] Producer connected`
+3. Play a game from frontend.
+4. Confirm logs show events and no producer/consumer connection errors.

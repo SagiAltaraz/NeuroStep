@@ -1,13 +1,11 @@
 import { Kafka, type Producer } from 'kafkajs';
 import type { GameEvent } from '../types/game.types.js';
 import { TOPICS } from './topics.js';
+import { createKafkaConfig } from './client-config.js';
 
 const BROKER = process.env.KAFKA_BROKER ?? 'localhost:9092';
 
-const kafka: Kafka = new Kafka({
-  clientId: 'game-server',
-  brokers:  [BROKER],
-});
+const kafka: Kafka = new Kafka(createKafkaConfig('game-server'));
 
 const producer: Producer = kafka.producer();
 

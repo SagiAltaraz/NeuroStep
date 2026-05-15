@@ -18,6 +18,7 @@ import { Kafka } from 'kafkajs';
 import type { GameEvent } from '../types/game.types.js';
 import { TOPICS } from '../kafka/topics.js';
 import { getDb } from '../firebase.js';
+import { createKafkaConfig } from '../kafka/client-config.js';
 
 // ── In-memory session buffer ───────────────────────────────────────────────────
 // We accumulate events per session and flush to Firestore every FLUSH_INTERVAL_MS
@@ -161,7 +162,7 @@ async function flushAll() {
 // ── Kafka consumer ─────────────────────────────────────────────────────────────
 
 export async function startAnalyticsAgent(): Promise<void> {
-  const kafka    = new Kafka({ clientId: 'analytics-agent', brokers: [process.env.KAFKA_BROKER ?? 'localhost:9092'] });
+  const kafka    = new Kafka(createKafkaConfig('analytics-agent'));
   const consumer = kafka.consumer({ groupId: 'analytics-group' });
 
   await consumer.connect();
