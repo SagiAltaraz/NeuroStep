@@ -1,7 +1,7 @@
 /* ============================================================
    GAMES PAGE
-   Card-first layout. Each game card is a small product —
-   gradient header, emoji badge, description, focus tag.
+   Each card is a small 3D stage. The emoji is the hero —
+   it lives inside the card and reacts to the cursor.
    ============================================================ */
 
 .games-page {
@@ -71,6 +71,8 @@
   grid-template-columns: repeat(2, 1fr);
   gap: 1.5rem;
   text-align: right;
+  /* Give every card the same 3D scene so children can use Z */
+  perspective: 1200px;
 }
 
 /* ===== CARD ===== */
@@ -82,27 +84,29 @@
   border: 1px solid rgba(224, 231, 255, 0.9);
   cursor: pointer;
   box-shadow: var(--shadow-sm);
-  transition: transform 0.22s ease, box-shadow 0.22s ease;
   padding: 0;
   display: flex;
   flex-direction: column;
   text-align: right;
+  transform-style: preserve-3d;
+  transition: box-shadow 0.25s ease, border-color 0.25s ease;
+  will-change: transform;
 }
 
 .game-card:hover {
-  transform: translateY(-7px);
-  box-shadow: 0 20px 48px var(--card-glow, rgba(37, 99, 235, 0.18));
-  border-color: color-mix(in srgb, var(--card-color) 30%, transparent);
+  box-shadow: 0 26px 60px var(--card-glow, rgba(37, 99, 235, 0.22));
+  border-color: color-mix(in srgb, var(--card-color) 35%, transparent);
 }
 
-/* ===== CARD GRADIENT HEADER ===== */
+/* ===== CARD GRADIENT HEADER (the 3D stage) ===== */
 .game-card-header {
   position: relative;
-  height: 96px;
-  padding: 0 1.5rem;
+  height: 168px;
   display: flex;
   align-items: center;
+  justify-content: center;
   overflow: hidden;
+  transform-style: preserve-3d;
 }
 
 .game-card-header-bg {
@@ -111,51 +115,99 @@
   background: linear-gradient(
     135deg,
     var(--card-color) 0%,
-    color-mix(in srgb, var(--card-color) 65%, #fff) 100%
+    color-mix(in srgb, var(--card-color) 55%, #fff) 100%
   );
-  opacity: 0.92;
+  opacity: 0.95;
 }
 
-/* Decorative circle in top-left corner */
+/* Decorative orbs in the header */
 .game-card-header::before {
   content: '';
   position: absolute;
-  top: -28px;
-  left: -28px;
-  width: 110px;
-  height: 110px;
+  top: -36px;
+  left: -36px;
+  width: 140px;
+  height: 140px;
   border-radius: 50%;
   background: rgba(255, 255, 255, 0.14);
   pointer-events: none;
 }
-
-/* Smaller circle bottom-right */
 .game-card-header::after {
   content: '';
   position: absolute;
-  bottom: -20px;
-  right: 1.5rem;
-  width: 64px;
-  height: 64px;
+  bottom: -30px;
+  right: -10px;
+  width: 96px;
+  height: 96px;
   border-radius: 50%;
-  background: rgba(255, 255, 255, 0.1);
+  background: rgba(255, 255, 255, 0.10);
   pointer-events: none;
 }
 
-.game-emoji-wrap {
-  position: relative;
+/* Cursor-following soft glow inside the header */
+.game-emoji-glow {
+  position: absolute;
+  width: 220px;
+  height: 220px;
+  border-radius: 50%;
+  background: radial-gradient(circle,
+    rgba(255, 255, 255, 0.55) 0%,
+    rgba(255, 255, 255, 0.12) 45%,
+    transparent 70%);
+  transform: translate(-50%, -50%);
+  pointer-events: none;
+  opacity: 0;
+  transition: opacity 0.3s ease;
+  mix-blend-mode: screen;
   z-index: 1;
-  width: 56px;
-  height: 56px;
-  border-radius: 16px;
-  background: rgba(255, 255, 255, 0.28);
-  border: 1.5px solid rgba(255, 255, 255, 0.4);
+}
+.game-card:hover .game-emoji-glow { opacity: 1; }
+
+/* ===== EMOJI STAGE — the 3D-tilting glass disk ===== */
+.game-emoji-stage {
+  position: relative;
+  z-index: 2;
+  width: 118px;
+  height: 118px;
+  border-radius: 50%;
   display: flex;
   align-items: center;
   justify-content: center;
-  font-size: 1.85rem;
-  backdrop-filter: blur(4px);
-  flex-shrink: 0;
+  background:
+    radial-gradient(circle at 30% 25%, rgba(255,255,255,0.55) 0%, rgba(255,255,255,0.18) 55%, rgba(255,255,255,0.05) 100%);
+  border: 1.5px solid rgba(255, 255, 255, 0.55);
+  backdrop-filter: blur(10px);
+  -webkit-backdrop-filter: blur(10px);
+  box-shadow:
+    0 18px 40px -16px rgba(0, 0, 0, 0.35),
+    inset 0 1px 0 rgba(255, 255, 255, 0.6),
+    inset 0 -10px 24px rgba(0, 0, 0, 0.08);
+  transform-style: preserve-3d;
+  will-change: transform;
+}
+
+/* The emoji itself — floats above the stage in Z */
+.game-emoji {
+  font-size: 3.4rem;
+  line-height: 1;
+  transform: translateZ(38px);
+  filter: drop-shadow(0 10px 16px rgba(0, 0, 0, 0.28));
+  user-select: none;
+  pointer-events: none;
+}
+
+/* Soft contact shadow on the disk surface, slightly behind the emoji */
+.game-emoji-shadow {
+  position: absolute;
+  bottom: 10px;
+  left: 50%;
+  transform: translate(-50%, 0) translateZ(2px);
+  width: 70%;
+  height: 14px;
+  border-radius: 50%;
+  background: radial-gradient(ellipse, rgba(0, 0, 0, 0.18) 0%, transparent 70%);
+  pointer-events: none;
+  z-index: 1;
 }
 
 /* ===== CARD BODY ===== */
@@ -165,6 +217,7 @@
   flex-direction: column;
   flex: 1;
   gap: 0.35rem;
+  position: relative;
 }
 
 .game-name {
@@ -208,8 +261,8 @@
   font-size: 0.8rem;
   font-weight: 600;
   color: var(--card-color);
-  opacity: 0.55;
-  transition: opacity var(--ease), transform var(--ease);
+  opacity: 0.6;
+  transition: opacity 0.2s ease, transform 0.2s ease;
   white-space: nowrap;
 }
 
@@ -242,7 +295,6 @@
 }
 
 .game-card--coming-soon:hover {
-  transform: none;
   box-shadow: var(--shadow-card, 0 2px 12px rgba(45, 36, 32, 0.06));
 }
 
@@ -269,7 +321,7 @@
   padding: 0.25rem 0.6rem;
   border-radius: var(--radius-pill);
   box-shadow: 0 2px 8px rgba(0, 0, 0, 0.08);
-  z-index: 2;
+  z-index: 3;
 }
 
 /* ===== RESPONSIVE ===== */
@@ -282,7 +334,15 @@
     padding: 2.5rem 1rem 4rem;
   }
 
-  .game-card-header {
-    height: 80px;
+  .game-card-header   { height: 144px; }
+  .game-emoji-stage   { width: 102px; height: 102px; }
+  .game-emoji         { font-size: 2.9rem; }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .game-card,
+  .game-emoji-stage {
+    transform: none !important;
   }
+  .game-emoji-glow { display: none; }
 }

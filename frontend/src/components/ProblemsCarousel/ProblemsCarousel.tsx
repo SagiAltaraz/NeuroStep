@@ -13,11 +13,76 @@ import { useRef } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { motion } from 'framer-motion';
 import { ChevronLeft, ChevronRight } from 'lucide-react';
-import { COGNITIVE_PROBLEMS } from '../../data/cognitiveProblems';
+import { COGNITIVE_PROBLEMS, type CognitiveProblem } from '../../data/cognitiveProblems';
 import { useLang, type TKey } from '../../context/LanguageContext';
+import { useCardTilt } from '../../hooks/useCardTilt';
 import './ProblemsCarousel.css';
 
 const SCROLL_STEP = 340; // ~card width + gap
+
+interface ProblemCardProps {
+  problem:   CognitiveProblem;
+  title:     string;
+  desc:      string;
+  ctaLabel:  string;
+  onClick:   () => void;
+}
+
+function ProblemCard({ problem, title, desc, ctaLabel, onClick }: ProblemCardProps) {
+  const {
+    ref,
+    onMouseMove,
+    onMouseLeave,
+    cardRotX,
+    cardRotY,
+    emojiRotX,
+    emojiRotY,
+    glowX,
+    glowY,
+  } = useCardTilt<HTMLButtonElement>();
+
+  return (
+    <motion.button
+      ref={ref}
+      type="button"
+      className="pc-card"
+      style={{
+        ['--card-color' as string]:    problem.color,
+        ['--card-gradient' as string]: problem.gradient,
+        rotateX: cardRotX,
+        rotateY: cardRotY,
+        transformPerspective: 1100,
+      }}
+      onMouseMove={onMouseMove}
+      onMouseLeave={onMouseLeave}
+      whileHover={{ y: -6, scale: 1.015 }}
+      whileTap={{ scale: 0.98 }}
+      transition={{ type: 'spring', stiffness: 260, damping: 24 }}
+      onClick={onClick}
+      aria-label={title}
+    >
+      <div className="pc-card-header">
+        <motion.span
+          aria-hidden
+          className="pc-card-glow"
+          style={{ left: glowX, top: glowY }}
+        />
+        <motion.div
+          className="pc-card-stage"
+          style={{ rotateX: emojiRotX, rotateY: emojiRotY }}
+        >
+          <span className="pc-card-emoji" aria-hidden="true">{problem.icon}</span>
+          <span className="pc-card-shadow" aria-hidden />
+        </motion.div>
+      </div>
+      <div className="pc-card-body">
+        <h3 className="pc-card-title">{title}</h3>
+        <p className="pc-card-desc">{desc}</p>
+        <span className="pc-card-cta">{ctaLabel}</span>
+      </div>
+    </motion.button>
+  );
+}
 
 export default function ProblemsCarousel() {
   const trackRef = useRef<HTMLDivElement>(null);
@@ -55,29 +120,14 @@ export default function ProblemsCarousel() {
             const titleKey = `problem.${p.id}.title` as TKey;
             const descKey  = `problem.${p.id}.desc`  as TKey;
             return (
-              <motion.button
+              <ProblemCard
                 key={p.id}
-                type="button"
-                className="pc-card"
-                style={{
-                  ['--card-color' as string]:    p.color,
-                  ['--card-gradient' as string]: p.gradient,
-                }}
-                whileHover={{ y: -6 }}
-                whileTap={{   scale: 0.97 }}
-                transition={{ type: 'spring', stiffness: 400, damping: 28 }}
+                problem={p}
+                title={t(titleKey)}
+                desc={t(descKey)}
+                ctaLabel={t('problems.cta')}
                 onClick={() => navigate(`/games?problem=${p.id}`)}
-                aria-label={t(titleKey)}
-              >
-                <div className="pc-card-header">
-                  <span className="pc-card-icon" aria-hidden="true">{p.icon}</span>
-                </div>
-                <div className="pc-card-body">
-                  <h3 className="pc-card-title">{t(titleKey)}</h3>
-                  <p className="pc-card-desc">{t(descKey)}</p>
-                  <span className="pc-card-cta">{t('problems.cta')}</span>
-                </div>
-              </motion.button>
+              />
             );
           })}
         </div>

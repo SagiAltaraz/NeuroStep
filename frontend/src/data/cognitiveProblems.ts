@@ -44,53 +44,55 @@ export interface CognitiveProblem {
   gradient: string;     // CSS gradient for the card header
 }
 
+// Eight evenly-spaced hues so every problem card is visually distinct
+// from every other problem on the home page.
 export const COGNITIVE_PROBLEMS: CognitiveProblem[] = [
   {
     id:       'working-memory',
     icon:     '🧠',
-    color:    '#8B5CF6',
-    gradient: 'linear-gradient(135deg, #8B5CF6 0%, #C084FC 100%)',
+    color:    '#A855F7',                                                       // purple
+    gradient: 'linear-gradient(135deg, #A855F7 0%, #C084FC 100%)',
   },
   {
     id:       'selective-attention',
     icon:     '👁️',
-    color:    '#0EA5E9',
-    gradient: 'linear-gradient(135deg, #0EA5E9 0%, #38BDF8 100%)',
+    color:    '#3B82F6',                                                       // blue
+    gradient: 'linear-gradient(135deg, #3B82F6 0%, #60A5FA 100%)',
   },
   {
     id:       'divided-attention',
     icon:     '🔀',
-    color:    '#14B8A6',
+    color:    '#14B8A6',                                                       // teal
     gradient: 'linear-gradient(135deg, #14B8A6 0%, #2DD4BF 100%)',
   },
   {
     id:       'processing-speed',
     icon:     '⚡',
-    color:    '#F59E0B',
-    gradient: 'linear-gradient(135deg, #F59E0B 0%, #FBBF24 100%)',
+    color:    '#EAB308',                                                       // yellow
+    gradient: 'linear-gradient(135deg, #EAB308 0%, #FACC15 100%)',
   },
   {
     id:       'reaction-time',
     icon:     '⏱️',
-    color:    '#10B981',
-    gradient: 'linear-gradient(135deg, #10B981 0%, #34D399 100%)',
+    color:    '#22C55E',                                                       // green
+    gradient: 'linear-gradient(135deg, #22C55E 0%, #4ADE80 100%)',
   },
   {
     id:       'response-inhibition',
     icon:     '✋',
-    color:    '#EC4899',
+    color:    '#EC4899',                                                       // pink
     gradient: 'linear-gradient(135deg, #EC4899 0%, #F472B6 100%)',
   },
   {
     id:       'strategic-thinking',
     icon:     '♟️',
-    color:    '#6366F1',
-    gradient: 'linear-gradient(135deg, #6366F1 0%, #818CF8 100%)',
+    color:    '#EF4444',                                                       // red
+    gradient: 'linear-gradient(135deg, #EF4444 0%, #F87171 100%)',
   },
   {
     id:       'visual-spatial',
     icon:     '🧩',
-    color:    '#F97316',
+    color:    '#F97316',                                                       // orange
     gradient: 'linear-gradient(135deg, #F97316 0%, #FB923C 100%)',
   },
 ];
