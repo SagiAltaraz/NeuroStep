@@ -86,6 +86,8 @@
   padding: 1rem 0.5rem;
   scrollbar-width: thin;
   scrollbar-color: rgba(99, 102, 241, 0.35) transparent;
+  /* shared 3D scene for every card */
+  perspective: 1200px;
 }
 .pc-track::-webkit-scrollbar        { height: 6px; }
 .pc-track::-webkit-scrollbar-thumb  { background: rgba(99, 102, 241, 0.35); border-radius: 3px; }
@@ -95,7 +97,7 @@
 
 .pc-card {
   flex: 0 0 320px;
-  min-height: 280px;
+  min-height: 320px;
   scroll-snap-align: start;
 
   display: flex;
@@ -109,13 +111,15 @@
   font-family: inherit;
   padding: 0;
   box-shadow: 0 4px 16px rgba(15, 23, 42, 0.05);
-  transition: box-shadow 0.2s ease, border-color 0.2s ease;
+  transform-style: preserve-3d;
+  transition: box-shadow 0.25s ease, border-color 0.25s ease;
+  will-change: transform;
 }
 
 .pc-card:hover  {
-  box-shadow: 0 12px 32px rgba(15, 23, 42, 0.12),
-              0 0 0 4px var(--card-color, #6366f1) 22;   /* subtle accent halo */
-  border-color: var(--card-color, #6366f1);
+  box-shadow: 0 24px 56px rgba(15, 23, 42, 0.16),
+              0 0 0 1px color-mix(in srgb, var(--card-color, #6366f1) 25%, transparent);
+  border-color: color-mix(in srgb, var(--card-color, #6366f1) 35%, transparent);
 }
 
 .pc-card:focus-visible {
@@ -123,40 +127,97 @@
   outline-offset: 3px;
 }
 
-/* Coloured top header */
+/* Coloured top header — the 3D stage */
 .pc-card-header {
-  height: 96px;
+  height: 152px;
   background: var(--card-gradient, linear-gradient(135deg, #6366f1 0%, #8b5cf6 100%));
   position: relative;
   display: flex;
   align-items: center;
   justify-content: center;
   flex-shrink: 0;
+  overflow: hidden;
+  transform-style: preserve-3d;
 }
 
-/* Decorative bubbles in the header — purely visual */
+/* Decorative orbs */
 .pc-card-header::before,
 .pc-card-header::after {
   content: '';
   position: absolute;
   border-radius: 50%;
-  background: rgba(255, 255, 255, 0.18);
+  background: rgba(255, 255, 255, 0.16);
+  pointer-events: none;
 }
-.pc-card-header::before { width: 70px; height: 70px; top: -20px; left: -20px; }
-.pc-card-header::after  { width: 100px; height: 100px; bottom: -30px; right: -30px; }
+.pc-card-header::before { width: 90px;  height: 90px;  top: -28px; left: -28px; }
+.pc-card-header::after  { width: 120px; height: 120px; bottom: -36px; right: -28px; }
 
-.pc-card-icon {
-  position: relative;
-  z-index: 1;
-  font-size: 2.4rem;
-  width: 64px;
-  height: 64px;
+/* Cursor-following glow */
+.pc-card-glow {
+  position: absolute;
+  width: 220px;
+  height: 220px;
   border-radius: 50%;
-  background: rgba(255, 255, 255, 0.92);
+  background: radial-gradient(circle,
+    rgba(255, 255, 255, 0.55) 0%,
+    rgba(255, 255, 255, 0.12) 45%,
+    transparent 70%);
+  transform: translate(-50%, -50%);
+  pointer-events: none;
+  opacity: 0;
+  transition: opacity 0.3s ease;
+  mix-blend-mode: screen;
+  z-index: 1;
+}
+.pc-card:hover .pc-card-glow { opacity: 1; }
+
+/* Emoji stage — tilts in 3D on hover */
+.pc-card-stage {
+  position: relative;
+  z-index: 2;
+  width: 108px;
+  height: 108px;
+  border-radius: 50%;
   display: flex;
   align-items: center;
   justify-content: center;
-  box-shadow: 0 6px 16px rgba(0, 0, 0, 0.12);
+  background:
+    radial-gradient(circle at 30% 25%,
+      rgba(255,255,255,0.6) 0%,
+      rgba(255,255,255,0.2) 55%,
+      rgba(255,255,255,0.05) 100%);
+  border: 1.5px solid rgba(255, 255, 255, 0.55);
+  backdrop-filter: blur(10px);
+  -webkit-backdrop-filter: blur(10px);
+  box-shadow:
+    0 18px 40px -16px rgba(0, 0, 0, 0.35),
+    inset 0 1px 0 rgba(255, 255, 255, 0.6),
+    inset 0 -10px 24px rgba(0, 0, 0, 0.08);
+  transform-style: preserve-3d;
+  will-change: transform;
+}
+
+/* The emoji floats above the disk */
+.pc-card-emoji {
+  font-size: 3rem;
+  line-height: 1;
+  transform: translateZ(38px);
+  filter: drop-shadow(0 10px 16px rgba(0, 0, 0, 0.28));
+  user-select: none;
+  pointer-events: none;
+}
+
+.pc-card-shadow {
+  position: absolute;
+  bottom: 10px;
+  left: 50%;
+  transform: translate(-50%, 0) translateZ(2px);
+  width: 70%;
+  height: 14px;
+  border-radius: 50%;
+  background: radial-gradient(ellipse, rgba(0, 0, 0, 0.18) 0%, transparent 70%);
+  pointer-events: none;
+  z-index: 1;
 }
 
 /* Card body */
@@ -199,7 +260,16 @@
 
 @media (max-width: 480px) {
   .problems-section { padding: 3rem 0.5rem 4rem; }
-  .pc-card          { flex: 0 0 280px; min-height: 260px; }
-  .pc-card-header   { height: 84px; }
-  .pc-card-icon     { width: 56px; height: 56px; font-size: 2rem; }
+  .pc-card          { flex: 0 0 280px; min-height: 300px; }
+  .pc-card-header   { height: 132px; }
+  .pc-card-stage    { width: 96px; height: 96px; }
+  .pc-card-emoji    { font-size: 2.6rem; }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .pc-card,
+  .pc-card-stage {
+    transform: none !important;
+  }
+  .pc-card-glow { display: none; }
 }

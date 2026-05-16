@@ -1,4 +1,5 @@
 import { useNavigate, useSearchParams } from 'react-router-dom';
+import { motion } from 'framer-motion';
 import './GamesPage.css';
 import {
   gamesForProblem,
@@ -8,6 +9,7 @@ import {
   type TrainingStrength,
 } from '../../data/cognitiveProblems';
 import { useLang, type TKey } from '../../context/LanguageContext';
+import { useCardTilt } from '../../hooks/useCardTilt';
 
 interface GameEntry {
   id:          string;
@@ -24,8 +26,9 @@ interface GameEntry {
   comingSoon?: boolean;
 }
 
+// ── Color palette ──────────────────────────────────────────────────
+// Eight evenly-spaced hues — every game has a distinct, non-adjacent color.
 const games: GameEntry[] = [
-  // ── Live games ───────────────────────────────────────────────────
   {
     id: 'colorTracking',
     nameHe: 'רכבות הצבעים',
@@ -33,8 +36,8 @@ const games: GameEntry[] = [
     icon: '🚂',
     descHe: 'עקוב אחרי הרכבות ושלח כל אחת לתחנה הנכונה',
     descEn: 'Track each train and route it to the matching station',
-    color: '#3B82F6',
-    glow: 'rgba(59, 130, 246, 0.22)',
+    color: '#3B82F6',                                 // blue
+    glow:  'rgba(59, 130, 246, 0.22)',
     route: '/games/colorTracking',
   },
   {
@@ -44,8 +47,8 @@ const games: GameEntry[] = [
     icon: '♟️',
     descHe: 'שחק נגד המחשב, חשוב אסטרטגית ותכנן קדימה לנצח',
     descEn: 'Play against the computer, think strategically, plan ahead',
-    color: '#7C3AED',
-    glow: 'rgba(124, 58, 237, 0.22)',
+    color: '#7C3AED',                                 // purple
+    glow:  'rgba(124, 58, 237, 0.22)',
     route: '/games/ticTacToe',
   },
   {
@@ -55,8 +58,8 @@ const games: GameEntry[] = [
     icon: '🃏',
     descHe: 'הפוך קלפים ומצא זוגות תואמים',
     descEn: 'Flip cards and find matching pairs',
-    color: '#059669',
-    glow: 'rgba(5, 150, 105, 0.22)',
+    color: '#22C55E',                                 // green
+    glow:  'rgba(34, 197, 94, 0.22)',
     route: '/games/memory',
   },
   {
@@ -66,19 +69,18 @@ const games: GameEntry[] = [
     icon: '🔵',
     descHe: 'לחץ רק על העיגולים שמופיעים על המסך ‒ הימנע משאר הצורות',
     descEn: 'Tap only the circles — ignore every other shape',
-    color: '#D97706',
-    glow: 'rgba(217, 119, 6, 0.22)',
+    color: '#F97316',                                 // orange
+    glow:  'rgba(249, 115, 22, 0.22)',
     route: '/games/shapesClick',
   },
 
-  // ── Newly released games ─────────────────────────────────────────
   {
     id: 'greenLight',
     nameKey: 'game.greenLight.name',
     descKey: 'game.greenLight.desc',
     icon: '🚦',
-    color: '#10B981',
-    glow: 'rgba(16, 185, 129, 0.22)',
+    color: '#EAB308',                                 // yellow / gold
+    glow:  'rgba(234, 179, 8, 0.22)',
     route: '/games/greenLight',
   },
   {
@@ -86,8 +88,8 @@ const games: GameEntry[] = [
     nameKey: 'game.spotDifference.name',
     descKey: 'game.spotDifference.desc',
     icon: '🔍',
-    color: '#F59E0B',
-    glow: 'rgba(245, 158, 11, 0.22)',
+    color: '#EC4899',                                 // pink / magenta
+    glow:  'rgba(236, 72, 153, 0.22)',
     route: '/games/spotDifference',
   },
   {
@@ -95,8 +97,8 @@ const games: GameEntry[] = [
     nameKey: 'game.whereWasIt.name',
     descKey: 'game.whereWasIt.desc',
     icon: '🧩',
-    color: '#F97316',
-    glow: 'rgba(249, 115, 22, 0.22)',
+    color: '#EF4444',                                 // red
+    glow:  'rgba(239, 68, 68, 0.22)',
     route: '/games/whereWasIt',
   },
   {
@@ -104,11 +106,113 @@ const games: GameEntry[] = [
     nameKey: 'game.findLetter.name',
     descKey: 'game.findLetter.desc',
     icon: '🔤',
-    color: '#0EA5E9',
-    glow: 'rgba(14, 165, 233, 0.22)',
+    color: '#06B6D4',                                 // cyan
+    glow:  'rgba(6, 182, 212, 0.22)',
     route: '/games/findLetter',
   },
 ];
+
+interface GameCardProps {
+  game:             GameEntry;
+  isComing:         boolean;
+  primaryLabel:     string | null;
+  primaryPrefix:    string;
+  name:             string;
+  desc:             string;
+  comingSoonLabel:  string;
+  playLabel:        string;
+  ariaLabel:        string;
+  onClick:          () => void;
+}
+
+function GameCard({
+  game,
+  isComing,
+  primaryLabel,
+  primaryPrefix,
+  name,
+  desc,
+  comingSoonLabel,
+  playLabel,
+  ariaLabel,
+  onClick,
+}: GameCardProps) {
+  const {
+    ref,
+    onMouseMove,
+    onMouseLeave,
+    cardRotX,
+    cardRotY,
+    emojiRotX,
+    emojiRotY,
+    glowX,
+    glowY,
+  } = useCardTilt<HTMLButtonElement>({ enabled: !isComing });
+
+  return (
+    <motion.button
+      ref={ref}
+      type="button"
+      className={`game-card${isComing ? ' game-card--coming-soon' : ''}`}
+      onClick={onClick}
+      onMouseMove={onMouseMove}
+      onMouseLeave={onMouseLeave}
+      disabled={isComing}
+      aria-label={ariaLabel}
+      style={{
+        ['--card-color' as string]: game.color,
+        ['--card-glow' as string]:  game.glow,
+        rotateX: cardRotX,
+        rotateY: cardRotY,
+        transformPerspective: 1100,
+      }}
+      whileHover={isComing ? undefined : { y: -6, scale: 1.015 }}
+      whileTap={isComing ? undefined : { scale: 0.98 }}
+      transition={{ type: 'spring', stiffness: 260, damping: 24 }}
+    >
+      <div className="game-card-header">
+        <div className="game-card-header-bg" />
+
+        {!isComing && (
+          <motion.span
+            aria-hidden
+            className="game-emoji-glow"
+            style={{ left: glowX, top: glowY }}
+          />
+        )}
+
+        <motion.div
+          className="game-emoji-stage"
+          style={{ rotateX: emojiRotX, rotateY: emojiRotY }}
+        >
+          <span className="game-emoji">{game.icon}</span>
+          <span className="game-emoji-shadow" aria-hidden />
+        </motion.div>
+
+        {isComing && (
+          <span className="game-coming-badge">{comingSoonLabel}</span>
+        )}
+      </div>
+
+      <div className="game-card-body">
+        <h2 className="game-name">{name}</h2>
+        <p className="game-desc">{desc}</p>
+
+        {primaryLabel && (
+          <span className="game-primary-skill">
+            ★ {primaryPrefix}: {primaryLabel}
+          </span>
+        )}
+
+        <div className="game-card-footer">
+          <span className="game-play-cue">
+            {isComing ? comingSoonLabel : playLabel}
+          </span>
+        </div>
+      </div>
+    </motion.button>
+  );
+}
 
 export default function GamesPage() {
   const navigate       = useNavigate();
@@ -189,45 +293,21 @@ export default function GamesPage() {
                 ? t(`problem.${primaryProblem}.title` as TKey)
                 : null;
 
+              const name = gameName(game);
               return (
-                <button
+                <GameCard
                   key={game.id}
-                  className={`game-card${isComing ? ' game-card--coming-soon' : ''}`}
+                  game={game}
+                  isComing={isComing}
+                  primaryLabel={primaryLabel}
+                  primaryPrefix={t('training.primary')}
+                  name={name}
+                  desc={gameDesc(game)}
+                  comingSoonLabel={t('games.coming.soon')}
+                  playLabel={t('games.play')}
+                  ariaLabel={name + (isComing ? ` (${t('games.coming.soon')})` : '')}
                   onClick={() => handleCardClick(game)}
-                  disabled={isComing}
-                  aria-label={gameName(game) + (isComing ? ` (${t('games.coming.soon')})` : '')}
-                  style={{
-                    '--card-color': game.color,
-                    '--card-glow':  game.glow,
-                  } as React.CSSProperties}
-                >
-                  <div className="game-card-header">
-                    <div className="game-card-header-bg" />
-                    <div className="game-emoji-wrap">
-                      <span>{game.icon}</span>
-                    </div>
-                    {isComing && (
-                      <span className="game-coming-badge">{t('games.coming.soon')}</span>
-                    )}
-                  </div>
-
-                  <div className="game-card-body">
-                    <h2 className="game-name">{gameName(game)}</h2>
-                    <p className="game-desc">{gameDesc(game)}</p>
-
-                    {primaryLabel && (
-                      <span className="game-primary-skill">
-                        ★ {t('training.primary')}: {primaryLabel}
-                      </span>
-                    )}
-
-                    <div className="game-card-footer">
-                      <span className="game-play-cue">
-                        {isComing ? t('games.coming.soon') : t('games.play')}
-                      </span>
-                    </div>
-                  </div>
-                </button>
+                />
               );
             })}
           </div>
