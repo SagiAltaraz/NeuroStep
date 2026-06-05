@@ -1,88 +1,218 @@
 /**
- * Adaptive Agent — real-time difficulty adjustment
+ * Adaptive Agent — real-time difficulty adjustment (DDA controller)
  *
- * Algorithm (per event):
- *   1. EMA  — exponential moving average of reactionMs this session
- *   2. Baseline — user's historical avg from Firestore (loaded once per session)
- *   3. Z-score — how far is the current EMA from the user's personal baseline?
- *   4. Trend — linear regression over last N reaction times (fatigue detection)
- *   5. Map to per-game difficulty params
+ * Model: a single normalised difficulty level  D ∈ [0,1]  per game.
+ *   0 = easiest anchor, 1 = hardest anchor. Game params are produced by
+ *   interpolating between an EASY and a HARD anchor config (paramsFromD).
  *
- * Works for ALL games — only the final param mapping is game-specific.
+ * Control loop (every EVAL_EVERY scored events, after MIN_EVENTS):
+ *   1. Compute a performance score  P ∈ [0,1]  using a per-domain model:
+ *        - 'speed-acc'  → blend of accuracy + speed-vs-baseline (+streak)
+ *        - 'accuracy'   → accuracy-dominant (working-memory games)
+ *        - 'outcome'    → win/draw/loss ratio (tic-tac-toe)
+ *   2. Keep P inside a target band (flow zone). Inside the band → no change
+ *      (dead-zone, prevents ping-pong).
+ *   3. Outside the band → nudge D proportionally with a clamped step.
+ *   4. Map D → absolute game params and send them. The game applies them at
+ *      the next round boundary.
+ *   5. Persist a *smoothed* D so the next session resumes at the same level
+ *      (and a brief end-of-session fatigue dip does not regress the saved level).
  *
- * Library: simple-statistics (mean, standardDeviation, linearRegression)
- *   → installed in game-server/node_modules/simple-statistics
- *   → provides the maths so we don't hand-roll moving averages
+ * Library: simple-statistics (mean, standardDeviation, linearRegression).
  */
 
 import { mean, standardDeviation, linearRegression } from 'simple-statistics';
-import { getDb }                                     from '../firebase.js';
-import type { DifficultyParams, GameId }             from '../types/game.types.js';
+import { getDb }                                      from '../firebase.js';
+import type { DifficultyParams, GameId }              from '../types/game.types.js';
 
-// ── Config ─────────────────────────────────────────────────────────────────────
+// ── Controller config ───────────────────────────────────────────────────────────
 
-const EMA_ALPHA        = 0.25;   // smoothing factor (0=no update, 1=instant)
-const TREND_WINDOW     = 12;     // last N reaction times used for regression
-const MIN_EVENTS       = 6;      // don't adjust until we have enough data
-const COOLDOWN_MS      = 12_000; // min ms between two adjustments
-const Z_HARD_THRESHOLD = -1.3;   // user is faster than baseline → game too easy
-const Z_EASY_THRESHOLD =  1.3;   // user is slower than baseline → game too hard
-const TREND_THRESHOLD  =  8;     // ms per event upward slope = fatigue signal
+const EMA_ALPHA       = 0.25;   // smoothing for reaction-time EMA
+const TREND_WINDOW    = 12;     // reaction times kept for fatigue regression
+const MIN_EVENTS      = 5;      // don't adjust until we have a little data
+const MIN_COOLDOWN_MS = 2_500;  // anti-burst only; cadence is event-driven
+const STEP_MAX        = 0.12;   // max change to D per adjustment → smooth
+const BASE_GAIN       = 0.6;    // proportional gain (step = gain * error)
+const D_DEFAULT       = 0.40;   // cold-start level (no saved history)
+const DSMOOTH_ALPHA   = 0.30;   // smoothing for the persisted D
+const ACCURACY_WINDOW = 16;     // hits/misses kept for the accuracy estimate
 
 // ── Per-session state ─────────────────────────────────────────────────────────
 
 export interface AdaptiveState {
-  userId:          string;
-  gameId:          GameId;
-  sessionId:       string;
-  // EMA
-  emaReactionMs:   number | null;  // null until first hit
-  // Baseline (loaded from Firestore, null = anonymous / no history)
-  baselineMean:    number | null;
-  baselineStdDev:  number | null;
-  baselineLoaded:  boolean;
-  // Trend buffer
-  reactionWindow:  number[];       // last TREND_WINDOW reaction times
-  // Accuracy sliding window
-  accuracyWindow:  boolean[];      // true=hit, false=miss/timeout, last 10
-  // Throttle
-  lastAdjustAt:    number;
+  userId:    string;
+  gameId:    GameId;
+  sessionId: string;
+
+  // Difficulty level
+  D:          number;        // current difficulty 0..1
+  dSmoothed:  number;        // slow EMA of D — this is what gets persisted
+  profileLoaded: boolean;
+
+  // Reaction-time signals (kept for speed scoring + report-agent)
+  emaReactionMs:  number | null;
+  baselineMean:   number | null;
+  baselineStdDev: number | null;
+  reactionWindow: number[];
+
+  // Accuracy sliding window (hits vs misses, last 10)
+  accuracyWindow: boolean[];
+
+  // Outcome window for 'outcome' games (win=1, draw=0.5, loss=0, last 8)
+  outcomeWindow:  number[];
+
+  // Cadence / throttle
+  lastAdjustAt:      number;
   totalScoredEvents: number;
+  lastEvalCount:     number;  // totalScoredEvents at last evaluation
 }
 
 export function createAdaptiveState(sessionId: string, gameId: GameId, userId: string): AdaptiveState {
   return {
     userId, gameId, sessionId,
-    emaReactionMs:    null,
-    baselineMean:     null,
-    baselineStdDev:   null,
-    baselineLoaded:   false,
-    reactionWindow:   [],
-    accuracyWindow:   [],
-    lastAdjustAt:     0,
+    D:              D_DEFAULT,
+    dSmoothed:      D_DEFAULT,
+    profileLoaded:  false,
+    emaReactionMs:  null,
+    baselineMean:   null,
+    baselineStdDev: null,
+    reactionWindow: [],
+    accuracyWindow: [],
+    outcomeWindow:  [],
+    lastAdjustAt:      0,
     totalScoredEvents: 0,
+    lastEvalCount:     0,
   };
 }
 
-// ── Firebase ───────────────────────────────────────────────────────────────────
+// ── Per-game tuning ─────────────────────────────────────────────────────────────
 
-async function loadBaseline(userId: string, gameId: GameId): Promise<{ mean: number; stdDev: number } | null> {
-  if (userId === 'anonymous') return null;
-  try {
-    const doc = await getDb().collection('users').doc(userId).collection('stats').doc(gameId).get();
-    if (!doc.exists) return null;
-    const data = doc.data()!;
-    if (typeof data.avgReactionMs !== 'number' || typeof data.stdDevReactionMs !== 'number') return null;
-    return { mean: data.avgReactionMs, stdDev: data.stdDevReactionMs };
-  } catch { return null; }
+type PMode = 'speed-acc' | 'accuracy' | 'outcome';
+
+interface GameTuning {
+  pMode:       PMode;
+  target:      number;                 // P target centre (flow zone)
+  band:        number;                 // dead-zone half-width
+  evalEvery:   number;                 // scored events between evaluations
+  weights?:    { acc: number; speed: number; streak: number };  // speed-acc only
+  gain?:       number;                 // proportional gain (default BASE_GAIN)
+  stepMax?:    number;                 // max |ΔD| per adjustment (default STEP_MAX)
+  outcomeWindow?: number;              // window size for 'outcome' mode (default 8)
+  anchors:     Record<string, [number, number]>;  // [easy(D=0), hard(D=1)]
+  discreteKeys?: string[];             // rounded to integer
+  evenKeys?:     string[];             // rounded to nearest even (pairs)
 }
 
-// ── Core update ────────────────────────────────────────────────────────────────
+const GAME_TUNING: Record<GameId, GameTuning> = {
+  'shapes-click': {
+    pMode: 'speed-acc', target: 0.72, band: 0.07, evalEvery: 4,
+    weights: { acc: 0.4, speed: 0.5, streak: 0.1 },
+    anchors: { circleLifeMs: [3500, 900], distractorCount: [0, 5] },
+    discreteKeys: ['distractorCount'],
+  },
+  'color-trains': {
+    pMode: 'speed-acc', target: 0.72, band: 0.07, evalEvery: 4,
+    weights: { acc: 0.4, speed: 0.5, streak: 0.1 },
+    anchors: { trainSpeedPx: [80, 260], reactionMs: [9000, 2500] },
+  },
+  'green-light': {
+    pMode: 'speed-acc', target: 0.72, band: 0.07, evalEvery: 4,
+    weights: { acc: 0.5, speed: 0.4, streak: 0.1 },
+    anchors: { greenWindowMs: [1500, 550], redHoldMinMs: [1400, 3200], redHoldMaxMs: [2600, 5200] },
+  },
+  'spot-difference': {
+    pMode: 'speed-acc', target: 0.72, band: 0.07, evalEvery: 4,
+    weights: { acc: 0.55, speed: 0.35, streak: 0.1 },
+    anchors: { gridSize: [3, 7], similarity: [0.15, 0.92], roundTimeoutMs: [12000, 3500] },
+    discreteKeys: ['gridSize'],
+  },
+  'find-letter': {
+    pMode: 'speed-acc', target: 0.72, band: 0.07, evalEvery: 4,
+    weights: { acc: 0.5, speed: 0.4, streak: 0.1 },
+    anchors: { gridSize: [4, 9], roundTimeoutMs: [18000, 5000], distractorBoost: [0, 0.85] },
+    discreteKeys: ['gridSize'],
+  },
+  'where-was-it': {
+    pMode: 'accuracy', target: 0.72, band: 0.08, evalEvery: 2,
+    anchors: { sequenceLength: [3, 9], flashDurationMs: [900, 280] },
+    discreteKeys: ['sequenceLength'],
+  },
+  'memory': {
+    pMode: 'accuracy', target: 0.72, band: 0.08, evalEvery: 3,
+    anchors: { cardCount: [6, 24], flipTimeMs: [1600, 450] },
+    evenKeys: ['cardCount'],
+  },
+  'tictactoe': {
+    // Outcomes are very noisy (win/loss/draw), so this controller is deliberately
+    // slow & coarse: a wide dead-zone, gentle gain, small steps and a long window
+    // average out luck instead of chasing it.
+    pMode: 'outcome', target: 0.58, band: 0.15, evalEvery: 3,
+    gain: 0.35, stepMax: 0.06, outcomeWindow: 14,
+    anchors: { aiDepth: [1, 6] },
+    discreteKeys: ['aiDepth'],
+  },
+};
+
+// ── Event classification ────────────────────────────────────────────────────────
+
+// Events that count as a "hit" for accuracy.
+const HIT_TYPES: Record<string, Set<string>> = {
+  'shapes-click':    new Set(['CIRCLE_HIT']),
+  'color-trains':    new Set(['STATION_SELECTED']),
+  'memory':          new Set(['PAIR_MATCHED']),
+  'green-light':     new Set(['GO_HIT']),
+  'spot-difference': new Set(['ODD_HIT']),
+  'where-was-it':    new Set(['SEQUENCE_COMPLETE']),
+  'find-letter':     new Set(['LETTER_HIT', 'ROUND_COMPLETE']),
+};
+
+// Events that count toward accuracy denominator (hit OR miss).
+const SCORED_TYPES: Record<string, Set<string>> = {
+  'shapes-click':    new Set(['CIRCLE_HIT', 'DISTRACTOR_CLICK', 'TIMEOUT']),
+  'color-trains':    new Set(['STATION_SELECTED', 'MISSED_SWITCH', 'ROUND_END']),
+  'memory':          new Set(['PAIR_MATCHED', 'PAIR_MISSED']),
+  'green-light':     new Set(['GO_HIT', 'FALSE_START', 'MISS']),
+  'spot-difference': new Set(['ODD_HIT', 'WRONG_PICK', 'TIMEOUT']),
+  'where-was-it':    new Set(['SEQUENCE_COMPLETE', 'SEQUENCE_FAIL']),
+  'find-letter':     new Set(['LETTER_HIT', 'ROUND_COMPLETE', 'WRONG_PICK', 'TIMEOUT']),
+};
+
+// ── Firebase profile (baseline + saved difficulty) ──────────────────────────────
+
+async function loadProfile(
+  userId: string, gameId: GameId,
+): Promise<{ mean: number | null; stdDev: number | null; difficulty: number | null }> {
+  if (userId === 'anonymous') return { mean: null, stdDev: null, difficulty: null };
+  try {
+    const doc = await getDb().collection('users').doc(userId).collection('stats').doc(gameId).get();
+    if (!doc.exists) return { mean: null, stdDev: null, difficulty: null };
+    const d = doc.data()!;
+    const mean   = typeof d.avgReactionMs    === 'number' ? d.avgReactionMs    : null;
+    const stdDev = typeof d.stdDevReactionMs === 'number' ? d.stdDevReactionMs : null;
+    const difficulty = typeof d.difficultyLevel === 'number' ? d.difficultyLevel : null;
+    return { mean, stdDev, difficulty };
+  } catch { return { mean: null, stdDev: null, difficulty: null }; }
+}
+
+/** Persist the smoothed difficulty level so the next session resumes here. */
+export async function persistDifficulty(userId: string, gameId: GameId, dSmoothed: number): Promise<void> {
+  if (userId === 'anonymous') return;
+  try {
+    const ref = getDb().collection('users').doc(userId).collection('stats').doc(gameId);
+    await ref.set({
+      difficultyLevel:     Math.round(clamp01(dSmoothed) * 1000) / 1000,
+      difficultyUpdatedAt: Date.now(),
+    }, { merge: true });
+  } catch { /* non-critical */ }
+}
+
+// ── Public event/result shapes ──────────────────────────────────────────────────
 
 export interface AdaptiveEvent {
-  type:       string;
+  type:        string;
   reactionMs?: number;
   correct?:    boolean;
+  winner?:     'player' | 'ai';   // tic-tac-toe GAME_WON
 }
 
 export interface AdaptiveResult {
@@ -90,212 +220,173 @@ export interface AdaptiveResult {
   direction?: 'harder' | 'easier';
   reason?:   string;
   params?:   DifficultyParams;
-  debug?:    {
-    ema:       number | null;
-    baseline:  number | null;
-    zScore:    number | null;
-    trend:     number | null;
-    accuracy:  number;
+  debug?: {
+    P:        number | null;
+    D:        number;
+    accuracy: number;
+    ema:      number | null;
+    baseline: number | null;
   };
 }
 
-// Hit event types per game
-const HIT_TYPES: Record<string, Set<string>> = {
-  'shapes-click':     new Set(['CIRCLE_HIT']),
-  'color-trains':     new Set(['STATION_SELECTED']),
-  'tictactoe':        new Set(['GAME_WON', 'MOVE_MADE']),
-  'memory':           new Set(['PAIR_MATCHED']),
-  'green-light':      new Set(['GO_HIT']),
-  'spot-difference':  new Set(['ODD_HIT']),
-  'where-was-it':     new Set(['SEQUENCE_COMPLETE']),
-  'find-letter':      new Set(['LETTER_HIT', 'ROUND_COMPLETE']),
-};
+// ── Core update ──────────────────────────────────────────────────────────────────
 
-const SCORED_TYPES: Record<string, Set<string>> = {
-  'shapes-click':     new Set(['CIRCLE_HIT', 'DISTRACTOR_CLICK', 'TIMEOUT']),
-  'color-trains':     new Set(['STATION_SELECTED', 'MISSED_SWITCH', 'ROUND_END']),
-  'tictactoe':        new Set(['GAME_WON', 'GAME_DRAW', 'MOVE_MADE']),
-  'memory':           new Set(['PAIR_MATCHED', 'PAIR_MISSED']),
-  'green-light':      new Set(['GO_HIT', 'FALSE_START', 'MISS']),
-  'spot-difference':  new Set(['ODD_HIT', 'WRONG_PICK', 'TIMEOUT']),
-  'where-was-it':     new Set(['SEQUENCE_COMPLETE', 'SEQUENCE_FAIL']),
-  'find-letter':      new Set(['LETTER_HIT', 'ROUND_COMPLETE', 'WRONG_PICK', 'TIMEOUT']),
-};
-
-export async function processEvent(
-  state: AdaptiveState,
-  event: AdaptiveEvent,
-): Promise<AdaptiveResult> {
+export async function processEvent(state: AdaptiveState, event: AdaptiveEvent): Promise<AdaptiveResult> {
+  const tuning      = GAME_TUNING[state.gameId];
+  if (!tuning) return { adjusted: false };
 
   const hitTypes    = HIT_TYPES[state.gameId]    ?? new Set<string>();
   const scoredTypes = SCORED_TYPES[state.gameId] ?? new Set<string>();
 
-  if (!scoredTypes.has(event.type)) return { adjusted: false };
-
-  // Load baseline once per session
-  if (!state.baselineLoaded) {
-    state.baselineLoaded = true;
-    const b = await loadBaseline(state.userId, state.gameId);
-    if (b) { state.baselineMean = b.mean; state.baselineStdDev = b.stdDev; }
+  // Load personal profile once per session (baseline + saved difficulty).
+  if (!state.profileLoaded) {
+    state.profileLoaded = true;
+    const p = await loadProfile(state.userId, state.gameId);
+    state.baselineMean   = p.mean;
+    state.baselineStdDev = p.stdDev;
+    if (p.difficulty !== null) { state.D = p.difficulty; state.dSmoothed = p.difficulty; }
   }
 
-  state.totalScoredEvents++;
+  // ── Ingest the event per scoring mode ──────────────────────────
+  if (tuning.pMode === 'outcome') {
+    // Only completed games drive the controller; individual moves are ignored.
+    if (event.type === 'GAME_WON')      state.outcomeWindow.push(event.winner === 'ai' ? 0 : 1);
+    else if (event.type === 'GAME_DRAW') state.outcomeWindow.push(0.5);
+    else return { adjusted: false };
+    if (state.outcomeWindow.length > (tuning.outcomeWindow ?? 8)) state.outcomeWindow.shift();
+    state.totalScoredEvents++;
+  } else {
+    if (!scoredTypes.has(event.type)) return { adjusted: false };
+    state.totalScoredEvents++;
 
-  const isHit = hitTypes.has(event.type);
-  state.accuracyWindow.push(isHit);
-  if (state.accuracyWindow.length > 10) state.accuracyWindow.shift();
+    const isHit = hitTypes.has(event.type);
+    state.accuracyWindow.push(isHit);
+    if (state.accuracyWindow.length > ACCURACY_WINDOW) state.accuracyWindow.shift();
 
-  // Update EMA and trend window with reactionMs (hits only — misses have no clean reaction time)
-  const rt = event.reactionMs ?? null;
-  if (rt && rt > 0 && rt < 10_000 && isHit) {
-    state.emaReactionMs = state.emaReactionMs === null
-      ? rt
-      : EMA_ALPHA * rt + (1 - EMA_ALPHA) * state.emaReactionMs;
-
-    state.reactionWindow.push(rt);
-    if (state.reactionWindow.length > TREND_WINDOW) state.reactionWindow.shift();
+    // Reaction-time EMA + trend window (hits only — misses have no clean RT).
+    const rt = event.reactionMs ?? null;
+    if (rt && rt > 0 && rt < 10_000 && isHit) {
+      state.emaReactionMs = state.emaReactionMs === null
+        ? rt
+        : EMA_ALPHA * rt + (1 - EMA_ALPHA) * state.emaReactionMs;
+      state.reactionWindow.push(rt);
+      if (state.reactionWindow.length > TREND_WINDOW) state.reactionWindow.shift();
+    }
   }
 
-  // Not enough data yet
+  // ── Gate: enough data + event-count cadence + anti-burst cooldown ──
   if (state.totalScoredEvents < MIN_EVENTS) return { adjusted: false };
+  if (state.totalScoredEvents - state.lastEvalCount < tuning.evalEvery) return { adjusted: false };
+  if (Date.now() - state.lastAdjustAt < MIN_COOLDOWN_MS) return { adjusted: false };
+  state.lastEvalCount = state.totalScoredEvents;
 
-  // Cooldown
-  if (Date.now() - state.lastAdjustAt < COOLDOWN_MS) return { adjusted: false };
+  // ── Compute performance score P ────────────────────────────────
+  const P = computeP(state, tuning);
+  if (P === null) return { adjusted: false };
 
-  // ── Compute signals ────────────────────────────────────────────
+  // Track smoothed D every evaluation (even when not adjusting) so the
+  // persisted level reflects sustained performance, not a transient dip.
+  state.dSmoothed = DSMOOTH_ALPHA * state.D + (1 - DSMOOTH_ALPHA) * state.dSmoothed;
 
-  const accuracy = mean(state.accuracyWindow.map(h => h ? 1 : 0));
+  const accuracy = state.accuracyWindow.length
+    ? mean(state.accuracyWindow.map(h => (h ? 1 : 0)))
+    : 0;
 
-  // Z-score: how many std deviations is current EMA from user's personal baseline?
-  let zScore: number | null = null;
-  if (state.emaReactionMs !== null && state.baselineMean !== null && state.baselineStdDev && state.baselineStdDev > 10) {
-    zScore = (state.emaReactionMs - state.baselineMean) / state.baselineStdDev;
-  }
+  const debug = { P, D: state.D, accuracy, ema: state.emaReactionMs, baseline: state.baselineMean };
 
-  // Trend: slope of reaction times (positive = getting slower = fatigue)
-  let trend: number | null = null;
-  if (state.reactionWindow.length >= 4) {
-    const pts = state.reactionWindow.map((y, x) => [x, y] as [number, number]);
-    trend = linearRegression(pts).m;  // ms per event
-  }
+  // ── Controller: dead-zone + proportional clamped step ──────────
+  const error = P - tuning.target;
+  if (Math.abs(error) <= tuning.band) return { adjusted: false, debug };
 
-  const debug = {
-    ema:      state.emaReactionMs,
-    baseline: state.baselineMean,
-    zScore,
-    trend,
-    accuracy,
-  };
+  const gain    = tuning.gain    ?? BASE_GAIN;
+  const stepMax = tuning.stepMax ?? STEP_MAX;
+  const step = clamp(gain * error, -stepMax, stepMax);
+  const newD = clamp01(state.D + step);
+  if (Math.abs(newD - state.D) < 1e-3) return { adjusted: false, debug };
 
-  // ── Decision ───────────────────────────────────────────────────
-  let direction: 'harder' | 'easier' | null = null;
-  let reason    = '';
-
-  // Priority 1: fatigue (reaction times rising fast)
-  if (trend !== null && trend > TREND_THRESHOLD && accuracy < 0.6) {
-    direction = 'easier';
-    reason    = `fatigue (slope +${trend.toFixed(1)}ms/event, acc=${(accuracy*100).toFixed(0)}%)`;
-
-  // Priority 2: z-score vs personal baseline
-  } else if (zScore !== null && zScore > Z_EASY_THRESHOLD) {
-    direction = 'easier';
-    reason    = `slow vs baseline (z=${zScore.toFixed(2)})`;
-
-  } else if (zScore !== null && zScore < Z_HARD_THRESHOLD) {
-    direction = 'harder';
-    reason    = `fast vs baseline (z=${zScore.toFixed(2)})`;
-
-  // Priority 3: pure accuracy (fallback when no baseline)
-  } else if (accuracy >= 0.85 && state.totalScoredEvents >= 8) {
-    direction = 'harder';
-    reason    = `high accuracy (${(accuracy*100).toFixed(0)}%)`;
-
-  } else if (accuracy <= 0.30 && state.totalScoredEvents >= 8) {
-    direction = 'easier';
-    reason    = `low accuracy (${(accuracy*100).toFixed(0)}%)`;
-  }
-
-  if (!direction) return { adjusted: false, debug };
-
+  const direction: 'harder' | 'easier' = step > 0 ? 'harder' : 'easier';
+  state.D            = newD;
+  state.dSmoothed    = DSMOOTH_ALPHA * newD + (1 - DSMOOTH_ALPHA) * state.dSmoothed;
   state.lastAdjustAt = Date.now();
 
-  const params = buildParams(state.gameId, direction, state.emaReactionMs);
-  return { adjusted: true, direction, reason, params, debug };
+  const params = paramsFromD(state.gameId, newD);
+  const reason = `P=${P.toFixed(2)} vs target ${tuning.target} → D=${newD.toFixed(2)} (${direction})`;
+
+  return { adjusted: true, direction, reason, params, debug: { ...debug, D: newD } };
 }
 
-// ── Game-specific param mapping ────────────────────────────────────────────────
-// Only this section changes when a new game is added.
+// ── Performance score ────────────────────────────────────────────────────────────
 
-function buildParams(gameId: GameId, dir: 'harder' | 'easier', emaMs: number | null): DifficultyParams {
-  const harder = dir === 'harder';
-
-  switch (gameId) {
-
-    case 'shapes-click': {
-      // Base circle life on EMA if available, else use a fixed step
-      const currentLife = emaMs ? Math.max(800, Math.min(5000, emaMs * 1.6)) : null;
-      return {
-        circleLifeMs:    currentLife
-          ? (harder ? currentLife * 0.75 : currentLife * 1.30)
-          : (harder ? -300 : +400),          // relative delta (server applies)
-        distractorCount: harder ? +1 : -1,   // relative delta
-      };
-    }
-
-    case 'color-trains':
-      return {
-        trainSpeedPx: harder ? +25 : -20,    // relative delta
-        reactionMs:   harder ? -500 : +700,  // relative delta
-      };
-
-    case 'tictactoe':
-      return {
-        aiDepth: harder ? +1 : -1,           // minimax depth delta
-      };
-
-    case 'memory':
-      return {
-        cardCount:    harder ? +2 : -2,      // number of card pairs delta
-        flipTimeMs:   harder ? -200 : +300,  // how long cards stay visible
-      };
-
-    case 'green-light':
-      // narrower tap window + wider variability of the red hold.
-      return {
-        greenWindowMs:    harder ? -150 : +250,  // shorter window when harder
-        redHoldMinDeltaMs: harder ? +200 : -200,  // longer minimum red hold = harder anticipation
-        redHoldMaxDeltaMs: harder ? +300 : -300,
-      };
-
-    case 'spot-difference':
-      // bigger grid + more similar odd cell + shorter timer = harder.
-      return {
-        gridSize:        harder ? +1   : -1,
-        similarity:      harder ? +0.1 : -0.1,    // 0..1 — fraction of color delta removed
-        roundTimeoutMs:  harder ? -800 : +1200,
-      };
-
-    case 'where-was-it':
-      // longer sequence + shorter flash duration = harder.
-      return {
-        sequenceLength:  harder ? +1   : -1,
-        flashDurationMs: harder ? -80  : +120,
-      };
-
-    case 'find-letter':
-      // bigger grid + tighter time + more similar distractors = harder.
-      return {
-        gridSize:         harder ? +1    : -1,
-        roundTimeoutMs:   harder ? -1500 : +2000,
-        distractorBoost:  harder ? +0.1  : -0.1,
-      };
-
-    default:
-      return {};
+function computeP(state: AdaptiveState, tuning: GameTuning): number | null {
+  if (tuning.pMode === 'outcome') {
+    if (state.outcomeWindow.length === 0) return null;
+    return clamp01(mean(state.outcomeWindow));
   }
+
+  if (state.accuracyWindow.length === 0) return null;
+  // P is kept directly interpretable as a success rate so the target band
+  // ("keep the player succeeding ~72% of the time") means what it says.
+  const acc = mean(state.accuracyWindow.map(h => (h ? 1 : 0)));
+
+  if (tuning.pMode === 'accuracy') {
+    // Working-memory games: accuracy is the whole signal.
+    return clamp01(acc - fatiguePenalty(state.reactionWindow));
+  }
+
+  // speed-acc: blend accuracy with speed-vs-baseline. Both already live on a
+  // 0..1 "success" scale, so the weighted mean stays interpretable.
+  const w     = tuning.weights!;
+  const speed = speedScore(state);
+  const P = speed === null
+    ? acc                                                   // no baseline yet → accuracy only
+    : (w.acc * acc + w.speed * speed) / (w.acc + w.speed);  // renormalised blend
+
+  return clamp01(P - fatiguePenalty(state.reactionWindow));
 }
 
-// ── Stat helpers (used by analytics-agent to update baseline) ──────────────────
+/** 0..1 — how fast the user is vs their personal baseline. null when unknown. */
+function speedScore(state: AdaptiveState): number | null {
+  if (state.emaReactionMs === null || state.baselineMean === null
+      || !state.baselineStdDev || state.baselineStdDev <= 10) return null;
+  // z<0 (faster than baseline) → high score. Centre at 0.5, ±2σ spans the range.
+  const z = (state.emaReactionMs - state.baselineMean) / state.baselineStdDev;
+  return clamp01(0.5 - z / 4);
+}
+
+/** Small penalty (0..0.15) when reaction times are trending upward (fatigue). */
+function fatiguePenalty(reactionWindow: number[]): number {
+  if (reactionWindow.length < 5) return 0;
+  const pts   = reactionWindow.map((y, x) => [x, y] as [number, number]);
+  const slope = linearRegression(pts).m; // ms per event
+  if (slope <= 8) return 0;
+  return Math.min(0.15, (slope - 8) / 200);
+}
+
+// ── D → game params ──────────────────────────────────────────────────────────────
+
+function paramsFromD(gameId: GameId, D: number): DifficultyParams {
+  const tuning = GAME_TUNING[gameId];
+  const out: DifficultyParams = {};
+  const discrete = new Set(tuning.discreteKeys ?? []);
+  const even     = new Set(tuning.evenKeys ?? []);
+
+  for (const [key, [easy, hard]] of Object.entries(tuning.anchors)) {
+    let v = lerp(easy, hard, D);
+    if (even.has(key))          v = Math.round(v / 2) * 2;
+    else if (discrete.has(key)) v = Math.round(v);
+    else                        v = Math.round(v * 1000) / 1000; // keep fractions tidy
+    out[key] = v;
+  }
+  return out;
+}
+
+// ── Helpers ──────────────────────────────────────────────────────────────────────
+
+function lerp(a: number, b: number, t: number): number { return a + (b - a) * clamp01(t); }
+function clamp(v: number, lo: number, hi: number): number { return Math.max(lo, Math.min(hi, v)); }
+function clamp01(v: number): number { return clamp(v, 0, 1); }
+
+// ── Stat helper (used by analytics/baseline to summarise a session) ──────────────
 
 export function computeSessionStats(reactionTimes: number[]): { mean: number; stdDev: number } | null {
   if (reactionTimes.length < 3) return null;

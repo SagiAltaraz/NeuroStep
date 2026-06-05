@@ -135,11 +135,21 @@ class TrainScene extends Phaser.Scene {
   }
 
   // ── Apply server difficulty update ──────────────────────────────
+  // Params are ABSOLUTE target values, buffered and applied at the next
+  // round boundary so the current train isn't disrupted mid-flight.
+  private pendingParams: GameAdjustment = {};
+
   applyParams(params: GameAdjustment) {
-    if (typeof params.trainSpeedPx === 'number')
-      this.cfg.trainSpeedPx = Math.max(60, Math.min(280, params.trainSpeedPx));
-    if (typeof params.reactionMs === 'number')
-      this.cfg.reactionMs = Math.max(2000, Math.min(10000, params.reactionMs));
+    Object.assign(this.pendingParams, params);
+  }
+
+  private flushPendingParams() {
+    const p = this.pendingParams;
+    if (typeof p.trainSpeedPx === 'number')
+      this.cfg.trainSpeedPx = Phaser.Math.Clamp(p.trainSpeedPx, 60, 280);
+    if (typeof p.reactionMs === 'number')
+      this.cfg.reactionMs = Phaser.Math.Clamp(p.reactionMs, 2000, 10000);
+    this.pendingParams = {};
   }
 
   // ── Background ──────────────────────────────────────────────────
@@ -321,6 +331,7 @@ class TrainScene extends Phaser.Scene {
 
   // ── Round ─────────────────────────────────────────────────────────
   private startRound() {
+    this.flushPendingParams();
     this.chosenId    = null;
     this.pastSwitch  = false;
     this.isActive    = true;
