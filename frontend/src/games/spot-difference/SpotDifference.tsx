@@ -120,16 +120,23 @@ class SpotDifferenceScene extends Phaser.Scene {
   }
 
   // ── Server adjustment ───────────────────────────────────────────
+  // Params are ABSOLUTE target values, buffered and applied at the next round
+  // boundary so the current grid isn't rebuilt mid-round.
+  private pendingParams: GameAdjustment = {};
+
   applyParams(params: GameAdjustment) {
-    if (typeof params.gridSize === 'number') {
-      this.cfg.gridSize = Phaser.Math.Clamp(this.cfg.gridSize + params.gridSize, 3, 7);
-    }
-    if (typeof params.similarity === 'number') {
-      this.cfg.similarity = Phaser.Math.Clamp(this.cfg.similarity + params.similarity, 0, 0.95);
-    }
-    if (typeof params.roundTimeoutMs === 'number') {
-      this.cfg.roundTimeoutMs = Math.max(2000, this.cfg.roundTimeoutMs + params.roundTimeoutMs);
-    }
+    Object.assign(this.pendingParams, params);
+  }
+
+  private flushPendingParams() {
+    const p = this.pendingParams;
+    if (typeof p.gridSize === 'number')
+      this.cfg.gridSize = Phaser.Math.Clamp(Math.round(p.gridSize), 3, 7);
+    if (typeof p.similarity === 'number')
+      this.cfg.similarity = Phaser.Math.Clamp(p.similarity, 0, 0.95);
+    if (typeof p.roundTimeoutMs === 'number')
+      this.cfg.roundTimeoutMs = Math.max(2000, p.roundTimeoutMs);
+    this.pendingParams = {};
   }
 
   create() {
@@ -187,6 +194,7 @@ class SpotDifferenceScene extends Phaser.Scene {
 
   // ── Round flow ───────────────────────────────────────────────────
   private startRound() {
+    this.flushPendingParams();
     this.round++;
     this.roundText.setText(String(this.round));
     this.clearCells();

@@ -142,16 +142,23 @@ class FindLetterScene extends Phaser.Scene {
   }
 
   // ── Server adjustment ───────────────────────────────────────────
+  // Params are ABSOLUTE target values, buffered and applied at the next round
+  // boundary so the current grid isn't rebuilt mid-round.
+  private pendingParams: GameAdjustment = {};
+
   applyParams(params: GameAdjustment) {
-    if (typeof params.gridSize === 'number') {
-      this.cfg.gridSize = Phaser.Math.Clamp(this.cfg.gridSize + params.gridSize, 4, 9);
-    }
-    if (typeof params.roundTimeoutMs === 'number') {
-      this.cfg.roundTimeoutMs = Math.max(4000, this.cfg.roundTimeoutMs + params.roundTimeoutMs);
-    }
-    if (typeof params.distractorBoost === 'number') {
-      this.cfg.distractorBoost = Phaser.Math.Clamp(this.cfg.distractorBoost + params.distractorBoost, 0, 0.9);
-    }
+    Object.assign(this.pendingParams, params);
+  }
+
+  private flushPendingParams() {
+    const p = this.pendingParams;
+    if (typeof p.gridSize === 'number')
+      this.cfg.gridSize = Phaser.Math.Clamp(Math.round(p.gridSize), 4, 9);
+    if (typeof p.roundTimeoutMs === 'number')
+      this.cfg.roundTimeoutMs = Math.max(4000, p.roundTimeoutMs);
+    if (typeof p.distractorBoost === 'number')
+      this.cfg.distractorBoost = Phaser.Math.Clamp(p.distractorBoost, 0, 0.9);
+    this.pendingParams = {};
   }
 
   create() {
@@ -214,6 +221,7 @@ class FindLetterScene extends Phaser.Scene {
 
   // ── Round flow ───────────────────────────────────────────────────
   private startRound() {
+    this.flushPendingParams();
     this.round++;
     this.clearGrid();
 

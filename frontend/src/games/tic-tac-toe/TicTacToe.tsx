@@ -131,9 +131,10 @@ class TicTacToeScene extends Phaser.Scene {
   }
 
   // ── Apply server adjustment ──────────────────────────────────────
+  // Params are ABSOLUTE target values (aiDepth 1..6 from the engine anchors).
   applyParams(params: GameAdjustment) {
     if (typeof params.aiDepth === 'number') {
-      const next = Math.max(MIN_DEPTH, Math.min(MAX_DEPTH, Math.round(this.cfg.aiDepth + params.aiDepth)));
+      const next = Math.max(MIN_DEPTH, Math.min(MAX_DEPTH, Math.round(params.aiDepth)));
       this.cfg.aiDepth = next;
       this.depthText.setText(this.depthLabel(next));
     }

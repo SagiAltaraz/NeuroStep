@@ -11,7 +11,7 @@ import { connectProducer, disconnectProducer,
 import { TOPICS }                                           from './kafka/topics.js';
 import { startAdjustmentsConsumer, getAdjustmentsForSession } from './kafka/adjustments-consumer.js';
 import { getSession, initSession, deleteSession }           from './sessions/session-store.js';
-import { processEvent }                                     from './agents/adaptive-agent.js';
+import { processEvent, persistDifficulty }                  from './agents/adaptive-agent.js';
 import { startAnalyticsAgent, getSessionSnapshot }          from './agents/analytics-agent.js';
 import { generateSessionReport }                            from './agents/report-agent.js';
 import type { AdjustmentRecord }                            from './agents/report-agent.js';
@@ -59,14 +59,29 @@ wss.on('connection', (ws: WebSocket) => {
         ?? (typeof event.payload?.reactionMs === 'number' ? event.payload.reactionMs : undefined),
       correct:    event.correct
         ?? (typeof event.payload?.correct === 'boolean' ? event.payload.correct : undefined),
+      winner:     event.payload?.winner === 'player' || event.payload?.winner === 'ai'
+        ? (event.payload.winner as 'player' | 'ai')
+        : undefined,
     });
 
     if (result.debug) {
-      console.log(`[Adaptive] ema:${result.debug.ema?.toFixed(0)}ms `
-        + `baseline:${result.debug.baseline?.toFixed(0) ?? '—'}ms `
-        + `z:${result.debug.zScore?.toFixed(2) ?? '—'} `
-        + `trend:${result.debug.trend?.toFixed(1) ?? '—'} `
-        + `acc:${(result.debug.accuracy * 100).toFixed(0)}%`);
+      console.log(`[Adaptive] P:${result.debug.P?.toFixed(2) ?? '—'} `
+        + `D:${result.debug.D.toFixed(2)} `
+        + `acc:${(result.debug.accuracy * 100).toFixed(0)}% `
+        + `ema:${result.debug.ema?.toFixed(0) ?? '—'}ms `
+        + `baseline:${result.debug.baseline?.toFixed(0) ?? '—'}ms`);
+
+      // Live telemetry — fires on every evaluation (even inside the dead-zone)
+      // so the client HUD can show the difficulty controller working in real time.
+      if (ws.readyState === WebSocket.OPEN) {
+        ws.send(JSON.stringify({
+          type:     'telemetry',
+          P:        result.debug.P,
+          D:        result.debug.D,
+          accuracy: result.debug.accuracy,
+          events:   session.adaptive.totalScoredEvents,
+        }));
+      }
     }
 
     if (!result.adjusted || !result.params) return;
@@ -83,9 +98,11 @@ wss.on('connection', (ws: WebSocket) => {
     // ── 4. Send adjustment to game ───────────────────────────────
     if (ws.readyState === WebSocket.OPEN) {
       ws.send(JSON.stringify({
-        type:   'adjustment',
-        reason: result.reason,
-        params: result.params,
+        type:      'adjustment',
+        reason:    result.reason,
+        params:    result.params,
+        level:     result.debug?.D,
+        direction: result.direction,
       }));
     }
 
@@ -153,6 +170,10 @@ wss.on('connection', (ws: WebSocket) => {
           adjustments: adjustmentsForReport,
         }).catch(err => console.error('[Report]', (err as Error).message));
 
+        // Persist the converged difficulty level so the next session resumes here.
+        persistDifficulty(userId, gameId, session.adaptive.dSmoothed)
+          .catch(err => console.error('[Adaptive] persist:', (err as Error).message));
+
         updateBaseline(userId, gameId, snapshot.reactionTimes)
           .then(() => {
             // Coach report depends on sessionsCount written by updateBaseline
@@ -173,7 +194,15 @@ wss.on('connection', (ws: WebSocket) => {
 // ── Startup ────────────────────────────────────────────────────────────────────
 
 async function start() {
-  await connectProducer();
+  // Kafka is only used for audit/analytics. The real-time adaptive loop runs
+  // entirely in-process, so a Kafka outage must NOT take the game-server (and
+  // all difficulty adaptation) down. Connect best-effort and carry on.
+  try {
+    await connectProducer();
+  } catch (err) {
+    console.error('[Kafka] Producer connect failed — running WITHOUT Kafka '
+      + '(adaptation still works; audit/analytics disabled):', (err as Error).message);
+  }
   startAnalyticsAgent().catch(err =>
     console.error('[Analytics] Failed to start:', err.message)
   );
