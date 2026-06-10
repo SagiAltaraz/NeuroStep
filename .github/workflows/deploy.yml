@@ -1,11 +1,11 @@
 # Auto-deploy on every push to main.
-# On push → SSH into the Oracle VM → pull latest → rebuild & restart containers.
+# On push → SSH into the DigitalOcean droplet → sync to main → rebuild & restart.
 #
 # Add these repo secrets (GitHub → Settings → Secrets and variables → Actions):
-#   SSH_HOST  = your VM public IP
-#   SSH_USER  = ubuntu   (default for Oracle Ubuntu images)
-#   SSH_KEY   = the PRIVATE key whose public half is on the VM
-#   APP_DIR   = absolute path of the repo on the VM, e.g. /home/ubuntu/NeuroStep
+#   SSH_HOST  = droplet public IP (165.22.85.201)
+#   SSH_USER  = root
+#   SSH_KEY   = the PRIVATE deploy key whose public half is in the droplet's authorized_keys
+#   APP_DIR   = /root/NeuroStep
 
 name: Deploy
 
@@ -28,6 +28,7 @@ jobs:
           script: |
             set -e
             cd ${{ secrets.APP_DIR }}
-            git pull --ff-only origin main
+            git fetch origin main
+            git checkout -B main origin/main   # force server to match main (ignores tracked drift; .env is untracked so it's kept)
             docker compose -f docker-compose.prod.yml up -d --build
             docker image prune -f
