@@ -68,7 +68,7 @@ const ChatAssistant = () => {
                className="chat-toggle-button"
                onClick={() => setIsOpen(true)}
             >
-               💬 Chat
+               🧠 Chat
             </button>
          ) : (
             <div className="chat-container">
