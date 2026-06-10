@@ -1,0 +1,87 @@
+# Production stack for a single always-on VM (Oracle Cloud Always Free).
+#   - app          : backend API + built frontend (port 3000, internal)
+#   - game-server  : WebSocket + agents (port 3001, internal)
+#   - redpanda     : Kafka-compatible broker (replaces kafka + zookeeper)
+#   - caddy        : public reverse proxy, automatic HTTPS (ports 80/443)
+#
+# Bring up:  docker compose -f docker-compose.prod.yml up -d --build
+# Requires a root .env file (see .env.prod.example) and backend/.env.
+
+services:
+  app:
+    build:
+      context: .
+      dockerfile: Dockerfile
+      args:
+        VITE_FIREBASE_API_KEY: ${VITE_FIREBASE_API_KEY:-}
+        VITE_FIREBASE_MESSAGING_SENDER_ID: ${VITE_FIREBASE_MESSAGING_SENDER_ID:-}
+        VITE_FIREBASE_APP_ID: ${VITE_FIREBASE_APP_ID:-}
+        # Baked into the frontend at build time — must be the public wss URL:
+        VITE_WS_URL: ${VITE_WS_URL:-wss://ws.example.com}
+    env_file:
+      - ./backend/.env
+    environment:
+      KAFKA_BROKER: redpanda:9092
+    expose:
+      - '3000'
+    depends_on:
+      - redpanda
+    restart: unless-stopped
+
+  game-server:
+    build:
+      context: ./game-server
+      dockerfile: Dockerfile
+    env_file:
+      - ./backend/.env
+    environment:
+      KAFKA_BROKER: redpanda:9092
+    expose:
+      - '3001'
+    depends_on:
+      redpanda:
+        condition: service_healthy
+    restart: unless-stopped
+
+  redpanda:
+    image: redpandadata/redpanda:v24.2.7
+    command:
+      - redpanda
+      - start
+      - --mode=dev-container
+      - --smp=1
+      - --default-log-level=info
+      - --set
+      - redpanda.auto_create_topics_enabled=true
+      - --kafka-addr=PLAINTEXT://0.0.0.0:9092
+      - --advertise-kafka-addr=PLAINTEXT://redpanda:9092
+    volumes:
+      - redpanda-data:/var/lib/redpanda/data
+    healthcheck:
+      test: ['CMD-SHELL', 'rpk cluster health | grep -q "Healthy:.*true"']
+      interval: 10s
+      timeout: 5s
+      retries: 12
+      start_period: 25s
+    restart: unless-stopped
+
+  caddy:
+    image: caddy:2
+    ports:
+      - '80:80'
+      - '443:443'
+    environment:
+      DOMAIN: ${DOMAIN:?set DOMAIN in .env}
+    volumes:
+      - ./Caddyfile:/etc/caddy/Caddyfile:ro
+      - caddy-data:/data
+      - caddy-config:/config
+    depends_on:
+      - app
+      - game-server
+    restart: unless-stopped
+
+volumes:
+  redpanda-data:
+  caddy-data:
+  caddy-config:

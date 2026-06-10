@@ -1,0 +1,14 @@
+# Caddy auto-provisions HTTPS (Let's Encrypt) for both hostnames.
+# {$DOMAIN} comes from the DOMAIN env var (see docker-compose.prod.yml).
+#
+#   https://DOMAIN        → app (backend + frontend)
+#   wss://ws.DOMAIN       → game-server (WebSocket). Caddy upgrades WS automatically.
+
+{$DOMAIN} {
+	encode zstd gzip
+	reverse_proxy app:3000
+}
+
+ws.{$DOMAIN} {
+	reverse_proxy game-server:3001
+}

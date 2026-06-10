@@ -18,7 +18,10 @@ export default function ShapesClickPage() {
     <>
       <ShapesClick onAction={sendEvent} adjustment={adjustment ?? undefined} />
       <CoachingToast message={coachingMessage} />
-      <AdaptiveDebugHUD isConnected={isConnected} telemetry={telemetry} lastAdjustment={lastAdjustment} />
+      {/* Diagnostic overlay — only in local dev, never shown to real users. */}
+      {import.meta.env.DEV && (
+        <AdaptiveDebugHUD isConnected={isConnected} telemetry={telemetry} lastAdjustment={lastAdjustment} />
+      )}
     </>
   );
 }
