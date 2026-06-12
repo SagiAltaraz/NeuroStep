@@ -26,11 +26,18 @@ import { createKafkaConfig } from '../kafka/client-config.js';
 
 const FLUSH_INTERVAL_MS = 5_000;
 
+// Evict a session buffer once it has been idle (no new events) for this long.
+// Without this the `buffers` Map grows unbounded — the Kafka consumer has no
+// WS-close signal, so a session is "done" only by virtue of going quiet.
+// 15 min is far longer than any real game, so an active session is never evicted.
+const SESSION_TTL_MS = 15 * 60 * 1000;
+
 interface SessionBuffer {
   userId:        string;
   gameId:        string;
   startedAt:     number;
   lastEventAt:   number;
+  lastTouchedAt: number;   // server-clock receipt time — used for TTL eviction
   totalEvents:   number;
   hits:          number;
   misses:        number;
@@ -51,6 +58,7 @@ function applyEvent(event: GameEvent) {
       userId, gameId,
       startedAt:    timestamp,
       lastEventAt:  timestamp,
+      lastTouchedAt: Date.now(),
       totalEvents:  0,
       hits: 0, misses: 0, timeouts: 0,
       reactionTimes: [],
@@ -60,7 +68,8 @@ function applyEvent(event: GameEvent) {
   }
 
   const buf = buffers.get(sessionId)!;
-  buf.lastEventAt = timestamp;
+  buf.lastEventAt   = timestamp;
+  buf.lastTouchedAt = Date.now();
   buf.totalEvents++;
   buf.dirty = true;
 
@@ -159,6 +168,21 @@ async function flushAll() {
   console.log(`[Analytics] Flushed ${dirty.length} sessions to Firestore`);
 }
 
+// Drop buffers that have gone quiet. Runs after each flush so we never evict a
+// buffer that still has unwritten (dirty) events. Guards against unbounded
+// growth of the `buffers` Map over the server's lifetime.
+function evictIdleBuffers() {
+  const now = Date.now();
+  let evicted = 0;
+  for (const [sessionId, buf] of buffers) {
+    if (!buf.dirty && now - buf.lastTouchedAt > SESSION_TTL_MS) {
+      buffers.delete(sessionId);
+      evicted++;
+    }
+  }
+  if (evicted > 0) console.log(`[Analytics] Evicted ${evicted} idle session buffer(s) — ${buffers.size} active`);
+}
+
 // ── Kafka consumer ─────────────────────────────────────────────────────────────
 
 export async function startAnalyticsAgent(): Promise<void> {
@@ -168,9 +192,11 @@ export async function startAnalyticsAgent(): Promise<void> {
   await consumer.connect();
   await consumer.subscribe({ topic: TOPICS.GAME_EVENTS, fromBeginning: false });
 
-  // Flush every 5 seconds
+  // Flush every 5 seconds, then evict any buffers that have gone idle.
   setInterval(() => {
-    flushAll().catch(err => console.error('[Analytics] Flush error:', err));
+    flushAll()
+      .then(evictIdleBuffers)
+      .catch(err => console.error('[Analytics] Flush error:', err));
   }, FLUSH_INTERVAL_MS);
 
   await consumer.run({
