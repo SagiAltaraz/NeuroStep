@@ -95,13 +95,21 @@ class WhereWasItScene extends Phaser.Scene {
   }
 
   // ── Server adjustment ───────────────────────────────────────────
+  // Params are ABSOLUTE target values, buffered and applied at the next round
+  // boundary so a sequence in progress is never altered mid-flight.
+  private pendingParams: GameAdjustment = {};
+
   applyParams(params: GameAdjustment) {
-    if (typeof params.sequenceLength === 'number') {
-      this.cfg.sequenceLength = Phaser.Math.Clamp(this.cfg.sequenceLength + params.sequenceLength, 2, 9);
-    }
-    if (typeof params.flashDurationMs === 'number') {
-      this.cfg.flashDurationMs = Phaser.Math.Clamp(this.cfg.flashDurationMs + params.flashDurationMs, 250, 1100);
-    }
+    Object.assign(this.pendingParams, params);
+  }
+
+  private flushPendingParams() {
+    const p = this.pendingParams;
+    if (typeof p.sequenceLength === 'number')
+      this.cfg.sequenceLength = Phaser.Math.Clamp(Math.round(p.sequenceLength), 2, 9);
+    if (typeof p.flashDurationMs === 'number')
+      this.cfg.flashDurationMs = Phaser.Math.Clamp(p.flashDurationMs, 250, 1100);
+    this.pendingParams = {};
   }
 
   create() {
@@ -183,6 +191,7 @@ class WhereWasItScene extends Phaser.Scene {
 
   // ── Round flow ───────────────────────────────────────────────────
   private startRound() {
+    this.flushPendingParams();
     this.round++;
     this.seqText.setText(String(this.cfg.sequenceLength));
 

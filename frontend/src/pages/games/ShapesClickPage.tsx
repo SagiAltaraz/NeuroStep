@@ -3,10 +3,12 @@ import ShapesClickInstructions from '../../components/game-instructions/ShapesCl
 import ShapesClick from '../../games/shapes-click/ShapesClick';
 import { useGameSession } from '../../hooks/useGameSession';
 import CoachingToast from '../../components/ui/CoachingToast';
+import AdaptiveDebugHUD from '../../components/ui/AdaptiveDebugHUD';
 
 export default function ShapesClickPage() {
   const [showInstructions, setShowInstructions] = useState(true);
-  const { sendEvent, adjustment, coachingMessage } = useGameSession('shapes-click');
+  const { sendEvent, adjustment, coachingMessage, isConnected, telemetry, lastAdjustment } =
+    useGameSession('shapes-click');
 
   if (showInstructions) {
     return <ShapesClickInstructions onStart={() => setShowInstructions(false)} />;
@@ -16,6 +18,10 @@ export default function ShapesClickPage() {
     <>
       <ShapesClick onAction={sendEvent} adjustment={adjustment ?? undefined} />
       <CoachingToast message={coachingMessage} />
+      {/* Diagnostic overlay — only in local dev, never shown to real users. */}
+      {import.meta.env.DEV && (
+        <AdaptiveDebugHUD isConnected={isConnected} telemetry={telemetry} lastAdjustment={lastAdjustment} />
+      )}
     </>
   );
 }

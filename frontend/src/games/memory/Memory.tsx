@@ -141,15 +141,16 @@ class MemoryScene extends Phaser.Scene {
   // ── Apply server adjustment ──────────────────────────────────────
   // cardCount changes are deferred to next round so we never wipe the player's
   // current board mid-game. flipTimeMs applies live — it doesn't disturb state.
+  // Params are ABSOLUTE target values. cardCount is deferred to the next round
+  // (changing it re-deals the board); flipTimeMs applies live (no state impact).
   applyParams(params: GameAdjustment) {
     if (typeof params.cardCount === 'number') {
-      const base = this.pendingCardCount ?? this.cfg.cardCount;
-      const next = this.normaliseCardCount(base + params.cardCount);
+      const next = this.normaliseCardCount(params.cardCount);
       if (next !== this.cfg.cardCount) this.pendingCardCount = next;
     }
 
     if (typeof params.flipTimeMs === 'number') {
-      const next = Math.max(MIN_FLIP, Math.min(MAX_FLIP, this.cfg.flipTimeMs + params.flipTimeMs));
+      const next = Math.max(MIN_FLIP, Math.min(MAX_FLIP, params.flipTimeMs));
       this.cfg.flipTimeMs = next;
       this.flipTimeText.setText(this.labels.timeSec.replace('{n}', (next / 1000).toFixed(1)));
     }

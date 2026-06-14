@@ -106,16 +106,23 @@ class GreenLightScene extends Phaser.Scene {
   }
 
   // ── Server adjustment (real-time difficulty) ───────────────────
+  // Params are ABSOLUTE target values, buffered and applied at the next round
+  // boundary so the current red/green cycle is never altered mid-cycle.
+  private pendingParams: GameAdjustment = {};
+
   applyParams(params: GameAdjustment) {
-    if (typeof params.greenWindowMs === 'number') {
-      this.cfg.greenWindowMs = Math.max(500, this.cfg.greenWindowMs + params.greenWindowMs);
-    }
-    if (typeof params.redHoldMinDeltaMs === 'number') {
-      this.cfg.redHoldMinMs = Math.max(800, this.cfg.redHoldMinMs + params.redHoldMinDeltaMs);
-    }
-    if (typeof params.redHoldMaxDeltaMs === 'number') {
-      this.cfg.redHoldMaxMs = Math.max(this.cfg.redHoldMinMs + 500, this.cfg.redHoldMaxMs + params.redHoldMaxDeltaMs);
-    }
+    Object.assign(this.pendingParams, params);
+  }
+
+  private flushPendingParams() {
+    const p = this.pendingParams;
+    if (typeof p.greenWindowMs === 'number')
+      this.cfg.greenWindowMs = Math.max(400, p.greenWindowMs);
+    if (typeof p.redHoldMinMs === 'number')
+      this.cfg.redHoldMinMs = Math.max(800, p.redHoldMinMs);
+    if (typeof p.redHoldMaxMs === 'number')
+      this.cfg.redHoldMaxMs = Math.max(this.cfg.redHoldMinMs + 500, p.redHoldMaxMs);
+    this.pendingParams = {};
   }
 
   create() {
@@ -201,6 +208,7 @@ class GreenLightScene extends Phaser.Scene {
 
   // ── Round flow ───────────────────────────────────────────────────
   private startRound() {
+    this.flushPendingParams();
     this.rounds++;
     this.setPhase('red');
     this.statusText.setText(this.labels.waitRed);
