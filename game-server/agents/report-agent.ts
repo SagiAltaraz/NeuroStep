@@ -17,6 +17,8 @@ import Anthropic               from '@anthropic-ai/sdk';
 import { FieldValue }          from 'firebase-admin/firestore';
 import { getDb }               from '../firebase.js';
 import type { GameId }         from '../types/game.types.js';
+import { GAME_DOMAINS }        from '../types/domains.js';
+import type { ProblemId }      from '../types/domains.js';
 import type { AdaptiveState }             from './adaptive-agent.js';
 import type { SessionSnapshot }           from './analytics-agent.js';
 import { CognitiveReportSchema }          from './schemas.js';
@@ -45,6 +47,9 @@ export interface CognitiveReport extends CognitiveReportFromClaude {
   userId:       string;
   gameId:       GameId;
   generatedAt:  number;
+  // Deterministic per-domain scores (NOT from Claude) — feed the cognitive
+  // profile EMA and the progression math. See computeDomainScores below.
+  domainScores: Record<ProblemId, number>;
   rawStats: {
     accuracy:          number | null;  // null when no scored events (e.g. tic-tac-toe with no completed game)
     avgReactionMs:     number;
@@ -150,6 +155,23 @@ function computeNetDir(adjustments: AdjustmentRecord[]): 'harder' | 'easier' | '
   return harder > easier ? 'harder' : easier > harder ? 'easier' : 'stable';
 }
 
+// ── Deterministic per-domain scores ──────────────────────────────────────────
+// We deliberately do NOT ask Claude for per-domain scores: they are noisy and
+// they feed the progression math (levels/nodes), which needs stability. Instead
+// we derive them from the single cognitiveScore and the game's domain mapping —
+// the primary domain gets the full score, secondary domains a damped fraction.
+const SECONDARY_FACTOR = 0.85;
+
+export function computeDomainScores(cognitiveScore: number, gameId: GameId): Record<ProblemId, number> {
+  const { primary, secondary } = GAME_DOMAINS[gameId];
+  const scores = {} as Record<ProblemId, number>;
+  scores[primary] = cognitiveScore;
+  for (const d of secondary) {
+    scores[d] = Math.round(cognitiveScore * SECONDARY_FACTOR);
+  }
+  return scores;
+}
+
 // ── Main export ────────────────────────────────────────────────────────────────
 
 export async function generateSessionReport(input: ReportInput): Promise<CognitiveReport | null> {
@@ -200,6 +222,7 @@ export async function generateSessionReport(input: ReportInput): Promise<Cogniti
       userId:              snapshot.userId,
       gameId:              snapshot.gameId as GameId,
       generatedAt:         Date.now(),
+      domainScores:        computeDomainScores(validated.cognitiveScore, snapshot.gameId as GameId),
       cognitiveScore:      validated.cognitiveScore,    // schema guarantees integer 0–100
       summaryHe:           validated.summaryHe,
       strengthsHe:         validated.strengthsHe,
@@ -236,6 +259,7 @@ export async function generateSessionReport(input: ReportInput): Promise<Cogniti
         gameId:         snapshot.gameId,
         generatedAt:    report.generatedAt,
         cognitiveScore: report.cognitiveScore,
+        domainScores:   report.domainScores,
         summaryHe:      report.summaryHe,
         accuracy:       snapshot.accuracy,
       },
