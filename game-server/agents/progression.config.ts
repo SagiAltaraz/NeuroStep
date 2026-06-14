@@ -15,3 +15,12 @@ export const PROFILE_TUNING = {
   TREND_THRESHOLD:    3,      // level delta over the recent window to call up/down
   TREND_WINDOW:       5,      // number of recent domain scores kept for trend
 } as const;
+
+export const PROGRESSION_TUNING = {
+  NODES_PER_REGION:         10,   // level 0..100 maps to node 1..10 (10 per region)
+  PROMOTE_BUFFER:           0,    // promote as soon as level crosses a node boundary
+  DEMOTE_BUFFER:            5,    // only demote when level falls 5 below the node floor
+  DEMOTE_GRACE:             2,    // consecutive sub-threshold sessions required to demote
+  MIN_CONFIDENCE_TO_DEMOTE: 0.6,  // never demote on a profile we aren't confident about
+  FLOOR_BELOW_PEAK:         1,    // never drop more than 1 node below the peak reached
+} as const;
