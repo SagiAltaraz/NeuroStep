@@ -29,6 +29,10 @@ const Header: React.FC = () => {
                            {t('header.welcome')}, <strong>{user.name}</strong>
                         </li>
 
+                        <li>
+                           <Link to="/journey">{t('header.journey')}</Link>
+                        </li>
+
                         {isAdmin && (
                            <li>
                               <Link to="/admin" className="admin-link">

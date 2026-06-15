@@ -32,6 +32,7 @@ const TRANSLATIONS = {
   'header.logout':       { he: 'יציאה',           en: 'Logout' },
   'header.welcome':      { he: 'שלום',            en: 'Hello' },
   'header.admin':        { he: 'מנהל',            en: 'Admin Panel' },
+  'header.journey':      { he: 'המסע שלי',         en: 'My Journey' },
   'header.lang.toggle':  { he: 'EN',              en: 'עברית' },
 
   // Home page hero
