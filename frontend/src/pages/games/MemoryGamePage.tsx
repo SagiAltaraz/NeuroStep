@@ -3,10 +3,11 @@ import MemoryGameInstructions from '../../components/game-instructions/MemoryGam
 import Memory from '../../games/memory/Memory';
 import { useGameSession } from '../../hooks/useGameSession';
 import CoachingToast from '../../components/ui/CoachingToast';
+import SessionResults from '../../components/ui/SessionResults';
 
 export default function MemoryGamePage() {
   const [showInstructions, setShowInstructions] = useState(true);
-  const { sendEvent, adjustment, coachingMessage } = useGameSession('memory');
+  const { sendEvent, adjustment, coachingMessage, endSession, sessionResult } = useGameSession('memory');
 
   if (showInstructions) {
     return <MemoryGameInstructions onStart={() => setShowInstructions(false)} />;
@@ -19,6 +20,7 @@ export default function MemoryGamePage() {
         adjustment={adjustment ?? undefined}
       />
       <CoachingToast message={coachingMessage} />
+      <SessionResults result={sessionResult} onFinish={endSession} />
     </>
   );
 }

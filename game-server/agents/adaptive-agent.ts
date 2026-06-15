@@ -194,6 +194,35 @@ async function loadProfile(
   } catch { return { mean: null, stdDev: null, difficulty: null }; }
 }
 
+/**
+ * Load the saved baseline + difficulty into the state exactly once. Returns the
+ * resumed difficulty params when a saved difficulty was applied (so the caller
+ * can snap the game to it immediately), otherwise null. Idempotent — guarded by
+ * `state.profileLoaded`.
+ */
+async function ensureProfileLoaded(state: AdaptiveState): Promise<DifficultyParams | null> {
+  if (state.profileLoaded) return null;
+  state.profileLoaded = true;
+  const p = await loadProfile(state.userId, state.gameId);
+  state.baselineMean   = p.mean;
+  state.baselineStdDev = p.stdDev;
+  if (p.difficulty !== null) {
+    state.D         = p.difficulty;
+    state.dSmoothed = p.difficulty;
+    return paramsFromD(state.gameId, state.D);
+  }
+  return null;
+}
+
+/**
+ * Server-side hook: prime baseline + resumed difficulty before the first event,
+ * so the game can be snapped to the resumed difficulty up-front (Phase E1).
+ * Returns the resumed params, or null if there was nothing to resume.
+ */
+export function resumeDifficulty(state: AdaptiveState): Promise<DifficultyParams | null> {
+  return ensureProfileLoaded(state);
+}
+
 /** Persist the smoothed difficulty level so the next session resumes here. */
 export async function persistDifficulty(userId: string, gameId: GameId, dSmoothed: number): Promise<void> {
   if (userId === 'anonymous') return;
@@ -238,14 +267,10 @@ export async function processEvent(state: AdaptiveState, event: AdaptiveEvent): 
   const hitTypes    = HIT_TYPES[state.gameId]    ?? new Set<string>();
   const scoredTypes = SCORED_TYPES[state.gameId] ?? new Set<string>();
 
-  // Load personal profile once per session (baseline + saved difficulty).
-  if (!state.profileLoaded) {
-    state.profileLoaded = true;
-    const p = await loadProfile(state.userId, state.gameId);
-    state.baselineMean   = p.mean;
-    state.baselineStdDev = p.stdDev;
-    if (p.difficulty !== null) { state.D = p.difficulty; state.dSmoothed = p.difficulty; }
-  }
+  // Load personal profile once per session (baseline + saved difficulty). The
+  // server normally primes this via resumeDifficulty() before the first event;
+  // this lazy call is the fallback path when it didn't.
+  await ensureProfileLoaded(state);
 
   // ── Ingest the event per scoring mode ──────────────────────────
   if (tuning.pMode === 'outcome') {
@@ -364,7 +389,7 @@ function fatiguePenalty(reactionWindow: number[]): number {
 
 // ── D → game params ──────────────────────────────────────────────────────────────
 
-function paramsFromD(gameId: GameId, D: number): DifficultyParams {
+export function paramsFromD(gameId: GameId, D: number): DifficultyParams {
   const tuning = GAME_TUNING[gameId];
   const out: DifficultyParams = {};
   const discrete = new Set(tuning.discreteKeys ?? []);

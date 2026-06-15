@@ -12,11 +12,84 @@
 
 import { useEffect, useRef, useState, useCallback } from 'react';
 import { useAuth } from '../context/AuthContext';
-import type { GameId } from '../types/game.types';
+import type { GameId, DifficultyParams } from '../types/game.types';
+import type { ProblemId } from '../data/cognitiveProblems';
 
 const WS_URL = import.meta.env.VITE_WS_URL ?? 'ws://localhost:3001';
 
+// If the server never pushes a 'session-report' (e.g. a trivial sub-5-event
+// session, or Claude+Firestore stalling), stop waiting and release the socket.
+const REPORT_TIMEOUT_MS = 12_000;
+
 export type GameAdjustment = Record<string, number>;
+
+// ── End-of-session result types (mirror game-server payloads) ────────────────
+
+export type Rank = 'beginner' | 'explorer' | 'advanced' | 'expert' | 'champion';
+export type AvatarState = 'idle' | 'climb' | 'drop' | 'celebrate';
+
+/** Quick stats pushed in 'session-summary' — renders the results screen instantly. */
+export interface SessionStats {
+  accuracy:      number | null;
+  avgReactionMs: number;
+  hits:          number;
+  misses:        number;
+  timeouts:      number;
+  peakStreak:    number;
+  durationSec:   number;
+}
+
+/** One journey-map node move, from the progression engine. */
+export interface LevelChange {
+  domainId: ProblemId;
+  prevNode: number;
+  newNode:  number;
+  delta:    number;
+}
+
+/** Full cognitive report pushed in 'session-report' (persisted shape). */
+export interface SessionReport {
+  sessionId:         string;
+  userId:            string;
+  gameId:            GameId;
+  generatedAt:       number;
+  cognitiveScore:    number;
+  summaryHe:         string;
+  strengthsHe:       string[];
+  recommendationsHe: string[];
+  domainScores:      Record<ProblemId, number>;
+  rawStats: {
+    accuracy:        number | null;
+    avgReactionMs:   number;
+    peakStreak:      number;
+    durationMs:      number;
+    adjustmentCount: number;
+    netDirection:    'harder' | 'easier' | 'stable';
+  };
+  // Phase E2 — the difficulty the session converged to (optional for back-compat
+  // with reports persisted before E2 shipped).
+  difficulty?:    number;            // 0..1 smoothed level
+  currentConfig?: DifficultyParams;  // per-game params at that difficulty
+}
+
+/**
+ * The single source of truth the results overlay (F2) reads.
+ *   phase 'none'    → no end-of-session data yet
+ *   phase 'summary' → quick stats arrived; report still computing
+ *   phase 'report'  → full report + gamification arrived
+ */
+export interface SessionResult {
+  phase:        'none' | 'summary' | 'report';
+  stats?:       SessionStats;
+  report?:      SessionReport;
+  domainScores?: Record<ProblemId, number>;
+  levelChanges?: LevelChange[];
+  overallLevel?: number;
+  rank?:         Rank;
+  avatarState?:  AvatarState;
+}
+
+const INITIAL_RESULT: SessionResult = { phase: 'none' };
 
 /** Live difficulty telemetry — what the adaptive controller currently sees. */
 export interface AdaptiveTelemetry {
@@ -43,12 +116,15 @@ export function useGameSession(gameId: GameId) {
   const wsRef     = useRef<WebSocket | null>(null);
   const sessionId = useRef(`${gameId}-${crypto.randomUUID()}`);
   const adjustCount = useRef(0);
+  const endedRef       = useRef(false);              // guards double end-session
+  const reportTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
 
   const [isConnected,    setIsConnected]    = useState(false);
   const [adjustment,     setAdjustment]     = useState<GameAdjustment | null>(null);
   const [coachingMessage, setCoachingMessage] = useState<string | null>(null);
   const [telemetry,      setTelemetry]      = useState<AdaptiveTelemetry | null>(null);
   const [lastAdjustment, setLastAdjustment] = useState<AdaptiveAdjustment | null>(null);
+  const [sessionResult,  setSessionResult]  = useState<SessionResult>(INITIAL_RESULT);
 
   useEffect(() => {
     const ws = new WebSocket(WS_URL);
@@ -64,8 +140,28 @@ export function useGameSession(gameId: GameId) {
           type: string; reason?: string; params?: GameAdjustment; message?: string;
           P?: number | null; D?: number; accuracy?: number; events?: number;
           level?: number | null; direction?: 'harder' | 'easier' | null;
+          stats?: SessionStats; report?: SessionReport;
+          levelChanges?: LevelChange[]; overallLevel?: number;
+          rank?: Rank; avatarState?: AvatarState;
         };
-        if (msg.type === 'adjustment' && msg.params) {
+        if (msg.type === 'session-summary' && msg.stats) {
+          // Quick stats — render the results screen immediately; report follows.
+          setSessionResult(prev => ({ ...prev, phase: 'summary', stats: msg.stats }));
+        } else if (msg.type === 'session-report' && msg.report) {
+          // Full report + gamification — the terminal message; stop waiting.
+          if (reportTimerRef.current) clearTimeout(reportTimerRef.current);
+          setSessionResult(prev => ({
+            ...prev,
+            phase:        'report',
+            report:       msg.report,
+            domainScores: msg.report!.domainScores,
+            levelChanges: msg.levelChanges ?? [],
+            overallLevel: msg.overallLevel,
+            rank:         msg.rank,
+            avatarState:  msg.avatarState,
+          }));
+          wsRef.current?.close();   // session finalized server-side; release it
+        } else if (msg.type === 'adjustment' && msg.params) {
           console.log(`[${gameId}] Adjustment (${msg.reason}):`, msg.params);
           setAdjustment(msg.params);
           adjustCount.current += 1;
@@ -92,7 +188,10 @@ export function useGameSession(gameId: GameId) {
       } catch { /* ignore malformed */ }
     };
 
-    return () => ws.close();
+    return () => {
+      if (reportTimerRef.current) clearTimeout(reportTimerRef.current);
+      ws.close();
+    };
   }, [gameId]);
 
   const sendEvent = useCallback((action: object) => {
@@ -106,9 +205,28 @@ export function useGameSession(gameId: GameId) {
     }));
   }, [gameId, userId]);
 
+  /**
+   * Signal game-over. Sends {type:'end-session'} and keeps the socket open so
+   * the server can push 'session-summary' then 'session-report'. The socket is
+   * closed once the report arrives (in onmessage) or after REPORT_TIMEOUT_MS.
+   * Idempotent — safe to call once per game-over.
+   */
+  const endSession = useCallback(() => {
+    const ws = wsRef.current;
+    if (endedRef.current) return;
+    if (!ws || ws.readyState !== WebSocket.OPEN) return;
+    endedRef.current = true;
+    ws.send(JSON.stringify({ type: 'end-session' }));
+    reportTimerRef.current = setTimeout(() => {
+      // No report in time (trivial session or a stalled pipeline) — stop waiting.
+      reportTimerRef.current = null;
+      wsRef.current?.close();
+    }, REPORT_TIMEOUT_MS);
+  }, []);
+
   return {
-    sendEvent, adjustment, coachingMessage, isConnected,
-    telemetry, lastAdjustment,
+    sendEvent, endSession, adjustment, coachingMessage, isConnected,
+    telemetry, lastAdjustment, sessionResult,
     sessionId: sessionId.current, userId,
   };
 }

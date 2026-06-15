@@ -16,8 +16,11 @@
 import Anthropic               from '@anthropic-ai/sdk';
 import { FieldValue }          from 'firebase-admin/firestore';
 import { getDb }               from '../firebase.js';
-import type { GameId }         from '../types/game.types.js';
+import type { GameId, DifficultyParams } from '../types/game.types.js';
+import { GAME_DOMAINS }        from '../types/domains.js';
+import type { ProblemId }      from '../types/domains.js';
 import type { AdaptiveState }             from './adaptive-agent.js';
+import { paramsFromD }                     from './adaptive-agent.js';
 import type { SessionSnapshot }           from './analytics-agent.js';
 import { CognitiveReportSchema }          from './schemas.js';
 import type { CognitiveReportFromClaude } from './schemas.js';
@@ -45,6 +48,9 @@ export interface CognitiveReport extends CognitiveReportFromClaude {
   userId:       string;
   gameId:       GameId;
   generatedAt:  number;
+  // Deterministic per-domain scores (NOT from Claude) — feed the cognitive
+  // profile EMA and the progression math. See computeDomainScores below.
+  domainScores: Record<ProblemId, number>;
   rawStats: {
     accuracy:          number | null;  // null when no scored events (e.g. tic-tac-toe with no completed game)
     avgReactionMs:     number;
@@ -53,6 +59,11 @@ export interface CognitiveReport extends CognitiveReportFromClaude {
     adjustmentCount:   number;
     netDirection:      'harder' | 'easier' | 'stable';
   };
+  // Phase E2 — the difficulty the session converged to. `difficulty` (0..1) is
+  // the smoothed level; `currentConfig` is the matching per-game params. Both
+  // feed same-game resume and are surfaced on the results screen.
+  difficulty:    number;
+  currentConfig: DifficultyParams;
 }
 
 // ── Prompt ─────────────────────────────────────────────────────────────────────
@@ -150,60 +161,153 @@ function computeNetDir(adjustments: AdjustmentRecord[]): 'harder' | 'easier' | '
   return harder > easier ? 'harder' : easier > harder ? 'easier' : 'stable';
 }
 
+// ── Deterministic per-domain scores ──────────────────────────────────────────
+// We deliberately do NOT ask Claude for per-domain scores: they are noisy and
+// they feed the progression math (levels/nodes), which needs stability. Instead
+// we derive them from the single cognitiveScore and the game's domain mapping —
+// the primary domain gets the full score, secondary domains a damped fraction.
+const SECONDARY_FACTOR = 0.85;
+
+export function computeDomainScores(cognitiveScore: number, gameId: GameId): Record<ProblemId, number> {
+  const { primary, secondary } = GAME_DOMAINS[gameId];
+  const scores = {} as Record<ProblemId, number>;
+  scores[primary] = cognitiveScore;
+  for (const d of secondary) {
+    scores[d] = Math.round(cognitiveScore * SECONDARY_FACTOR);
+  }
+  return scores;
+}
+
+// ── Deterministic fallback (Claude-independent) ──────────────────────────────
+// The cognitive profile + progression depend on EVERY completed session
+// producing a score. If Claude is unavailable (no key, rate-limited, malformed
+// output) we must still yield a defensible cognitiveScore so the pipeline never
+// stalls. Accuracy carries most of the weight; a short streak adds a small bonus.
+// accuracy === null (no scored events, e.g. an abandoned tic-tac-toe) → neutral 50.
+export function deterministicCognitiveScore(snapshot: SessionSnapshot): number {
+  if (snapshot.accuracy === null) return 50;
+  const accComponent    = snapshot.accuracy * 85;                  // 0..85
+  const streakComponent = Math.min(snapshot.peakStreak, 5) / 5 * 15; // 0..15
+  const raw = Math.round(accComponent + streakComponent);
+  return Math.max(0, Math.min(100, raw));
+}
+
+// Generic, warm Hebrew narrative used when Claude can't supply one. Stays within
+// the same length limits the Claude schema enforces so downstream UI is uniform.
+function fallbackNarrative(): Pick<CognitiveReportFromClaude, 'summaryHe' | 'strengthsHe' | 'recommendationsHe'> {
+  return {
+    summaryHe:         'סיימת עוד תרגול, וכל אימון תורם לחיזוק היכולות. כל הכבוד על ההתמדה',
+    strengthsHe:       ['התמדה ורצף תרגול קבוע'],
+    recommendationsHe: ['המשך לתרגל בקצב נוח וקבוע'],
+  };
+}
+
 // ── Main export ────────────────────────────────────────────────────────────────
 
-export async function generateSessionReport(input: ReportInput): Promise<CognitiveReport | null> {
+// Hard timeout for the Claude network call. A hung request — e.g. a zero-credit
+// key that stalls instead of erroring ("Credit balance is too low") — must never
+// block the end-session pipeline. When the budget elapses we abort the request
+// (real cancellation via AbortController) and fall through to the deterministic
+// fallback, exactly as if Claude had errored. 8s is comfortably above normal
+// Haiku latency and well below any client-side WS timeout.
+const REPORT_LLM_TIMEOUT_MS = 8000;
+
+// Minimal structural type for the Claude client so tests can inject a stub that
+// hangs on demand. The real `new Anthropic({ apiKey })` satisfies this shape.
+interface ClaudeClient {
+  messages: {
+    create: (body: any, options?: { signal?: AbortSignal }) => Promise<any>;
+  };
+}
+
+export async function generateSessionReport(
+  input: ReportInput,
+  deps: { client?: ClaudeClient } = {},
+): Promise<CognitiveReport | null> {
+  const { sessionId, snapshot, adjustments } = input;
+  const gameId = snapshot.gameId as GameId;
+
+  // Deterministic base — always available, independent of Claude. Claude can
+  // only IMPROVE the score/narrative below; it can never block report creation.
+  let cognitiveScore = deterministicCognitiveScore(snapshot);
+  let narrative      = fallbackNarrative();
+  let usage: { input_tokens: number; output_tokens: number } | null = null;
+  let source: 'claude' | 'fallback' = 'fallback';
+
   const apiKey = process.env.ANTHROPIC_API_KEY;
-  if (!apiKey) {
-    console.warn('[Report] ANTHROPIC_API_KEY not set — skipping');
-    return null;
+  const client: ClaudeClient | null = deps.client ?? (apiKey ? new Anthropic({ apiKey }) : null);
+  if (!client) {
+    console.warn('[Report] ANTHROPIC_API_KEY not set — using deterministic fallback');
+  } else {
+    // Bound the network call with a hard deadline. If Claude hasn't responded
+    // within REPORT_LLM_TIMEOUT_MS we abort the underlying request and fall
+    // through to the deterministic fallback — treated identically to any other
+    // Claude failure (no API key / network error / no JSON / bad schema).
+    const controller = new AbortController();
+    const timer = setTimeout(() => controller.abort(), REPORT_LLM_TIMEOUT_MS);
+    try {
+      const message = await client.messages.create(
+        {
+          model:      'claude-haiku-4-5-20251001',
+          max_tokens: 600,
+          system:     SYSTEM,
+          messages:   [{ role: 'user', content: buildUserPrompt(input) }],
+        },
+        { signal: controller.signal },
+      );
+
+      const text      = message.content[0].type === 'text' ? message.content[0].text : '';
+      const jsonMatch = text.match(/\{[\s\S]*\}/);   // Claude may wrap in ```json ... ```
+
+      if (!jsonMatch) {
+        console.warn(`[Report] No JSON in Claude response | session:${sessionId} | raw:${text.slice(0, 500)}`);
+      } else {
+        let parsedJson: unknown;
+        try {
+          parsedJson = JSON.parse(jsonMatch[0]);
+        } catch (err) {
+          console.warn(`[Report] JSON parse failed | session:${sessionId} | err:${(err as Error).message} | raw:${text.slice(0, 500)}`);
+          parsedJson = undefined;
+        }
+
+        const validation = parsedJson === undefined ? null : CognitiveReportSchema.safeParse(parsedJson);
+        if (validation && !validation.success) {
+          console.warn(`[Report] Schema validation failed | session:${sessionId} | issues:${JSON.stringify(validation.error.issues)} | raw:${text.slice(0, 500)}`);
+        } else if (validation && validation.success) {
+          // Claude succeeded — prefer its score + Hebrew narrative.
+          cognitiveScore = validation.data.cognitiveScore;   // schema guarantees integer 0–100
+          narrative = {
+            summaryHe:         validation.data.summaryHe,
+            strengthsHe:       validation.data.strengthsHe,
+            recommendationsHe: validation.data.recommendationsHe,
+          };
+          usage  = message.usage;
+          source = 'claude';
+        }
+      }
+    } catch (err) {
+      // A timeout surfaces as an abort; distinguish it for a clear log line.
+      if (controller.signal.aborted) {
+        console.warn(`[Report] Claude call timed out after ${REPORT_LLM_TIMEOUT_MS}ms — using deterministic fallback`);
+      } else {
+        console.warn(`[Report] Claude call failed | session:${sessionId} | err:${(err as Error).message} — using deterministic fallback`);
+      }
+    } finally {
+      clearTimeout(timer);
+    }
   }
 
-  const { sessionId, snapshot, adjustments } = input;
-
   try {
-    const client = new Anthropic({ apiKey });
-
-    const message = await client.messages.create({
-      model:      'claude-haiku-4-5-20251001',
-      max_tokens: 600,
-      system:     SYSTEM,
-      messages:   [{ role: 'user', content: buildUserPrompt(input) }],
-    });
-
-    const text = message.content[0].type === 'text' ? message.content[0].text : '';
-
-    // Extract JSON from response (Claude may wrap in ```json ... ```)
-    const jsonMatch = text.match(/\{[\s\S]*\}/);
-    if (!jsonMatch) {
-      console.warn(`[Report] No JSON in Claude response | session:${sessionId} | raw:${text.slice(0, 500)}`);
-      return null;
-    }
-
-    let parsedJson: unknown;
-    try {
-      parsedJson = JSON.parse(jsonMatch[0]);
-    } catch (err) {
-      console.warn(`[Report] JSON parse failed | session:${sessionId} | err:${(err as Error).message} | raw:${text.slice(0, 500)}`);
-      return null;
-    }
-
-    const validation = CognitiveReportSchema.safeParse(parsedJson);
-    if (!validation.success) {
-      console.warn(`[Report] Schema validation failed | session:${sessionId} | issues:${JSON.stringify(validation.error.issues)} | raw:${text.slice(0, 500)}`);
-      return null;
-    }
-    const validated = validation.data;
-
     const report: CognitiveReport = {
       sessionId,
       userId:              snapshot.userId,
-      gameId:              snapshot.gameId as GameId,
+      gameId,
       generatedAt:         Date.now(),
-      cognitiveScore:      validated.cognitiveScore,    // schema guarantees integer 0–100
-      summaryHe:           validated.summaryHe,
-      strengthsHe:         validated.strengthsHe,
-      recommendationsHe:   validated.recommendationsHe,
+      domainScores:        computeDomainScores(cognitiveScore, gameId),
+      cognitiveScore,
+      summaryHe:           narrative.summaryHe,
+      strengthsHe:         narrative.strengthsHe,
+      recommendationsHe:   narrative.recommendationsHe,
       rawStats: {
         accuracy:        snapshot.accuracy,
         avgReactionMs:   snapshot.avgReactionMs,
@@ -212,6 +316,8 @@ export async function generateSessionReport(input: ReportInput): Promise<Cogniti
         adjustmentCount: adjustments.length,
         netDirection:    computeNetDir(adjustments),
       },
+      difficulty:          Math.round(Math.min(1, Math.max(0, input.adaptive.dSmoothed)) * 1000) / 1000,
+      currentConfig:       paramsFromD(gameId, input.adaptive.dSmoothed),
     };
 
     // Save to Firestore
@@ -236,6 +342,7 @@ export async function generateSessionReport(input: ReportInput): Promise<Cogniti
         gameId:         snapshot.gameId,
         generatedAt:    report.generatedAt,
         cognitiveScore: report.cognitiveScore,
+        domainScores:   report.domainScores,
         summaryHe:      report.summaryHe,
         accuracy:       snapshot.accuracy,
       },
@@ -243,19 +350,25 @@ export async function generateSessionReport(input: ReportInput): Promise<Cogniti
 
     await batch.commit();
 
-    // Increment token counters — FieldValue.increment is atomic, no race conditions
-    await firestore.collection('meta').doc('tokenUsage').set({
-      totalInputTokens:  FieldValue.increment(message.usage.input_tokens),
-      totalOutputTokens: FieldValue.increment(message.usage.output_tokens),
-      totalReports:      FieldValue.increment(1),
-      lastUpdated:       Date.now(),
-    }, { merge: true });
+    // Token/report counters — atomic increments. Tokens only when Claude ran.
+    const meta: Record<string, unknown> = {
+      totalReports: FieldValue.increment(1),
+      lastUpdated:  Date.now(),
+    };
+    if (usage) {
+      meta.totalInputTokens  = FieldValue.increment(usage.input_tokens);
+      meta.totalOutputTokens = FieldValue.increment(usage.output_tokens);
+    }
+    await firestore.collection('meta').doc('tokenUsage').set(meta, { merge: true });
 
-    console.log(`[Report] session:${sessionId} score:${report.cognitiveScore} tokens:${message.usage.input_tokens}in/${message.usage.output_tokens}out`);
+    console.log(
+      `[Report] session:${sessionId} score:${report.cognitiveScore} source:${source}` +
+      (usage ? ` tokens:${usage.input_tokens}in/${usage.output_tokens}out` : ''),
+    );
     return report;
 
   } catch (err) {
-    console.error('[Report] Error generating report:', (err as Error).message);
+    console.error('[Report] Error persisting report:', (err as Error).message);
     return null;
   }
 }

@@ -32,6 +32,7 @@ const TRANSLATIONS = {
   'header.logout':       { he: 'יציאה',           en: 'Logout' },
   'header.welcome':      { he: 'שלום',            en: 'Hello' },
   'header.admin':        { he: 'מנהל',            en: 'Admin Panel' },
+  'header.journey':      { he: 'המסע שלי',         en: 'My Journey' },
   'header.lang.toggle':  { he: 'EN',              en: 'עברית' },
 
   // Home page hero
@@ -139,6 +140,52 @@ const TRANSLATIONS = {
   'inst.start':          { he: 'התחל משחק',           en: 'Start game' },
   'inst.rules.heading':  { he: 'הוראות המשחק',        en: 'How to play' },
   'inst.tips.heading':   { he: 'טיפים להצלחה',        en: 'Tips for success' },
+
+  // End-of-session results overlay
+  'results.finish':         { he: 'סיום אימון',              en: 'Finish session' },
+  'results.summarizing':    { he: 'מסכמים את האימון…',       en: 'Wrapping up your session…' },
+  'results.computing':      { he: 'מחשבים דוח מפורט…',       en: 'Preparing your detailed report…' },
+  'results.unavailable':    { he: 'התוצאות לא נטענו כעת, אך האימון נשמר', en: "Results couldn't load right now, but your session was saved" },
+  'results.title':          { he: 'סיכום האימון',            en: 'Session summary' },
+  'results.score':          { he: 'ציון קוגניטיבי',          en: 'Cognitive score' },
+  'results.accuracy':       { he: 'דיוק',                    en: 'Accuracy' },
+  'results.reaction':       { he: 'זמן תגובה ממוצע',         en: 'Avg. reaction' },
+  'results.streak':         { he: 'רצף שיא',                 en: 'Best streak' },
+  'results.duration':       { he: 'משך',                     en: 'Duration' },
+  'results.ms':             { he: 'מ״ש',                     en: 'ms' },
+  'results.sec':            { he: 'שנ׳',                     en: 'sec' },
+  'results.difficulty':     { he: 'רמת קושי',               en: 'Difficulty' },
+  'results.strengths':      { he: 'חוזקות',                  en: 'Strengths' },
+  'results.recommendations':{ he: 'המלצות',                  en: 'Recommendations' },
+  'results.back':           { he: 'חזרה למשחקים',            en: 'Back to games' },
+  'results.levelup':        { he: 'עלית רמה!',               en: 'Level up!' },
+  'results.rank':           { he: 'דרגה',                    en: 'Rank' },
+  'results.level':          { he: 'רמה',                     en: 'Level' },
+  'results.progressed':     { he: 'התקדמת ב־',               en: 'Progressed in' },
+
+  // Journey-map ranks
+  'rank.beginner':  { he: 'מתחיל',  en: 'Beginner' },
+  'rank.explorer':  { he: 'חוקר',   en: 'Explorer' },
+  'rank.advanced':  { he: 'מתקדם',  en: 'Advanced' },
+  'rank.expert':    { he: 'מומחה',  en: 'Expert' },
+  'rank.champion':  { he: 'אלוף',   en: 'Champion' },
+
+  // Journey map page
+  'journey.title':    { he: 'מסע ההתקדמות',              en: 'Your journey' },
+  'journey.subtitle': { he: 'כל אזור מאמן יכולת קוגניטיבית אחרת', en: 'Each region trains a different cognitive skill' },
+  'journey.loading':  { he: 'טוען את המפה…',             en: 'Loading your map…' },
+  'journey.error':    { he: 'לא הצלחנו לטעון את המפה',    en: "Couldn't load your map" },
+  'journey.retry':    { he: 'נסה שוב',                   en: 'Try again' },
+  'journey.overall':  { he: 'רמה כוללת',                 en: 'Overall level' },
+  'journey.node':     { he: 'שלב',                       en: 'Stage' },
+  'journey.of':       { he: 'מתוך',                      en: 'of' },
+  'journey.you':      { he: 'אתה כאן',                   en: 'You are here' },
+  'journey.play':     { he: 'אימון',                     en: 'Train' },
+
+  // Cognitive-domain trend
+  'trend.up':     { he: 'עולה',  en: 'Improving' },
+  'trend.stable': { he: 'יציב',  en: 'Steady' },
+  'trend.down':   { he: 'יורד',  en: 'Declining' },
 } as const;
 
 export type TKey = keyof typeof TRANSLATIONS;

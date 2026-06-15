@@ -3,10 +3,11 @@ import TicTacToeInstructions from '../../components/game-instructions/TicTacToeI
 import TicTacToe from '../../games/tic-tac-toe/TicTacToe';
 import { useGameSession } from '../../hooks/useGameSession';
 import CoachingToast from '../../components/ui/CoachingToast';
+import SessionResults from '../../components/ui/SessionResults';
 
 export default function TicTacToePage() {
   const [showInstructions, setShowInstructions] = useState(true);
-  const { sendEvent, adjustment, coachingMessage } = useGameSession('tictactoe');
+  const { sendEvent, adjustment, coachingMessage, endSession, sessionResult } = useGameSession('tictactoe');
 
   if (showInstructions) {
     return <TicTacToeInstructions onStart={() => setShowInstructions(false)} />;
@@ -19,6 +20,7 @@ export default function TicTacToePage() {
         adjustment={adjustment ?? undefined}
       />
       <CoachingToast message={coachingMessage} />
+      <SessionResults result={sessionResult} onFinish={endSession} />
     </>
   );
 }

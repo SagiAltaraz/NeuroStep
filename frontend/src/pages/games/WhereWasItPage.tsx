@@ -3,10 +3,11 @@ import WhereWasItInstructions from '../../components/game-instructions/WhereWasI
 import WhereWasIt from '../../games/where-was-it/WhereWasIt';
 import { useGameSession } from '../../hooks/useGameSession';
 import CoachingToast from '../../components/ui/CoachingToast';
+import SessionResults from '../../components/ui/SessionResults';
 
 export default function WhereWasItPage() {
   const [showInstructions, setShowInstructions] = useState(true);
-  const { sendEvent, adjustment, coachingMessage } = useGameSession('where-was-it');
+  const { sendEvent, adjustment, coachingMessage, endSession, sessionResult } = useGameSession('where-was-it');
 
   if (showInstructions) {
     return <WhereWasItInstructions onStart={() => setShowInstructions(false)} />;
@@ -16,6 +17,7 @@ export default function WhereWasItPage() {
     <>
       <WhereWasIt onAction={sendEvent} adjustment={adjustment ?? undefined} />
       <CoachingToast message={coachingMessage} />
+      <SessionResults result={sessionResult} onFinish={endSession} />
     </>
   );
 }

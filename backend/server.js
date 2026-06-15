@@ -9,6 +9,7 @@ import cors from 'cors';
 import Routes from './routes/Routes.js';
 import authRoutes from './routes/auth.js';
 import adminRoutes from './routes/adminRoutes.js';
+import meRoutes from './routes/meRoutes.js';
 import personalizationRoutes from './routes/personalizationRoutes.js';
 
 // Import Firebase AFTER dotenv
@@ -57,6 +58,7 @@ app.use(express.json());
 app.use("/api/auth", authRoutes);
 app.use("/api/personalization", personalizationRoutes);
 app.use("/api/admin", adminRoutes);
+app.use("/api/me", meRoutes);
 app.use("/api", Routes);
 
 const frontendPath = join(__dirname, "../frontend/dist");
