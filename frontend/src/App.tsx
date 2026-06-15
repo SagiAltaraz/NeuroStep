@@ -17,6 +17,7 @@ import GreenLightPage from './pages/games/GreenLightPage';
 import SpotDifferencePage from './pages/games/SpotDifferencePage';
 import WhereWasItPage from './pages/games/WhereWasItPage';
 import FindLetterPage from './pages/games/FindLetterPage';
+import JourneyPage from './pages/journey/JourneyPage';
 import AdminPage from './pages/admin/AdminPage';
 import CognitiveTrendPage from './pages/admin/trend/CognitiveTrendPage';
 import AlertsPage from './pages/admin/alerts/AlertsPage';
@@ -104,6 +105,14 @@ function App() {
                element={
                   <ProtectedRoute>
                      <FindLetterPage />
+                  </ProtectedRoute>
+               }
+            />
+            <Route
+               path="/journey"
+               element={
+                  <ProtectedRoute>
+                     <JourneyPage />
                   </ProtectedRoute>
                }
             />

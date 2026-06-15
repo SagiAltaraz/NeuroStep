@@ -167,6 +167,23 @@ const TRANSLATIONS = {
   'rank.advanced':  { he: 'מתקדם',  en: 'Advanced' },
   'rank.expert':    { he: 'מומחה',  en: 'Expert' },
   'rank.champion':  { he: 'אלוף',   en: 'Champion' },
+
+  // Journey map page
+  'journey.title':    { he: 'מסע ההתקדמות',              en: 'Your journey' },
+  'journey.subtitle': { he: 'כל אזור מאמן יכולת קוגניטיבית אחרת', en: 'Each region trains a different cognitive skill' },
+  'journey.loading':  { he: 'טוען את המפה…',             en: 'Loading your map…' },
+  'journey.error':    { he: 'לא הצלחנו לטעון את המפה',    en: "Couldn't load your map" },
+  'journey.retry':    { he: 'נסה שוב',                   en: 'Try again' },
+  'journey.overall':  { he: 'רמה כוללת',                 en: 'Overall level' },
+  'journey.node':     { he: 'שלב',                       en: 'Stage' },
+  'journey.of':       { he: 'מתוך',                      en: 'of' },
+  'journey.you':      { he: 'אתה כאן',                   en: 'You are here' },
+  'journey.play':     { he: 'אימון',                     en: 'Train' },
+
+  // Cognitive-domain trend
+  'trend.up':     { he: 'עולה',  en: 'Improving' },
+  'trend.stable': { he: 'יציב',  en: 'Steady' },
+  'trend.down':   { he: 'יורד',  en: 'Declining' },
 } as const;
 
 export type TKey = keyof typeof TRANSLATIONS;
