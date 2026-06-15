@@ -139,6 +139,34 @@ const TRANSLATIONS = {
   'inst.start':          { he: 'התחל משחק',           en: 'Start game' },
   'inst.rules.heading':  { he: 'הוראות המשחק',        en: 'How to play' },
   'inst.tips.heading':   { he: 'טיפים להצלחה',        en: 'Tips for success' },
+
+  // End-of-session results overlay
+  'results.finish':         { he: 'סיום אימון',              en: 'Finish session' },
+  'results.summarizing':    { he: 'מסכמים את האימון…',       en: 'Wrapping up your session…' },
+  'results.computing':      { he: 'מחשבים דוח מפורט…',       en: 'Preparing your detailed report…' },
+  'results.unavailable':    { he: 'התוצאות לא נטענו כעת, אך האימון נשמר', en: "Results couldn't load right now, but your session was saved" },
+  'results.title':          { he: 'סיכום האימון',            en: 'Session summary' },
+  'results.score':          { he: 'ציון קוגניטיבי',          en: 'Cognitive score' },
+  'results.accuracy':       { he: 'דיוק',                    en: 'Accuracy' },
+  'results.reaction':       { he: 'זמן תגובה ממוצע',         en: 'Avg. reaction' },
+  'results.streak':         { he: 'רצף שיא',                 en: 'Best streak' },
+  'results.duration':       { he: 'משך',                     en: 'Duration' },
+  'results.ms':             { he: 'מ״ש',                     en: 'ms' },
+  'results.sec':            { he: 'שנ׳',                     en: 'sec' },
+  'results.strengths':      { he: 'חוזקות',                  en: 'Strengths' },
+  'results.recommendations':{ he: 'המלצות',                  en: 'Recommendations' },
+  'results.back':           { he: 'חזרה למשחקים',            en: 'Back to games' },
+  'results.levelup':        { he: 'עלית רמה!',               en: 'Level up!' },
+  'results.rank':           { he: 'דרגה',                    en: 'Rank' },
+  'results.level':          { he: 'רמה',                     en: 'Level' },
+  'results.progressed':     { he: 'התקדמת ב־',               en: 'Progressed in' },
+
+  // Journey-map ranks
+  'rank.beginner':  { he: 'מתחיל',  en: 'Beginner' },
+  'rank.explorer':  { he: 'חוקר',   en: 'Explorer' },
+  'rank.advanced':  { he: 'מתקדם',  en: 'Advanced' },
+  'rank.expert':    { he: 'מומחה',  en: 'Expert' },
+  'rank.champion':  { he: 'אלוף',   en: 'Champion' },
 } as const;
 
 export type TKey = keyof typeof TRANSLATIONS;
