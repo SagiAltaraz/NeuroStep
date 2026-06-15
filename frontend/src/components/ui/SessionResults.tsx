@@ -118,6 +118,14 @@ export default function SessionResults({ result, onFinish }: Props) {
                   </div>
                 )}
 
+                {/* Difficulty the session converged to (E2) */}
+                {phase === 'report' && typeof report?.difficulty === 'number' && (
+                  <p className="text-center text-sm text-slate-500">
+                    {t('results.difficulty')}:{' '}
+                    <strong className="text-slate-700">{Math.round(report.difficulty * 100)}%</strong>
+                  </p>
+                )}
+
                 {/* Quick stats grid */}
                 {stats && (
                   <div className="grid grid-cols-2 gap-3">

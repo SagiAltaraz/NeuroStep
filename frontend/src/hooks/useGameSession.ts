@@ -12,7 +12,7 @@
 
 import { useEffect, useRef, useState, useCallback } from 'react';
 import { useAuth } from '../context/AuthContext';
-import type { GameId } from '../types/game.types';
+import type { GameId, DifficultyParams } from '../types/game.types';
 import type { ProblemId } from '../data/cognitiveProblems';
 
 const WS_URL = import.meta.env.VITE_WS_URL ?? 'ws://localhost:3001';
@@ -66,6 +66,10 @@ export interface SessionReport {
     adjustmentCount: number;
     netDirection:    'harder' | 'easier' | 'stable';
   };
+  // Phase E2 — the difficulty the session converged to (optional for back-compat
+  // with reports persisted before E2 shipped).
+  difficulty?:    number;            // 0..1 smoothed level
+  currentConfig?: DifficultyParams;  // per-game params at that difficulty
 }
 
 /**

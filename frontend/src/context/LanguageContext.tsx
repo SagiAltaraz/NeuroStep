@@ -154,6 +154,7 @@ const TRANSLATIONS = {
   'results.duration':       { he: 'משך',                     en: 'Duration' },
   'results.ms':             { he: 'מ״ש',                     en: 'ms' },
   'results.sec':            { he: 'שנ׳',                     en: 'sec' },
+  'results.difficulty':     { he: 'רמת קושי',               en: 'Difficulty' },
   'results.strengths':      { he: 'חוזקות',                  en: 'Strengths' },
   'results.recommendations':{ he: 'המלצות',                  en: 'Recommendations' },
   'results.back':           { he: 'חזרה למשחקים',            en: 'Back to games' },

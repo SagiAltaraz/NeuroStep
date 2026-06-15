@@ -16,10 +16,11 @@
 import Anthropic               from '@anthropic-ai/sdk';
 import { FieldValue }          from 'firebase-admin/firestore';
 import { getDb }               from '../firebase.js';
-import type { GameId }         from '../types/game.types.js';
+import type { GameId, DifficultyParams } from '../types/game.types.js';
 import { GAME_DOMAINS }        from '../types/domains.js';
 import type { ProblemId }      from '../types/domains.js';
 import type { AdaptiveState }             from './adaptive-agent.js';
+import { paramsFromD }                     from './adaptive-agent.js';
 import type { SessionSnapshot }           from './analytics-agent.js';
 import { CognitiveReportSchema }          from './schemas.js';
 import type { CognitiveReportFromClaude } from './schemas.js';
@@ -58,6 +59,11 @@ export interface CognitiveReport extends CognitiveReportFromClaude {
     adjustmentCount:   number;
     netDirection:      'harder' | 'easier' | 'stable';
   };
+  // Phase E2 — the difficulty the session converged to. `difficulty` (0..1) is
+  // the smoothed level; `currentConfig` is the matching per-game params. Both
+  // feed same-game resume and are surfaced on the results screen.
+  difficulty:    number;
+  currentConfig: DifficultyParams;
 }
 
 // ── Prompt ─────────────────────────────────────────────────────────────────────
@@ -310,6 +316,8 @@ export async function generateSessionReport(
         adjustmentCount: adjustments.length,
         netDirection:    computeNetDir(adjustments),
       },
+      difficulty:          Math.round(Math.min(1, Math.max(0, input.adaptive.dSmoothed)) * 1000) / 1000,
+      currentConfig:       paramsFromD(gameId, input.adaptive.dSmoothed),
     };
 
     // Save to Firestore

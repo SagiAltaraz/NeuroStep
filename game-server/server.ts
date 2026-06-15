@@ -11,7 +11,7 @@ import { connectProducer, disconnectProducer,
 import { TOPICS }                                           from './kafka/topics.js';
 import { startAdjustmentsConsumer, getAdjustmentsForSession } from './kafka/adjustments-consumer.js';
 import { getSession, initSession, deleteSession }           from './sessions/session-store.js';
-import { processEvent, persistDifficulty }                  from './agents/adaptive-agent.js';
+import { processEvent, persistDifficulty, resumeDifficulty } from './agents/adaptive-agent.js';
 import { startAnalyticsAgent, getSessionSnapshot }          from './agents/analytics-agent.js';
 import { generateSessionReport }                            from './agents/report-agent.js';
 import type { AdjustmentRecord }                            from './agents/report-agent.js';
@@ -147,6 +147,22 @@ wss.on('connection', (ws: WebSocket) => {
     if (!session) {
       session = initSession(ws, event.sessionId, event.gameId as GameId, event.userId);
       console.log(`[GameServer] Session: ${event.sessionId} | game:${event.gameId} | user:${event.userId}`);
+
+      // ── E1: resume same-game difficulty ──────────────────────────
+      // Prime the saved baseline + difficulty BEFORE this first event is
+      // processed, and snap the game to the resumed difficulty up-front instead
+      // of waiting for the controller's first adjustment.
+      const resumeParams = await resumeDifficulty(session.adaptive);
+      if (resumeParams && ws.readyState === WebSocket.OPEN) {
+        console.log(`[Resume] ${event.gameId} → D:${session.adaptive.D.toFixed(2)} | user:${event.userId}`);
+        safeSend(ws, {
+          type:      'adjustment',
+          reason:    'resume',
+          params:    resumeParams,
+          level:     session.adaptive.D,
+          direction: null,
+        });
+      }
     }
 
     // ── 2. Write to Kafka ────────────────────────────────────────
