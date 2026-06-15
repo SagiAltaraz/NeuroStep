@@ -18,6 +18,7 @@ import { useEffect, useState, type ReactNode } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { AnimatePresence, motion } from 'framer-motion';
 import { useLang, type TKey } from '../../context/LanguageContext';
+import Avatar from '../journey/Avatar';
 import type { SessionResult } from '../../hooks/useGameSession';
 
 interface Props {
@@ -197,24 +198,17 @@ function List({ title, items }: { title: string; items: string[] }) {
 
 function LevelUpBanner({ result, t }: { result: SessionResult; t: (k: TKey) => string }) {
   const promoted = (result.levelChanges ?? []).filter((c) => c.delta > 0);
-  // F3 will drop an animated <Avatar state={result.avatarState} /> in place of
-  // the emoji below; avatarState ('climb' | 'celebrate') already drives the cue.
-  const celebrate = result.avatarState === 'celebrate';
+  // A level-up is always a 'climb' or 'celebrate' cue; default to 'celebrate'.
+  const avatarState = result.avatarState === 'climb' ? 'climb' : 'celebrate';
   return (
     <motion.div
       initial={{ scale: 0.8, opacity: 0 }}
       animate={{ scale: 1, opacity: 1 }}
       transition={{ type: 'spring', stiffness: 260, damping: 18 }}
       className="flex flex-col items-center gap-2 rounded-2xl bg-gradient-to-b from-amber-100 to-amber-50
-                 p-4 text-center text-amber-900 ring-1 ring-amber-200"
+                 p-4 pt-6 text-center text-amber-900 ring-1 ring-amber-200"
     >
-      <motion.span
-        className="text-5xl"
-        animate={celebrate ? { rotate: [0, -12, 12, 0], y: [0, -6, 0] } : { y: [0, -4, 0] }}
-        transition={{ repeat: Infinity, duration: 1.4 }}
-      >
-        {celebrate ? '🎉' : '⬆️'}
-      </motion.span>
+      <Avatar state={avatarState} size={64} />
       <div className="text-lg font-bold">{t('results.levelup')}</div>
       <div className="text-sm">
         {t('results.rank')}: <strong>{t(`rank.${result.rank}` as TKey)}</strong>
