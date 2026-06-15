@@ -198,7 +198,26 @@ function fallbackNarrative(): Pick<CognitiveReportFromClaude, 'summaryHe' | 'str
 
 // ── Main export ────────────────────────────────────────────────────────────────
 
-export async function generateSessionReport(input: ReportInput): Promise<CognitiveReport | null> {
+// Hard timeout for the Claude network call. A hung request — e.g. a zero-credit
+// key that stalls instead of erroring ("Credit balance is too low") — must never
+// block the end-session pipeline. When the budget elapses we abort the request
+// (real cancellation via AbortController) and fall through to the deterministic
+// fallback, exactly as if Claude had errored. 8s is comfortably above normal
+// Haiku latency and well below any client-side WS timeout.
+const REPORT_LLM_TIMEOUT_MS = 8000;
+
+// Minimal structural type for the Claude client so tests can inject a stub that
+// hangs on demand. The real `new Anthropic({ apiKey })` satisfies this shape.
+interface ClaudeClient {
+  messages: {
+    create: (body: any, options?: { signal?: AbortSignal }) => Promise<any>;
+  };
+}
+
+export async function generateSessionReport(
+  input: ReportInput,
+  deps: { client?: ClaudeClient } = {},
+): Promise<CognitiveReport | null> {
   const { sessionId, snapshot, adjustments } = input;
   const gameId = snapshot.gameId as GameId;
 
@@ -210,17 +229,26 @@ export async function generateSessionReport(input: ReportInput): Promise<Cogniti
   let source: 'claude' | 'fallback' = 'fallback';
 
   const apiKey = process.env.ANTHROPIC_API_KEY;
-  if (!apiKey) {
+  const client: ClaudeClient | null = deps.client ?? (apiKey ? new Anthropic({ apiKey }) : null);
+  if (!client) {
     console.warn('[Report] ANTHROPIC_API_KEY not set — using deterministic fallback');
   } else {
+    // Bound the network call with a hard deadline. If Claude hasn't responded
+    // within REPORT_LLM_TIMEOUT_MS we abort the underlying request and fall
+    // through to the deterministic fallback — treated identically to any other
+    // Claude failure (no API key / network error / no JSON / bad schema).
+    const controller = new AbortController();
+    const timer = setTimeout(() => controller.abort(), REPORT_LLM_TIMEOUT_MS);
     try {
-      const client  = new Anthropic({ apiKey });
-      const message = await client.messages.create({
-        model:      'claude-haiku-4-5-20251001',
-        max_tokens: 600,
-        system:     SYSTEM,
-        messages:   [{ role: 'user', content: buildUserPrompt(input) }],
-      });
+      const message = await client.messages.create(
+        {
+          model:      'claude-haiku-4-5-20251001',
+          max_tokens: 600,
+          system:     SYSTEM,
+          messages:   [{ role: 'user', content: buildUserPrompt(input) }],
+        },
+        { signal: controller.signal },
+      );
 
       const text      = message.content[0].type === 'text' ? message.content[0].text : '';
       const jsonMatch = text.match(/\{[\s\S]*\}/);   // Claude may wrap in ```json ... ```
@@ -252,7 +280,14 @@ export async function generateSessionReport(input: ReportInput): Promise<Cogniti
         }
       }
     } catch (err) {
-      console.warn(`[Report] Claude call failed | session:${sessionId} | err:${(err as Error).message} — using deterministic fallback`);
+      // A timeout surfaces as an abort; distinguish it for a clear log line.
+      if (controller.signal.aborted) {
+        console.warn(`[Report] Claude call timed out after ${REPORT_LLM_TIMEOUT_MS}ms — using deterministic fallback`);
+      } else {
+        console.warn(`[Report] Claude call failed | session:${sessionId} | err:${(err as Error).message} — using deterministic fallback`);
+      }
+    } finally {
+      clearTimeout(timer);
     }
   }
 
