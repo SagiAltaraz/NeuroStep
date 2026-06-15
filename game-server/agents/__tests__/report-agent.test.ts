@@ -73,20 +73,18 @@ describe('deterministicCognitiveScore', () => {
   });
 });
 
-describe('generateSessionReport — Claude timeout', () => {
+describe('generateSessionReport — score is deterministic, narrative is gated', () => {
+  const adaptive = {
+    reactionWindow: [800, 820, 810, 790],
+    baselineMean:   850,
+    baselineStdDev: 100,
+    emaReactionMs:  805,
+    totalScoredEvents: 20,
+    dSmoothed:      0.5,
+  } as unknown as AdaptiveState;
+
   function reportInput(snapshot: SessionSnapshot): ReportInput {
-    return {
-      sessionId: 's1',
-      snapshot,
-      // Only a few fields are read by buildUserPrompt; cast a partial.
-      adaptive: {
-        reactionWindow: [800, 820, 810, 790],
-        baselineMean:   850,
-        baselineStdDev: 100,
-        emaReactionMs:  805,
-      } as unknown as AdaptiveState,
-      adjustments: [],
-    };
+    return { sessionId: 's1', snapshot, adaptive, adjustments: [] };
   }
 
   // A stub whose messages.create never resolves on its own — it rejects only
@@ -103,22 +101,44 @@ describe('generateSessionReport — Claude timeout', () => {
     },
   };
 
-  it('falls back to the deterministic score when the Claude call hangs past the budget', async () => {
+  it('non-milestone session never calls Claude and uses the deterministic score + template', async () => {
+    const logSpy = vi.spyOn(console, 'log').mockImplementation(() => {});
+    const create = vi.fn();
+    try {
+      const snapshot = snap({ accuracy: 0.8, peakStreak: 3 });
+      const report = await generateSessionReport(reportInput(snapshot), {
+        client: { messages: { create } } as any,
+        milestone: false,
+      });
+      expect(report).not.toBeNull();
+      // Claude was never invoked.
+      expect(create).not.toHaveBeenCalled();
+      // Score is the deterministic value computed WITH the adaptive baseline.
+      expect(report!.cognitiveScore).toBe(deterministicCognitiveScore(snapshot, adaptive));
+      expect(report!.domainScores['working-memory']).toBe(report!.cognitiveScore);
+      // A (non-empty) templated Hebrew narrative is always present.
+      expect(report!.summaryHe.length).toBeGreaterThan(0);
+      expect(report!.v).toBe(1);
+    } finally {
+      logSpy.mockRestore();
+    }
+  });
+
+  it('milestone session falls back to the template when the Claude call hangs past the budget', async () => {
     vi.useFakeTimers();
     const warnSpy = vi.spyOn(console, 'warn').mockImplementation(() => {});
     const logSpy  = vi.spyOn(console, 'log').mockImplementation(() => {});
     try {
       const snapshot = snap({ accuracy: 0.8, peakStreak: 3 });
-      const promise  = generateSessionReport(reportInput(snapshot), { client: hangingClient });
+      const promise  = generateSessionReport(reportInput(snapshot), { client: hangingClient, milestone: true });
 
       // Advance past the 8s budget; *Async flushes the abort rejection's microtasks.
       await vi.advanceTimersByTimeAsync(8000);
       const report = await promise;
 
       expect(report).not.toBeNull();
-      // cognitiveScore came from the deterministic path, not Claude.
-      expect(report!.cognitiveScore).toBe(deterministicCognitiveScore(snapshot));
-      // domainScores still produced (derived from the deterministic score).
+      // Score is always deterministic, regardless of the Claude timeout.
+      expect(report!.cognitiveScore).toBe(deterministicCognitiveScore(snapshot, adaptive));
       expect(report!.domainScores['working-memory']).toBe(report!.cognitiveScore);
       // The timeout branch logged (proves we hit the timeout, not another fallback).
       const warned = warnSpy.mock.calls.flat().some(a => String(a).includes('timed out'));

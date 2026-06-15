@@ -19,6 +19,8 @@ import { getDb }   from '../firebase.js';
 import type { GameId } from '../types/game.types.js';
 import { CoachingMessageSchema } from './schemas.js';
 import { pickFallback } from './coaching-fallbacks.js';
+import { recordTokenUsage } from './token-usage.js';
+import { COACHING_TUNING } from './progression.config.js';
 
 const SYSTEM = `\
 You are a warm, encouraging cognitive fitness coach for elderly adults playing brain training games.
@@ -42,7 +44,10 @@ const GAME_NAMES: Record<GameId, string> = {
   'find-letter':     'find the letter',
 };
 
-function useFallback(direction: 'harder' | 'easier', sessionId: string, reason: string): string {
+// Pick a Hebrew fallback message and record why we used it. Exported so the
+// server can serve fallbacks directly for the (many) adjustments that don't
+// warrant the one Claude call we allow per session (B2).
+export function coachingFallback(direction: 'harder' | 'easier', sessionId: string, reason: string): string {
   // Atomic increment — fire-and-forget, never awaited (toast latency must stay low).
   getDb().collection('meta').doc('coachingFallbackUsage').set({
     total:           FieldValue.increment(1),
@@ -55,6 +60,16 @@ function useFallback(direction: 'harder' | 'easier', sessionId: string, reason: 
   return message;
 }
 
+/**
+ * Is this adjustment worth spending the session's single live Claude call on?
+ * We skip the earliest wobbles (when the controller is still finding its feet)
+ * so the one personalised message lands on a moment that actually means
+ * something to the player. Everything else uses the fallback bank.
+ */
+export function isMeaningfulMoment(opts: { totalScoredEvents: number }): boolean {
+  return opts.totalScoredEvents >= COACHING_TUNING.MEANINGFUL_MIN_EVENTS;
+}
+
 export async function getCoachingMessage(
   gameId:      GameId,
   direction:   'harder' | 'easier',
@@ -63,7 +78,7 @@ export async function getCoachingMessage(
   sessionId:   string,   // for the fallback bank's LRU cache (avoid repeats)
 ): Promise<string> {
   const apiKey = process.env.ANTHROPIC_API_KEY;
-  if (!apiKey) return useFallback(direction, sessionId, 'no_api_key');
+  if (!apiKey) return coachingFallback(direction, sessionId, 'no_api_key');
 
   const game   = GAME_NAMES[gameId] ?? gameId;
   const accPct = Math.round(accuracy * 100);
@@ -88,23 +103,20 @@ export async function getCoachingMessage(
     rawText = msg.content[0].type === 'text' ? msg.content[0].text.trim() : null;
 
     // Track tokens (fire-and-forget — don't await so we never delay the message)
-    getDb().collection('meta').doc('tokenUsage').set({
-      totalInputTokens:  FieldValue.increment(msg.usage.input_tokens),
-      totalOutputTokens: FieldValue.increment(msg.usage.output_tokens),
-    }, { merge: true }).catch(() => {});
+    recordTokenUsage('coaching', msg.usage);
   } catch (err) {
     console.error('[Coaching] Claude call failed:', (err as Error).message);
-    return useFallback(direction, sessionId, 'claude_error');
+    return coachingFallback(direction, sessionId, 'claude_error');
   }
 
-  if (!rawText) return useFallback(direction, sessionId, 'empty_response');
+  if (!rawText) return coachingFallback(direction, sessionId, 'empty_response');
 
   // Defensive validation — rules also live in the system prompt, but Claude
   // sometimes ignores them. Fall back rather than show a rule-breaking toast.
   const validation = CoachingMessageSchema.safeParse(rawText);
   if (!validation.success) {
     console.warn(`[Coaching] Schema validation failed | game:${gameId} direction:${direction} | issues:${JSON.stringify(validation.error.issues)} | raw:"${rawText.slice(0, 100)}"`);
-    return useFallback(direction, sessionId, 'schema_invalid');
+    return coachingFallback(direction, sessionId, 'schema_invalid');
   }
 
   console.log(`[Coaching] "${validation.data}"`);

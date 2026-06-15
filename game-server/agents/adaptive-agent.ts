@@ -24,6 +24,8 @@
 import { mean, standardDeviation, linearRegression } from 'simple-statistics';
 import { getDb }                                      from '../firebase.js';
 import type { DifficultyParams, GameId }              from '../types/game.types.js';
+import { GAME_DOMAINS }                               from '../types/domains.js';
+import { CROSSGAME_TUNING }                           from './progression.config.js';
 
 // ── Controller config ───────────────────────────────────────────────────────────
 
@@ -235,6 +237,62 @@ export async function persistDifficulty(userId: string, gameId: GameId, dSmoothe
   } catch { /* non-critical */ }
 }
 
+// ── Cross-game warm-up transfer (A2) ─────────────────────────────────────────
+
+/**
+ * Derive a 0..100 starting level for a game the user has NOT played before, from
+ * the cognitive-profile levels of the domains that game trains. Ability lives at
+ * the DOMAIN level (shared across games), so a strong working-memory profile
+ * should let a brand-new memory game open above the cold-start floor.
+ *
+ * Returns a confidence-weighted blend of the game's primary + secondary domain
+ * levels, or null when there isn't enough trustworthy signal (anonymous user,
+ * no profile, or every relevant domain below MIN_CONFIDENCE). null → cold start.
+ */
+export async function seedLevelFromProfile(userId: string, gameId: GameId): Promise<number | null> {
+  if (userId === 'anonymous') return null;
+
+  const { primary, secondary } = GAME_DOMAINS[gameId];
+  const weights = new Map<string, number>([[primary, CROSSGAME_TUNING.W_PRIMARY]]);
+  for (const d of secondary) weights.set(d, CROSSGAME_TUNING.W_SECONDARY);
+
+  try {
+    const col = getDb().collection('users').doc(userId).collection('cognitiveProfile');
+    const snaps = await Promise.all([...weights.keys()].map(d => col.doc(d).get()));
+
+    let numerator = 0;   // Σ level · weight · confidence
+    let denominator = 0; // Σ weight · confidence
+    for (const snap of snaps) {
+      if (!snap.exists) continue;
+      const d = snap.data()!;
+      const level      = typeof d.level === 'number' ? d.level : null;
+      const confidence = typeof d.confidence === 'number' ? d.confidence : 0;
+      if (level === null || confidence < CROSSGAME_TUNING.MIN_CONFIDENCE) continue;
+      const weight = weights.get(d.domainId) ?? weights.get(snap.id) ?? 0;
+      numerator   += level * weight * confidence;
+      denominator += weight * confidence;
+    }
+
+    if (denominator === 0) return null;
+    return numerator / denominator;
+  } catch {
+    return null;
+  }
+}
+
+/**
+ * Warm-start this session's difficulty from a cross-game seed level (0..100),
+ * damped by WARMUP_FACTOR. Mutates state.D + dSmoothed and returns the matching
+ * params so the server can snap the game up-front. Call only before the first
+ * event, when there is no same-game saved difficulty to resume.
+ */
+export function applyWarmupSeed(state: AdaptiveState, seedLevel: number): DifficultyParams {
+  const D = clamp01(CROSSGAME_TUNING.WARMUP_FACTOR * seedLevel / 100);
+  state.D         = D;
+  state.dSmoothed = D;
+  return paramsFromD(state.gameId, D);
+}
+
 // ── Public event/result shapes ──────────────────────────────────────────────────
 
 export interface AdaptiveEvent {
@@ -371,15 +429,25 @@ function computeP(state: AdaptiveState, tuning: GameTuning): number | null {
 
 /** 0..1 — how fast the user is vs their personal baseline. null when unknown. */
 function speedScore(state: AdaptiveState): number | null {
-  if (state.emaReactionMs === null || state.baselineMean === null
-      || !state.baselineStdDev || state.baselineStdDev <= 10) return null;
+  return speedVsBaseline(state.emaReactionMs, state.baselineMean, state.baselineStdDev);
+}
+
+/**
+ * 0..1 — how fast a reaction-time EMA is vs a personal baseline (0.5 = on par,
+ * >0.5 = faster than usual). null when there is no usable baseline. Exported so
+ * the report-agent can reuse the exact same speed model the live controller uses.
+ */
+export function speedVsBaseline(
+  ema: number | null, baselineMean: number | null, baselineStdDev: number | null,
+): number | null {
+  if (ema === null || baselineMean === null || !baselineStdDev || baselineStdDev <= 10) return null;
   // z<0 (faster than baseline) → high score. Centre at 0.5, ±2σ spans the range.
-  const z = (state.emaReactionMs - state.baselineMean) / state.baselineStdDev;
+  const z = (ema - baselineMean) / baselineStdDev;
   return clamp01(0.5 - z / 4);
 }
 
 /** Small penalty (0..0.15) when reaction times are trending upward (fatigue). */
-function fatiguePenalty(reactionWindow: number[]): number {
+export function fatiguePenalty(reactionWindow: number[]): number {
   if (reactionWindow.length < 5) return 0;
   const pts   = reactionWindow.map((y, x) => [x, y] as [number, number]);
   const slope = linearRegression(pts).m; // ms per event
