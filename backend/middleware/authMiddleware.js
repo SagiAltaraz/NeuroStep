@@ -40,6 +40,35 @@ export const protect = async (req, res, next) => {
   }
 };
 
+export const optionalProtect = async (req, res, next) => {
+  let token;
+
+  if (
+    req.headers.authorization &&
+    req.headers.authorization.startsWith("Bearer")
+  ) {
+    token = req.headers.authorization.split(" ")[1];
+  }
+
+  if (!token) {
+    return next();
+  }
+
+  try {
+    const decoded = jwt.verify(token, process.env.JWT_SECRET);
+    const user = await userFirebaseService.findById(decoded.id);
+
+    if (user) {
+      const { password, ...userWithoutPassword } = user;
+      req.user = userWithoutPassword;
+    }
+  } catch (err) {
+    console.error("Optional token verification failed:", err.message);
+  }
+
+  next();
+};
+
 export const isAdmin = (req, res, next) => {
   if (!req.user) {
     return res.status(401).json({ message: "Not authenticated" });

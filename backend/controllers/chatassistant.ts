@@ -7,14 +7,21 @@ import {
 
 type AskAIRequestBody = {
    prompt?: string;
+   intent?: 'progression' | 'domainConcept' | 'general';
 };
 
 export const askFromOpenAI = async (
-   req: Request<Record<string, never>, unknown, AskAIRequestBody>,
+   req: Request<Record<string, never>, unknown, AskAIRequestBody> & {
+      user?: { id?: string };
+   },
    res: Response
 ) => {
    try {
-      const response = await chatAssistantService.ask(req.body.prompt);
+      const response = await chatAssistantService.ask(
+         req.body.prompt,
+         req.user?.id,
+         req.body.intent
+      );
       return res.json({ response });
    } catch (error) {
       if (error instanceof InvalidPromptError) {

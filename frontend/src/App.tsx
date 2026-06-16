@@ -43,7 +43,15 @@ function App() {
             />
             <Route path="/sign-up" element={<SignupPage />} />
             <Route path="/log-in" element={<LoginPage />} />
-            <Route path="/games" element={<GamesPage />} />
+            <Route
+               path="/games"
+               element={
+                  <>
+                     <GamesPage />
+                     <ChatAssistant />
+                  </>
+               }
+            />
             <Route
                path="/games/colorTracking"
                element={
@@ -112,7 +120,10 @@ function App() {
                path="/journey"
                element={
                   <ProtectedRoute>
-                     <JourneyPage />
+                     <>
+                        <JourneyPage />
+                        <ChatAssistant />
+                     </>
                   </ProtectedRoute>
                }
             />
