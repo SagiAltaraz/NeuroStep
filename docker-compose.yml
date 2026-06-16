@@ -15,6 +15,10 @@ services:
          - '3000:3000'
       env_file:
          - ./backend/.env
+      command: bun run dev
+      volumes:
+         - ./backend:/app/backend
+         - /app/backend/node_modules
       restart: unless-stopped
 
    frontend:

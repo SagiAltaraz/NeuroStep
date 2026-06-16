@@ -4,7 +4,8 @@
   "main": "index.js",
   "type": "module",
   "scripts": {
-    "start": "bun server.js"
+    "start": "bun server.js",
+    "dev": "bun --watch server.js"
   },
   "keywords": [],
   "author": "",
@@ -19,5 +20,8 @@
     "jsonwebtoken": "^9.0.3",
     "openai": "^6.9.1",
     "tiktoken": "^1.0.22"
+  },
+  "devDependencies": {
+    "@types/express": "^5.0.6"
   }
 }
