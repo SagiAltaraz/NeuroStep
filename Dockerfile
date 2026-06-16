@@ -19,7 +19,7 @@ RUN bun run build
 FROM oven/bun:1 AS deps
 WORKDIR /backend
 COPY backend/package.json backend/bun.lock* ./
-RUN bun install --production
+RUN bun install --production --no-frozen-lockfile
 
 # Stage 3: Production runner
 FROM oven/bun:1
