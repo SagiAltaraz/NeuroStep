@@ -29,6 +29,10 @@ import type { ProfileUpdateResult } from './profile-agent.js';
 export type Rank = 'beginner' | 'explorer' | 'advanced' | 'expert' | 'champion';
 export type AvatarState = 'idle' | 'climb' | 'drop' | 'celebrate';
 
+// Schema version for users/{uid}/progression/current. Bumped when the doc shape
+// changes so a future migration can detect older docs (D4).
+export const PROGRESSION_SCHEMA_VERSION = 1;
+
 export interface RegionState {
   node:      number;
   peakNode:  number;
@@ -181,6 +185,7 @@ export async function updateProgression(
       regions:      result.regions,
       avatarState:  result.avatarState,
       updatedAt:    Date.now(),
+      v:            PROGRESSION_SCHEMA_VERSION,
     }, { merge: true });
 
     const changed = result.levelChanges.filter(c => c.delta !== 0)

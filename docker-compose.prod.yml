@@ -1,4 +1,4 @@
-# Production stack for a single always-on VM (Oracle Cloud Always Free).
+# Production stack for a single always-on VM (e.g. a DigitalOcean Droplet). See DEPLOY.md.
 #   - app          : backend API + built frontend (port 3000, internal)
 #   - game-server  : WebSocket + agents (port 3001, internal)
 #   - redpanda     : Kafka-compatible broker (replaces kafka + zookeeper)
