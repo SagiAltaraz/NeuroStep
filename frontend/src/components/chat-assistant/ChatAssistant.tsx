@@ -10,7 +10,7 @@ type Message = {
 const ChatAssistant = () => {
    const [isOpen, setIsOpen] = useState(false);
    const [messages, setMessages] = useState<Message[]>([
-      { sender: 'ai', text: 'Hi! How can I help you today?' },
+      { sender: 'ai', text: 'היי, איך אוכל לעזור היום' },
    ]);
    const [input, setInput] = useState('');
    const [isLoading, setIsLoading] = useState(false);

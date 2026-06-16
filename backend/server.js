@@ -6,7 +6,7 @@ import express from 'express';
 import { fileURLToPath } from 'url';
 import { dirname, join } from 'path';
 import cors from 'cors';
-import Routes from './routes/Routes.js';
+import askAIRoutes from './routes/askAI.ts';
 import authRoutes from './routes/auth.js';
 import adminRoutes from './routes/adminRoutes.js';
 import meRoutes from './routes/meRoutes.js';
@@ -59,7 +59,7 @@ app.use("/api/auth", authRoutes);
 app.use("/api/personalization", personalizationRoutes);
 app.use("/api/admin", adminRoutes);
 app.use("/api/me", meRoutes);
-app.use("/api", Routes);
+app.use("/api", askAIRoutes);
 
 const frontendPath = join(__dirname, "../frontend/dist");
 app.use(express.static(frontendPath));

@@ -16,17 +16,17 @@ ENV VITE_WS_URL=$VITE_WS_URL
 RUN bun run build
 
 # Stage 2: Install backend dependencies
-FROM node:20-alpine AS deps
+FROM oven/bun:1 AS deps
 WORKDIR /backend
-COPY backend/package.json ./
-RUN npm install
+COPY backend/package.json backend/bun.lock* ./
+RUN bun install --production --no-frozen-lockfile
 
 # Stage 3: Production runner
-FROM node:20-alpine
+FROM oven/bun:1
 WORKDIR /app/backend
 COPY --from=deps /backend/node_modules ./node_modules
 COPY backend/ .
 COPY --from=frontend-build /frontend/dist /app/frontend/dist
 
 EXPOSE 3000
-CMD ["node", "server.js"]
+CMD ["bun", "server.js"]
