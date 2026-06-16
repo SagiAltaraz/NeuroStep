@@ -31,10 +31,12 @@ export const chatAssistantRepository = {
                { role: 'user', content: prompt },
             ],
             temperature: 0.7,
-            max_tokens: 50,
+            max_tokens: 200,
          });
 
-         return completion.choices[0]?.message?.content?.trim() || 'לא הבנתי...';
+         return (
+            completion.choices[0]?.message?.content?.trim() || 'לא הבנתי...'
+         );
       } catch (error) {
          if (error instanceof AIProviderError) {
             throw error;
