@@ -31,8 +31,8 @@ export async function checkAlerts(
   userId:   string,
   gameId:   GameId,
   current:  SessionSnapshot,            // freshest session (not yet in Firestore)
-): Promise<void> {
-  if (userId === 'anonymous') return;
+): Promise<boolean> {                   // → true when a decline alert was written
+  if (userId === 'anonymous') return false;
 
   // Sessions with no scored events (e.g. tic-tac-toe with only MOVE_MADE) have
   // accuracy=null and cannot be part of a decline pattern. Skip the accuracy
@@ -52,10 +52,10 @@ export async function checkAlerts(
       .get();
   } catch (err) {
     console.warn('[Alert] Firestore query failed (check composite index):', (err as Error).message);
-    return;
+    return false;
   }
 
-  if (prevSnap.size < 2) return;   // need at least 2 historical sessions
+  if (prevSnap.size < 2) return false;   // need at least 2 historical sessions
 
   const prev = prevSnap.docs.map(d => ({
     accuracy: (d.data().accuracy ?? null)              as number | null,
@@ -82,7 +82,7 @@ export async function checkAlerts(
     cogScores.length >= 2 &&
     (cogScores[cogScores.length - 1] - cogScores[0]) >= SCORE_DROP_THRESHOLD;
 
-  if (!isLargeAccuracyDrop && !isLargeScoreDrop) return;
+  if (!isLargeAccuracyDrop && !isLargeScoreDrop) return false;
 
   const alertRef = db.collection('users').doc(userId).collection('alerts').doc();
   const alertData = {
@@ -107,7 +107,9 @@ export async function checkAlerts(
       `[Alert] ⚠ Decline flagged for ${userId}/${gameId}: ` +
       `accuracy drop ${Math.round(totalDrop * 100)}%, trigger=${alertData.trigger}`,
     );
+    return true;
   } catch (err) {
     console.error('[Alert]', (err as Error).message);
+    return false;
   }
 }

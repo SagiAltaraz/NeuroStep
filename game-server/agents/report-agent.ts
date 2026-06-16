@@ -20,10 +20,11 @@ import type { GameId, DifficultyParams } from '../types/game.types.js';
 import { GAME_DOMAINS }        from '../types/domains.js';
 import type { ProblemId }      from '../types/domains.js';
 import type { AdaptiveState }             from './adaptive-agent.js';
-import { paramsFromD }                     from './adaptive-agent.js';
+import { paramsFromD, speedVsBaseline, fatiguePenalty } from './adaptive-agent.js';
 import type { SessionSnapshot }           from './analytics-agent.js';
-import { CognitiveReportSchema }          from './schemas.js';
+import { ReportNarrativeSchema }          from './schemas.js';
 import type { CognitiveReportFromClaude } from './schemas.js';
+import { recordTokenUsage }    from './token-usage.js';
 
 // ── Types ──────────────────────────────────────────────────────────────────────
 
@@ -43,11 +44,17 @@ export interface AdjustmentRecord {
 // Persistence type = Claude-validated payload + agent-supplied metadata.
 // The Claude-side fields (cognitiveScore, summaryHe, ...) are sourced from
 // CognitiveReportSchema in schemas.ts — single source of truth.
+// Schema version for the persisted documents this agent writes (sessions/*.report
+// and users/*/reports/*). Bumped when the shape changes so a future migration can
+// detect and upgrade older docs. See D4 in WORK_PROMPT_PHASE2.
+export const SCHEMA_VERSION = 1;
+
 export interface CognitiveReport extends CognitiveReportFromClaude {
   sessionId:    string;
   userId:       string;
   gameId:       GameId;
   generatedAt:  number;
+  v:            number;   // schemaVersion (SCHEMA_VERSION)
   // Deterministic per-domain scores (NOT from Claude) — feed the cognitive
   // profile EMA and the progression math. See computeDomainScores below.
   domainScores: Record<ProblemId, number>;
@@ -90,7 +97,7 @@ const GAME_NAMES: Record<GameId, string> = {
   'find-letter':     'Find the Letter (selective attention + visual search)',
 };
 
-function buildUserPrompt(input: ReportInput): string {
+function buildUserPrompt(input: ReportInput, cognitiveScore: number): string {
   const { snapshot, adaptive, adjustments } = input;
   const durationSec = Math.round(snapshot.durationMs / 1000);
   const harder  = adjustments.filter(a => a.direction === 'harder').length;
@@ -129,15 +136,17 @@ ${adjustments.slice(-3).map(a => `  - ${a.reason} → ${a.direction}`).join('\n'
 ## Personal Baseline Comparison
 ${baselineSection}
 
+## Cognitive Score (already computed — DO NOT return it)
+This session scored ${cognitiveScore}/100 (70–100 = strong, 40–69 = average, 0–39 = needs practice).
+Write the narrative so it is consistent with that score.
+
 ## Required JSON Output
 {
-  "cognitiveScore": <integer 0-100>,
   "summaryHe": "<2-3 sentences in Hebrew — what went well, what the performance reveals cognitively>",
   "strengthsHe": ["<specific observed strength in Hebrew>", "<another strength in Hebrew>"],
   "recommendationsHe": ["<one actionable suggestion in Hebrew>", "<optional second suggestion>"]
 }
 
-Scoring: 70–100 = strong performance, 40–69 = average, 0–39 = needs practice.
 Keep Hebrew text warm, simple, and encouraging — never frightening.`.trim();
 }
 
@@ -178,27 +187,110 @@ export function computeDomainScores(cognitiveScore: number, gameId: GameId): Rec
   return scores;
 }
 
-// ── Deterministic fallback (Claude-independent) ──────────────────────────────
-// The cognitive profile + progression depend on EVERY completed session
-// producing a score. If Claude is unavailable (no key, rate-limited, malformed
-// output) we must still yield a defensible cognitiveScore so the pipeline never
-// stalls. Accuracy carries most of the weight; a short streak adds a small bonus.
-// accuracy === null (no scored events, e.g. an abandoned tic-tac-toe) → neutral 50.
-export function deterministicCognitiveScore(snapshot: SessionSnapshot): number {
+// ── Deterministic cognitive score (the ONLY source of the score) ─────────────
+// Phase 2/B1: the score is authoritative maths — Claude is never asked for it.
+// The profile EMA + progression nodes depend on EVERY completed session
+// producing a stable, reproducible number, so we derive it from the session
+// signals using the same model the live controller trusts:
+//
+//   accuracy (dominant) + peak streak (focus) + speed-vs-baseline − fatigue
+//
+// `accuracy === null` (no scored events, e.g. an abandoned tic-tac-toe) → 50.
+// `adaptive` is optional: without a usable RT baseline the speed term is folded
+// back into accuracy so the score still spans the full 0..100 range.
+export function deterministicCognitiveScore(
+  snapshot: SessionSnapshot,
+  adaptive?: Pick<AdaptiveState, 'emaReactionMs' | 'baselineMean' | 'baselineStdDev' | 'reactionWindow'>,
+): number {
   if (snapshot.accuracy === null) return 50;
-  const accComponent    = snapshot.accuracy * 85;                  // 0..85
+
   const streakComponent = Math.min(snapshot.peakStreak, 5) / 5 * 15; // 0..15
-  const raw = Math.round(accComponent + streakComponent);
-  return Math.max(0, Math.min(100, raw));
+  const speed   = adaptive ? speedVsBaseline(adaptive.emaReactionMs, adaptive.baselineMean, adaptive.baselineStdDev) : null;
+  const fatigue = adaptive ? fatiguePenalty(adaptive.reactionWindow) : 0;
+
+  // With a baseline we split the weight: accuracy 0..70, speed 0..15, streak
+  // 0..15. Without one, accuracy absorbs the speed weight (0..85) — identical to
+  // the pre-Phase-2 behaviour, so cold-start sessions score the same as before.
+  const raw = speed === null
+    ? snapshot.accuracy * 85 + streakComponent
+    : snapshot.accuracy * 70 + streakComponent + speed * 15;
+
+  return Math.max(0, Math.min(100, Math.round(raw - fatigue * 5)));
 }
 
-// Generic, warm Hebrew narrative used when Claude can't supply one. Stays within
-// the same length limits the Claude schema enforces so downstream UI is uniform.
-function fallbackNarrative(): Pick<CognitiveReportFromClaude, 'summaryHe' | 'strengthsHe' | 'recommendationsHe'> {
+// ── Templated Hebrew narrative (Claude-free) ─────────────────────────────────
+// Most sessions are NOT milestones, so we don't spend a Claude call on them.
+// Instead we assemble a warm, varied Hebrew narrative from a bank keyed by
+// performance tier × the game's primary domain. Several phrasings per cell keep
+// repeated sessions from feeling robotic. See isMilestone() for when Claude runs.
+
+type Tier = 'strong' | 'average' | 'practice';
+
+function tierOf(score: number): Tier {
+  if (score >= 70) return 'strong';
+  if (score >= 40) return 'average';
+  return 'practice';
+}
+
+// Short Hebrew label for each cognitive domain — used to make the narrative
+// feel specific to what the game just trained.
+const DOMAIN_LABEL_HE: Record<ProblemId, string> = {
+  'working-memory':      'הזיכרון',
+  'selective-attention': 'הקשב הממוקד',
+  'divided-attention':   'הקשב המחולק',
+  'processing-speed':    'מהירות העיבוד',
+  'reaction-time':       'זמן התגובה',
+  'response-inhibition': 'השליטה העצמית',
+  'strategic-thinking':  'החשיבה האסטרטגית',
+  'visual-spatial':      'התפיסה המרחבית',
+};
+
+const SUMMARY_TEMPLATES: Record<Tier, (domain: string) => string[]> = {
+  strong: d => [
+    `ביצוע מצוין בתרגול הזה, ${d} שלך עבד נהדר`,
+    `סיימת בהצלחה גדולה, רואים ש${d} שלך חד היום`,
+    `תרגול חזק במיוחד, ${d} שלך בשיא`,
+  ],
+  average: d => [
+    `תרגול טוב ויציב, ${d} שלך ממשיך להתחזק`,
+    `עבודה יפה היום, ${d} שלך בכיוון הנכון`,
+    `ביצוע סולידי, כל תרגול מחזק את ${d} שלך`,
+  ],
+  practice: d => [
+    `סיימת עוד תרגול חשוב, ${d} שלך מתחזק עם כל ניסיון`,
+    `כל הכבוד על ההתמדה, ${d} שלך ישתפר בהדרגה`,
+    `התחלה טובה, נמשיך לתרגל את ${d} בקצב נוח`,
+  ],
+};
+
+const STRENGTH_TEMPLATES: Record<Tier, string[]> = {
+  strong:   ['ריכוז גבוה לאורך כל התרגול', 'דיוק ועקביות מרשימים'],
+  average:  ['התמדה ורצף תרגול קבוע', 'שיפור הדרגתי ויציב'],
+  practice: ['התמדה ורצף תרגול קבוע'],
+};
+
+const RECOMMENDATION_TEMPLATES: Record<Tier, string[]> = {
+  strong:   ['המשך באתגר הנוכחי, אתה מוכן להתקדם'],
+  average:  ['המשך לתרגל בקצב נוח וקבוע'],
+  practice: ['תרגול קצר וקבוע עדיף על תרגול ארוך ונדיר'],
+};
+
+function pick<T>(arr: readonly T[], seed: number): T {
+  return arr[Math.abs(seed) % arr.length];
+}
+
+// Build a deterministic-but-varied narrative. The session timestamp seeds the
+// choice so the same session always renders the same text, while consecutive
+// sessions rotate through the variants.
+function templateNarrative(
+  score: number, gameId: GameId, seed: number,
+): Pick<CognitiveReportFromClaude, 'summaryHe' | 'strengthsHe' | 'recommendationsHe'> {
+  const tier   = tierOf(score);
+  const domain = DOMAIN_LABEL_HE[GAME_DOMAINS[gameId].primary] ?? 'היכולת';
   return {
-    summaryHe:         'סיימת עוד תרגול, וכל אימון תורם לחיזוק היכולות. כל הכבוד על ההתמדה',
-    strengthsHe:       ['התמדה ורצף תרגול קבוע'],
-    recommendationsHe: ['המשך לתרגל בקצב נוח וקבוע'],
+    summaryHe:         pick(SUMMARY_TEMPLATES[tier](domain), seed),
+    strengthsHe:       [pick(STRENGTH_TEMPLATES[tier], seed)],
+    recommendationsHe: [pick(RECOMMENDATION_TEMPLATES[tier], seed)],
   };
 }
 
@@ -222,36 +314,37 @@ interface ClaudeClient {
 
 export async function generateSessionReport(
   input: ReportInput,
-  deps: { client?: ClaudeClient } = {},
+  deps: { client?: ClaudeClient; milestone?: boolean } = {},
 ): Promise<CognitiveReport | null> {
   const { sessionId, snapshot, adjustments } = input;
   const gameId = snapshot.gameId as GameId;
 
-  // Deterministic base — always available, independent of Claude. Claude can
-  // only IMPROVE the score/narrative below; it can never block report creation.
-  let cognitiveScore = deterministicCognitiveScore(snapshot);
-  let narrative      = fallbackNarrative();
+  // ── Score: ALWAYS deterministic. Claude is never asked for it (B1). ──────────
+  const cognitiveScore = deterministicCognitiveScore(snapshot, input.adaptive);
+
+  // ── Narrative: template by default; Claude only on milestone sessions. ───────
+  // Non-milestone sessions (the vast majority) cost zero tokens.
+  const seed = input.adaptive.totalScoredEvents + Math.round(snapshot.avgReactionMs);
+  let narrative = templateNarrative(cognitiveScore, gameId, seed);
   let usage: { input_tokens: number; output_tokens: number } | null = null;
-  let source: 'claude' | 'fallback' = 'fallback';
+  let source: 'claude' | 'template' = 'template';
 
   const apiKey = process.env.ANTHROPIC_API_KEY;
   const client: ClaudeClient | null = deps.client ?? (apiKey ? new Anthropic({ apiKey }) : null);
-  if (!client) {
-    console.warn('[Report] ANTHROPIC_API_KEY not set — using deterministic fallback');
-  } else {
+
+  if (deps.milestone && client) {
     // Bound the network call with a hard deadline. If Claude hasn't responded
-    // within REPORT_LLM_TIMEOUT_MS we abort the underlying request and fall
-    // through to the deterministic fallback — treated identically to any other
-    // Claude failure (no API key / network error / no JSON / bad schema).
+    // within REPORT_LLM_TIMEOUT_MS we abort and keep the templated narrative —
+    // treated identically to any other Claude failure.
     const controller = new AbortController();
     const timer = setTimeout(() => controller.abort(), REPORT_LLM_TIMEOUT_MS);
     try {
       const message = await client.messages.create(
         {
           model:      'claude-haiku-4-5-20251001',
-          max_tokens: 600,
+          max_tokens: 400,
           system:     SYSTEM,
-          messages:   [{ role: 'user', content: buildUserPrompt(input) }],
+          messages:   [{ role: 'user', content: buildUserPrompt(input, cognitiveScore) }],
         },
         { signal: controller.signal },
       );
@@ -270,12 +363,11 @@ export async function generateSessionReport(
           parsedJson = undefined;
         }
 
-        const validation = parsedJson === undefined ? null : CognitiveReportSchema.safeParse(parsedJson);
+        const validation = parsedJson === undefined ? null : ReportNarrativeSchema.safeParse(parsedJson);
         if (validation && !validation.success) {
           console.warn(`[Report] Schema validation failed | session:${sessionId} | issues:${JSON.stringify(validation.error.issues)} | raw:${text.slice(0, 500)}`);
         } else if (validation && validation.success) {
-          // Claude succeeded — prefer its score + Hebrew narrative.
-          cognitiveScore = validation.data.cognitiveScore;   // schema guarantees integer 0–100
+          // Claude succeeded — use its richer milestone narrative (score stays deterministic).
           narrative = {
             summaryHe:         validation.data.summaryHe,
             strengthsHe:       validation.data.strengthsHe,
@@ -286,11 +378,10 @@ export async function generateSessionReport(
         }
       }
     } catch (err) {
-      // A timeout surfaces as an abort; distinguish it for a clear log line.
       if (controller.signal.aborted) {
-        console.warn(`[Report] Claude call timed out after ${REPORT_LLM_TIMEOUT_MS}ms — using deterministic fallback`);
+        console.warn(`[Report] Claude call timed out after ${REPORT_LLM_TIMEOUT_MS}ms — using templated narrative`);
       } else {
-        console.warn(`[Report] Claude call failed | session:${sessionId} | err:${(err as Error).message} — using deterministic fallback`);
+        console.warn(`[Report] Claude call failed | session:${sessionId} | err:${(err as Error).message} — using templated narrative`);
       }
     } finally {
       clearTimeout(timer);
@@ -303,6 +394,7 @@ export async function generateSessionReport(
       userId:              snapshot.userId,
       gameId,
       generatedAt:         Date.now(),
+      v:                   SCHEMA_VERSION,
       domainScores:        computeDomainScores(cognitiveScore, gameId),
       cognitiveScore,
       summaryHe:           narrative.summaryHe,
@@ -350,19 +442,15 @@ export async function generateSessionReport(
 
     await batch.commit();
 
-    // Token/report counters — atomic increments. Tokens only when Claude ran.
-    const meta: Record<string, unknown> = {
+    // Report counter (always) + per-agent tokens (only when Claude ran).
+    await firestore.collection('meta').doc('tokenUsage').set({
       totalReports: FieldValue.increment(1),
       lastUpdated:  Date.now(),
-    };
-    if (usage) {
-      meta.totalInputTokens  = FieldValue.increment(usage.input_tokens);
-      meta.totalOutputTokens = FieldValue.increment(usage.output_tokens);
-    }
-    await firestore.collection('meta').doc('tokenUsage').set(meta, { merge: true });
+    }, { merge: true });
+    if (usage) await recordTokenUsage('report', usage);
 
     console.log(
-      `[Report] session:${sessionId} score:${report.cognitiveScore} source:${source}` +
+      `[Report] session:${sessionId} score:${report.cognitiveScore} narrative:${source}` +
       (usage ? ` tokens:${usage.input_tokens}in/${usage.output_tokens}out` : ''),
     );
     return report;

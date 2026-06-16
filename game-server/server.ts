@@ -11,16 +11,22 @@ import { connectProducer, disconnectProducer,
 import { TOPICS }                                           from './kafka/topics.js';
 import { startAdjustmentsConsumer, getAdjustmentsForSession } from './kafka/adjustments-consumer.js';
 import { getSession, initSession, deleteSession }           from './sessions/session-store.js';
-import { processEvent, persistDifficulty, resumeDifficulty } from './agents/adaptive-agent.js';
+import { processEvent, persistDifficulty, resumeDifficulty,
+         seedLevelFromProfile, applyWarmupSeed }            from './agents/adaptive-agent.js';
 import { startAnalyticsAgent, getSessionSnapshot }          from './agents/analytics-agent.js';
-import { generateSessionReport }                            from './agents/report-agent.js';
+import { generateSessionReport, deterministicCognitiveScore,
+         computeDomainScores }                              from './agents/report-agent.js';
 import type { AdjustmentRecord }                            from './agents/report-agent.js';
 import { updateBaseline }                                   from './agents/baseline-agent.js';
-import { getCoachingMessage }                               from './agents/coaching-agent.js';
+import { getCoachingMessage, isMeaningfulMoment,
+         coachingFallback }                                 from './agents/coaching-agent.js';
 import { checkAndRunCoach }                                 from './agents/coach-agent.js';
 import { checkAlerts }                                      from './agents/alert-agent.js';
 import { updateCognitiveProfile }                           from './agents/profile-agent.js';
+import type { ProfileUpdateResult }                         from './agents/profile-agent.js';
 import { updateProgression }                                from './agents/progression.js';
+import type { LevelChange, ProgressionResult }              from './agents/progression.js';
+import { isMilestone }                                      from './agents/milestone.js';
 import { startTokenWatcher }                                from './agents/token-watcher.js';
 
 // ── WebSocket server ───────────────────────────────────────────────────────────
@@ -42,6 +48,9 @@ wss.on('connection', (ws: WebSocket) => {
   // Guard so the post-session pipeline runs exactly once per connection —
   // whether triggered by an explicit 'end-session' (normal) or 'close' (abandon).
   let finalized = false;
+  // B2: at most one live coaching Claude call per session. Every other
+  // adjustment is acknowledged with a Hebrew message from the fallback bank.
+  let coachingLlmUsed = false;
 
   // Runs the post-session pipeline. Two modes:
   //   • normal game-over ('end-session'): withGamification + push results live
@@ -86,45 +95,66 @@ wss.on('connection', (ws: WebSocket) => {
       });
     }
 
-    // 2. Report (awaited — feeds gamification + the push). Never null unless the
-    //    Firestore write itself fails (Claude failures fall back internally).
-    let report = null;
-    try {
-      report = await generateSessionReport({ sessionId, snapshot, adaptive: session.adaptive, adjustments });
-    } catch (err) {
-      console.error('[Report]', (err as Error).message);
-    }
+    // 2. Deterministic score + per-domain scores (no Claude). These feed both
+    //    gamification and the milestone decision that gates the Claude narrative.
+    const cognitiveScore = deterministicCognitiveScore(snapshot, session.adaptive);
+    const domainScores   = computeDomainScores(cognitiveScore, gameId);
 
-    // 3. Gamification — only on a normal game-over.
-    if (opts.withGamification && report) {
+    // 3. Gamification — only on a normal game-over. Profile → progression →
+    //    alerts run BEFORE the report so we know whether this session is a
+    //    milestone worth a Claude-written narrative.
+    let progRes: ProgressionResult | null = null;
+    let milestone = false;
+    if (opts.withGamification) {
       try {
-        const profileRes = await updateCognitiveProfile(userId, gameId, report.domainScores);
-        const progRes    = await updateProgression(userId, profileRes);
-        if (opts.push) {
-          safeSend(ws, {
-            type:         'session-report',
-            report,
-            levelChanges: progRes.levelChanges,
-            overallLevel: progRes.overallLevel,
-            rank:         progRes.rank,
-            avatarState:  progRes.avatarState,
-          });
-        }
+        const profileRes: ProfileUpdateResult[] = await updateCognitiveProfile(userId, gameId, domainScores);
+        progRes = await updateProgression(userId, profileRes);
+        const alertFired = await checkAlerts(userId, gameId, snapshot)
+          .catch(err => { console.error('[Alert]', (err as Error).message); return false; });
+        const levelChanges: LevelChange[] = progRes.levelChanges;
+        milestone = isMilestone({ gameId, profileUpdates: profileRes, levelChanges, alertTriggered: alertFired });
       } catch (err) {
         console.error('[Gamification]', (err as Error).message);
       }
     }
 
-    // 4. Persist the converged difficulty so the next session of this game
-    //    resumes where it left off (main's D-controller). Runs for both modes.
+    // 4. Report (persists; narrative via Claude ONLY on milestone sessions —
+    //    every other session uses the templated Hebrew narrative, zero tokens).
+    let report = null;
+    try {
+      report = await generateSessionReport(
+        { sessionId, snapshot, adaptive: session.adaptive, adjustments },
+        { milestone },
+      );
+    } catch (err) {
+      console.error('[Report]', (err as Error).message);
+    }
+
+    // 5. Push live results to the still-open socket (normal game-over only).
+    if (opts.push && report && progRes) {
+      safeSend(ws, {
+        type:         'session-report',
+        report,
+        levelChanges: progRes.levelChanges,
+        overallLevel: progRes.overallLevel,
+        rank:         progRes.rank,
+        avatarState:  progRes.avatarState,
+      });
+    }
+
+    // 6. Persist the converged difficulty so the next session of this game
+    //    resumes where it left off. Runs for both modes.
     persistDifficulty(userId, gameId, session.adaptive.dSmoothed)
       .catch(err => console.error('[Adaptive] persist:', (err as Error).message));
 
-    // 5. Baseline → coach, and alerts — fire-and-forget, run for both modes.
+    // 7. Baseline → coach — fire-and-forget, both modes. Alerts already ran in
+    //    the gamification path; on abandon run them here for caregivers.
     updateBaseline(userId, gameId, snapshot.reactionTimes)
       .then(() => checkAndRunCoach(userId, gameId).catch(err => console.error('[Coach]', (err as Error).message)))
       .catch(err => console.error('[Baseline]', (err as Error).message));
-    checkAlerts(userId, gameId, snapshot).catch(err => console.error('[Alert]', (err as Error).message));
+    if (!opts.withGamification) {
+      checkAlerts(userId, gameId, snapshot).catch(err => console.error('[Alert]', (err as Error).message));
+    }
   }
 
   ws.on('message', async (raw: Buffer) => {
@@ -148,10 +178,14 @@ wss.on('connection', (ws: WebSocket) => {
       session = initSession(ws, event.sessionId, event.gameId as GameId, event.userId);
       console.log(`[GameServer] Session: ${event.sessionId} | game:${event.gameId} | user:${event.userId}`);
 
-      // ── E1: resume same-game difficulty ──────────────────────────
-      // Prime the saved baseline + difficulty BEFORE this first event is
-      // processed, and snap the game to the resumed difficulty up-front instead
-      // of waiting for the controller's first adjustment.
+      // ── Warm-start difficulty BEFORE the first event is processed ────
+      // Two tiers, in priority order:
+      //   E1 (resume): the user has played THIS game before → snap to the saved
+      //     per-game difficulty.
+      //   A3 (cross-game transfer): first time on this game, but the cognitive
+      //     profile of the domains it trains is strong enough → warm-start from
+      //     that ability instead of the cold-start floor.
+      // Otherwise the controller cold-starts at D_DEFAULT as usual.
       const resumeParams = await resumeDifficulty(session.adaptive);
       if (resumeParams && ws.readyState === WebSocket.OPEN) {
         console.log(`[Resume] ${event.gameId} → D:${session.adaptive.D.toFixed(2)} | user:${event.userId}`);
@@ -162,6 +196,21 @@ wss.on('connection', (ws: WebSocket) => {
           level:     session.adaptive.D,
           direction: null,
         });
+      } else if (!resumeParams) {
+        const seedLevel = await seedLevelFromProfile(event.userId, event.gameId as GameId);
+        if (seedLevel !== null) {
+          const warmupParams = applyWarmupSeed(session.adaptive, seedLevel);
+          console.log(`[Warmup] ${event.gameId} seedLevel:${seedLevel.toFixed(0)} → D:${session.adaptive.D.toFixed(2)} | user:${event.userId}`);
+          if (ws.readyState === WebSocket.OPEN) {
+            safeSend(ws, {
+              type:      'adjustment',
+              reason:    'warmup-transfer',
+              params:    warmupParams,
+              level:     session.adaptive.D,
+              direction: null,
+            });
+          }
+        }
       }
     }
 
@@ -227,22 +276,29 @@ wss.on('connection', (ws: WebSocket) => {
       }));
     }
 
-    // ── 4b. Async coaching message (Claude + fallback) ───────────
+    // ── 4b. Async coaching message (gated Claude + fallback bank) ─
     // Fires after the adjustment is already sent — never blocks the game.
-    // Arrives ~300-600ms later (Claude) or ~1ms later (fallback) as a
-    // separate 'coaching' WS message. Always returns a string now — the
-    // Hebrew fallback bank guarantees a toast even if Claude fails.
+    // B2: we spend at most ONE Claude call per session, on the first
+    // "meaningful" adjustment; every other adjustment is acknowledged from
+    // the Hebrew fallback bank (~1ms, zero tokens). Either way a toast lands.
     {
-      const snap        = getSessionSnapshot(session.sessionId);
-      const accuracy    = snap?.accuracy ?? 0;
-      const durationSec = snap ? Math.round(snap.durationMs / 1000) : 0;
-      getCoachingMessage(session.gameId, result.direction!, accuracy, durationSec, session.sessionId)
-        .then(message => {
-          if (ws.readyState === WebSocket.OPEN) {
-            ws.send(JSON.stringify({ type: 'coaching', message }));
-          }
-        })
-        .catch(() => {});
+      const sendCoaching = (message: string) => {
+        if (ws.readyState === WebSocket.OPEN) {
+          ws.send(JSON.stringify({ type: 'coaching', message }));
+        }
+      };
+
+      if (!coachingLlmUsed && isMeaningfulMoment({ totalScoredEvents: session.adaptive.totalScoredEvents })) {
+        coachingLlmUsed = true;
+        const snap        = getSessionSnapshot(session.sessionId);
+        const accuracy    = snap?.accuracy ?? 0;
+        const durationSec = snap ? Math.round(snap.durationMs / 1000) : 0;
+        getCoachingMessage(session.gameId, result.direction!, accuracy, durationSec, session.sessionId)
+          .then(sendCoaching)
+          .catch(() => {});
+      } else {
+        sendCoaching(coachingFallback(result.direction!, session.sessionId, 'gated'));
+      }
     }
 
     // ── 5. Log adjustment to Kafka ───────────────────────────────

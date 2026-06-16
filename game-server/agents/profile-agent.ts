@@ -25,6 +25,10 @@ import { PROFILE_TUNING }     from './progression.config.js';
 
 export type Trend = 'up' | 'stable' | 'down';
 
+// Schema version for users/{uid}/cognitiveProfile/{domainId}. Bumped when the
+// doc shape changes so a future migration can detect older docs (D4).
+export const PROFILE_SCHEMA_VERSION = 1;
+
 // The persisted/derived state of one domain (the numeric core, no metadata).
 export interface ProfileState {
   _ema:             number;
@@ -37,10 +41,12 @@ export interface ProfileState {
 
 // Returned to the progression step so it knows which domains moved.
 export interface ProfileUpdateResult {
-  domainId:   ProblemId;
-  prevLevel:  number;
-  newLevel:   number;
-  confidence: number;
+  domainId:      ProblemId;
+  prevLevel:     number;
+  newLevel:      number;
+  confidence:    number;
+  sessionsCount: number;   // sessions that have touched this domain (incl. this one)
+  isNew:         boolean;  // true on the very first session for this domain
 }
 
 // ── Pure core ────────────────────────────────────────────────────────────────
@@ -140,11 +146,23 @@ export async function updateCognitiveProfile(
         sessionsCount:    next.sessionsCount,
         trend:            next.trend,
         lastDomainScores: next.lastDomainScores,
+        // sourceGames: which games have fed this domain, and where each left off.
+        // The documented basis for cross-game transfer (D4) — a domain's level is
+        // shared, but the games that built it are tracked here for explainability.
+        sourceGames:      { [gameId]: { lastLevel: next.level, lastPlayedAt: now } },
         lastPlayedAt:     now,
         updatedAt:        now,
+        v:                PROFILE_SCHEMA_VERSION,
       }, { merge: true });
 
-      results.push({ domainId, prevLevel: prev?.level ?? 0, newLevel: next.level, confidence: next.confidence });
+      results.push({
+        domainId,
+        prevLevel:     prev?.level ?? 0,
+        newLevel:      next.level,
+        confidence:    next.confidence,
+        sessionsCount: next.sessionsCount,
+        isNew:         prev === null,
+      });
     } catch (err) {
       console.error(`[Profile] ${userId}/${domainId}:`, (err as Error).message);
     }

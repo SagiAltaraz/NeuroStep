@@ -22,6 +22,13 @@ export const CognitiveReportSchema = z.object({
 });
 export type CognitiveReportFromClaude = z.infer<typeof CognitiveReportSchema>;
 
+// Phase 2/B1: the cognitive score is computed deterministically on the server,
+// so the milestone Claude call asks ONLY for the Hebrew narrative (smaller
+// prompt + response = fewer tokens). The score is still part of the persisted
+// CognitiveReport — it just no longer comes from Claude.
+export const ReportNarrativeSchema = CognitiveReportSchema.omit({ cognitiveScore: true });
+export type ReportNarrativeFromClaude = z.infer<typeof ReportNarrativeSchema>;
+
 // ── Coach Agent: longitudinal report (every 5 sessions) ───────────────────────
 // Phase 4D migrated this to Hebrew. Historical docs in Firestore still have
 // *En fields — the CoachReportsPage frontend reads `summaryHe ?? summaryEn`
@@ -35,6 +42,11 @@ export const CoachReportSchema = z.object({
   cognitiveInsightHe: z.string().min(1).max(500),
 });
 export type CoachReportFromClaude = z.infer<typeof CoachReportSchema>;
+
+// Phase 2/B3: overallProgress is computed deterministically from the score
+// trend, so the Claude call asks ONLY for the Hebrew narrative.
+export const CoachNarrativeSchema = CoachReportSchema.omit({ overallProgress: true });
+export type CoachNarrativeFromClaude = z.infer<typeof CoachNarrativeSchema>;
 
 // ── Coaching Agent: in-game encouragement toast ───────────────────────────────
 // Plain string with strict content rules — enforced both via the system prompt

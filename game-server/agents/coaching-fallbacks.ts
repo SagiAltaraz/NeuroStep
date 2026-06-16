@@ -11,10 +11,11 @@
  *   - Forbidden words: קושי, קל, קשה, שינוי, מערכת
  *   - No emoji, no end punctuation, no quotes
  *
- * 15 sentences per direction, distributed:
- *   5 effort     — recognise the player's investment
- *   5 momentum   — recognise their flow / persistence
- *   5 calming    — encourage steady breathing / pacing
+ * ~30 sentences per direction, distributed across three themes:
+ *   effort     — recognise the player's investment
+ *   momentum   — recognise their flow / persistence
+ *   calming    — encourage steady breathing / pacing
+ * A larger bank (B2) keeps variety high now that fallbacks carry most sessions.
  *
  * Tone shifts by direction:
  *   harder → confidence, flow, peak performance
@@ -37,18 +38,33 @@ export const COACHING_FALLBACKS_HE: Record<Direction, readonly string[]> = {
     'כל לחיצה שלך מדויקת',
     'אתה במיטבך עכשיו',
     'ההשקעה שלך משתלמת',
+    'הביצוע שלך נהדר היום',
+    'כל תגובה שלך מדויקת',
+    'הביטחון שלך ניכר היטב',
+    'אתה מוכן לאתגר הבא',
+    'יש לך יד יציבה מאוד',
     // momentum
     'אתה בזרימה ממש טובה',
     'תמשיך עם הקצב הזה',
     'הכל הולך לך עכשיו',
     'אתה תופס את הקצב',
     'הראש שלך פתוח כרגע',
+    'הקצב שלך מרשים מאוד',
+    'התנופה שלך מדהימה',
+    'אתה נע בקצב מושלם',
+    'אתה עף קדימה יפה',
+    'אתה במצב מנצח עכשיו',
+    'תמשיך כך אתה אלוף',
     // calming (steady at peak)
     'שמור על הריכוז הנינוח',
     'המשך בנשימה רגועה',
     'הראש בהיר ומדויק',
     'אתה רגוע ומדויק',
     'השלווה שלך עוזרת',
+    'אתה שולט בזה לגמרי',
+    'הריכוז שלך חד כתער',
+    'אתה רואה הכל בבירור',
+    'אתה ממש מדייק עכשיו',
   ],
 
   // ── EASIER — player is working hard. Tone: gentle, encouraging, patient. ────
@@ -59,18 +75,33 @@ export const COACHING_FALLBACKS_HE: Record<Direction, readonly string[]> = {
     'כל ניסיון שלך חשוב',
     'אתה ממשיך וזה הכי חשוב',
     'ההתמדה שלך מרשימה',
+    'אתה עושה עבודה טובה',
+    'כל ניסיון בונה אותך',
+    'הסבלנות שלך יפה מאוד',
+    'אתה חזק יותר מאתמול',
+    'אתה מתמיד וזה מנצח',
     // momentum (= persistence here)
     'כל ניסיון מקרב אותך הלאה',
     'תמשיך לפי הקצב שלך',
     'אתה עובר את זה צעד צעד',
     'תן לעצמך זמן ואתה תצליח',
     'התקדמת קצת ועוד תתקדם',
+    'אתה מתקדם בצעדים בטוחים',
+    'אתה בדרך הנכונה לגמרי',
+    'כל צעד שלך נחשב מאוד',
+    'עוד צעד קטן קדימה',
+    'אתה מסוגל לזה בהחלט',
+    'ההתמדה שלך תשתלם בסוף',
     // calming
     'נשום עמוק ותתקדם בקצב שלך',
     'קח רגע ותתחיל מחדש',
     'אין צורך למהר עכשיו',
     'שאף ונשוף עוד צעד אחד',
     'תן לעצמך רגע',
+    'תן לעצמך לנשום רגע',
+    'קח אוויר ותמשיך הלאה',
+    'תאמין בעצמך ותמשיך',
+    'אתה לא לבד בזה',
   ],
 };
 
