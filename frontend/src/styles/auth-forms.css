@@ -1,0 +1,132 @@
+/* ── Shared auth form styles (login + signup) ─────────────────────────── */
+
+/* Card container */
+.auth-form-card {
+  border-radius: 20px !important;
+  border: 1px solid rgba(47, 134, 214, 0.18) !important;
+  background: rgba(255, 255, 255, 0.92) !important;
+  backdrop-filter: blur(20px) !important;
+  -webkit-backdrop-filter: blur(20px) !important;
+  box-shadow:
+    0 4px 6px rgba(0, 0, 0, 0.04),
+    0 12px 40px rgba(47, 134, 214, 0.12),
+    0 0 0 1px rgba(255, 255, 255, 0.6) inset !important;
+}
+
+/* Header area */
+.auth-card-header {
+  padding-bottom: 0.25rem !important;
+  text-align: center !important;
+  align-items: center !important;
+}
+
+/* Title */
+.auth-card-title {
+  font-family: 'Heebo', 'Sora', sans-serif !important;
+  font-size: 1.4rem !important;
+  font-weight: 800 !important;
+  letter-spacing: -0.02em !important;
+  background: linear-gradient(135deg, #1c3a45 0%, #2f86d6 100%);
+  -webkit-background-clip: text !important;
+  -webkit-text-fill-color: transparent !important;
+  background-clip: text !important;
+  margin-bottom: 0.2rem !important;
+}
+
+/* Description */
+.auth-card-desc {
+  color: #5a7fa8 !important;
+  font-size: 0.9rem !important;
+  line-height: 1.5 !important;
+}
+
+/* Submit button */
+.auth-submit-btn {
+  background: linear-gradient(135deg, #3f9fcf 0%, #2f86d6 100%) !important;
+  border-radius: 10px !important;
+  height: 2.6rem !important;
+  font-size: 0.95rem !important;
+  font-weight: 700 !important;
+  letter-spacing: 0.01em !important;
+  box-shadow: 0 4px 14px rgba(47, 134, 214, 0.38) !important;
+  transition: opacity 0.2s ease, box-shadow 0.2s ease, transform 0.15s ease !important;
+}
+
+.auth-submit-btn:hover:not(:disabled) {
+  opacity: 0.93 !important;
+  box-shadow: 0 6px 20px rgba(47, 134, 214, 0.5) !important;
+  transform: translateY(-1px) !important;
+}
+
+.auth-submit-btn:active:not(:disabled) {
+  transform: translateY(0) !important;
+}
+
+/* Inputs */
+.auth-form-card input[type="email"],
+.auth-form-card input[type="password"],
+.auth-form-card input[type="text"] {
+  border-color: rgba(47, 134, 214, 0.22) !important;
+  border-radius: 9px !important;
+  height: 2.5rem !important;
+  background: rgba(255, 255, 255, 0.8) !important;
+  transition: border-color 0.2s ease, box-shadow 0.2s ease !important;
+  font-family: 'Heebo', sans-serif !important;
+}
+
+.auth-form-card input[type="email"]:focus,
+.auth-form-card input[type="password"]:focus,
+.auth-form-card input[type="text"]:focus {
+  border-color: #2f86d6 !important;
+  box-shadow: 0 0 0 3px rgba(47, 134, 214, 0.15) !important;
+  outline: none !important;
+}
+
+/* Field labels */
+.auth-form-card label {
+  font-weight: 600 !important;
+  color: #2a4a60 !important;
+  font-size: 0.875rem !important;
+  font-family: 'Heebo', sans-serif !important;
+}
+
+/* Helper / hint text */
+.auth-form-card [data-slot="field-description"] {
+  color: #7a9ab8 !important;
+  font-size: 0.78rem !important;
+}
+
+/* "or" separator */
+.auth-form-card [data-slot="field-separator"] span {
+  color: #8fb3cc !important;
+  font-size: 0.8rem !important;
+  font-weight: 500 !important;
+  background: rgba(255, 255, 255, 0.9) !important;
+  padding: 0 0.75rem !important;
+}
+
+/* Google & outline buttons — exclude language toggle (aria-pressed) */
+.auth-form-card button[type="button"].border:not([aria-pressed]) {
+  border-color: rgba(47, 134, 214, 0.25) !important;
+  border-radius: 10px !important;
+  height: 2.5rem !important;
+  font-weight: 600 !important;
+  color: #2a4a60 !important;
+  background: rgba(255, 255, 255, 0.7) !important;
+  transition: background 0.2s ease, border-color 0.2s ease !important;
+}
+
+.auth-form-card button[type="button"].border:not([aria-pressed]):hover {
+  background: rgba(47, 134, 214, 0.06) !important;
+  border-color: rgba(47, 134, 214, 0.4) !important;
+}
+
+/* Links inside forms */
+.auth-form-card a {
+  color: #2f86d6 !important;
+  font-weight: 600 !important;
+}
+
+.auth-form-card a:hover {
+  color: #1c6bb0 !important;
+}

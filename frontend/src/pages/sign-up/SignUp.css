@@ -1,19 +1,23 @@
+@import '../../styles/auth-forms.css';
+
 .signup-page {
-  min-height: 100vh;
+  min-height: calc(100vh - 64px);
   display: flex;
   align-items: center;
   justify-content: center;
   background: transparent;
-  padding: 1.5rem;
+  padding: 2rem 1.5rem;
 }
 
 .signup-container {
   width: 100%;
-  max-width: 400px;
+  max-width: 440px;
 }
 
 @media (max-width: 480px) {
   .signup-page {
     padding: 1rem;
+    align-items: flex-start;
+    padding-top: 1.5rem;
   }
 }

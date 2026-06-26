@@ -66,13 +66,13 @@ export function LoginForm({ ...props }: React.ComponentProps<typeof Card>) {
   };
 
   return (
-    <Card className="mx-auto max-w-sm" {...props}>
-      <CardHeader>
-        <div style={{ display: "flex", justifyContent: "center", marginBottom: "0.75rem" }}>
-          <Logo height={28} />
+    <Card className="mx-auto max-w-sm auth-form-card" {...props}>
+      <CardHeader className="auth-card-header">
+        <div style={{ display: "flex", justifyContent: "center", marginBottom: "1rem" }}>
+          <Logo height={30} />
         </div>
-        <CardTitle>{t('login.title')}</CardTitle>
-        <CardDescription>{t('login.subtitle')}</CardDescription>
+        <CardTitle className="auth-card-title">{t('login.title')}</CardTitle>
+        <CardDescription className="auth-card-desc">{t('login.subtitle')}</CardDescription>
       </CardHeader>
 
       <CardContent>
@@ -110,8 +110,8 @@ export function LoginForm({ ...props }: React.ComponentProps<typeof Card>) {
               <Field>
                 <Button
                   type="submit"
-                  className="w-full"
-                  variant="black"
+                  className="w-full auth-submit-btn"
+                  variant="brand"
                   disabled={isLoading}
                 >
                   {isLoading ? t('login.submit.loading') : t('login.submit')}
