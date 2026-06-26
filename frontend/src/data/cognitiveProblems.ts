@@ -50,50 +50,58 @@ export const COGNITIVE_PROBLEMS: CognitiveProblem[] = [
   {
     id:       'working-memory',
     icon:     '🧠',
-    color:    '#A855F7',                                                       // purple
-    gradient: 'linear-gradient(135deg, #A855F7 0%, #C084FC 100%)',
+    color:    '#8B5CF6',
+    // Deep neural violet → lavender: synapses firing
+    gradient: 'linear-gradient(135deg, #4C1D95 0%, #7C3AED 45%, #C4B5FD 100%)',
   },
   {
     id:       'selective-attention',
-    icon:     '👁️',
-    color:    '#3B82F6',                                                       // blue
-    gradient: 'linear-gradient(135deg, #3B82F6 0%, #60A5FA 100%)',
+    icon:     '🎯',
+    color:    '#2563EB',
+    // Navy → sky: a focused spotlight cutting through noise
+    gradient: 'linear-gradient(135deg, #1E3A8A 0%, #2563EB 50%, #93C5FD 100%)',
   },
   {
     id:       'divided-attention',
     icon:     '🔀',
-    color:    '#14B8A6',                                                       // teal
-    gradient: 'linear-gradient(135deg, #14B8A6 0%, #2DD4BF 100%)',
+    color:    '#0D9488',
+    // Deep teal → cyan: two streams flowing in parallel
+    gradient: 'linear-gradient(135deg, #134E4A 0%, #0D9488 50%, #5EEAD4 100%)',
   },
   {
     id:       'processing-speed',
     icon:     '⚡',
-    color:    '#EAB308',                                                       // yellow
-    gradient: 'linear-gradient(135deg, #EAB308 0%, #FACC15 100%)',
+    color:    '#D97706',
+    // Burnt amber → gold flash: electric speed burst
+    gradient: 'linear-gradient(135deg, #92400E 0%, #D97706 45%, #FDE68A 100%)',
   },
   {
     id:       'reaction-time',
-    icon:     '⏱️',
-    color:    '#22C55E',                                                       // green
-    gradient: 'linear-gradient(135deg, #22C55E 0%, #4ADE80 100%)',
+    icon:     '🚦',
+    color:    '#16A34A',
+    // Forest → neon green: stoplight "go" signal
+    gradient: 'linear-gradient(135deg, #14532D 0%, #16A34A 50%, #86EFAC 100%)',
   },
   {
     id:       'response-inhibition',
-    icon:     '✋',
-    color:    '#EC4899',                                                       // pink
-    gradient: 'linear-gradient(135deg, #EC4899 0%, #F472B6 100%)',
+    icon:     '🛑',
+    color:    '#DB2777',
+    // Crimson → bright pink: sharp "stop" signal
+    gradient: 'linear-gradient(135deg, #831843 0%, #DB2777 50%, #FBCFE8 100%)',
   },
   {
     id:       'strategic-thinking',
     icon:     '♟️',
-    color:    '#EF4444',                                                       // red
-    gradient: 'linear-gradient(135deg, #EF4444 0%, #F87171 100%)',
+    color:    '#4338CA',
+    // Midnight indigo → periwinkle: chess board depth & strategy
+    gradient: 'linear-gradient(135deg, #1E1B4B 0%, #4338CA 50%, #A5B4FC 100%)',
   },
   {
     id:       'visual-spatial',
     icon:     '🧩',
-    color:    '#F97316',                                                       // orange
-    gradient: 'linear-gradient(135deg, #F97316 0%, #FB923C 100%)',
+    color:    '#EA580C',
+    // Deep rust → tangerine → peach: warm spatial panorama
+    gradient: 'linear-gradient(135deg, #7C2D12 0%, #EA580C 50%, #FDBA74 100%)',
   },
 ];
 
