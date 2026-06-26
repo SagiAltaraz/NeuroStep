@@ -75,8 +75,14 @@
   grid-template-columns: repeat(2, 1fr);
   gap: 1.5rem;
   text-align: right;
-  /* Give every card the same 3D scene so children can use Z */
   perspective: 1200px;
+}
+
+/* Center the lone card when an odd number fills the grid */
+.games-grid > *:last-child:nth-child(odd) {
+  grid-column: 1 / -1;
+  justify-self: center;
+  width: calc(50% - 0.75rem);
 }
 
 /* ===== CARD ===== */

@@ -71,7 +71,14 @@
   display: grid;
   grid-template-columns: repeat(auto-fill, minmax(260px, 1fr));
   gap: 1.25rem;
+  justify-content: center;
   perspective: 1200px;
+}
+
+/* Center the lone card when it's the only one in its row */
+.pc-grid > *:last-child:nth-child(4n+1) {
+  justify-self: center;
+  width: 260px;
 }
 
 /* ── Cards ────────────────────────────────────────────────────────────────── */
