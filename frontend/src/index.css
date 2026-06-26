@@ -1,3 +1,16 @@
 @tailwind base;
 @tailwind components;
 @tailwind utilities;
+
+.site-bg {
+  position: fixed;
+  inset: 0;
+  z-index: -1;
+  background:
+    radial-gradient(60vw 56vw at 14% 18%, rgba(143, 179, 224, 0.5), transparent 70%),
+    radial-gradient(62vw 58vw at 90% 16%, rgba(150, 205, 210, 0.52), transparent 72%),
+    radial-gradient(66vw 62vw at 78% 98%, rgba(176, 222, 206, 0.5), transparent 70%),
+    radial-gradient(52vw 48vw at 24% 100%, rgba(190, 216, 238, 0.55), transparent 70%),
+    radial-gradient(72vw 52vw at 30% 82%, rgba(255, 255, 255, 0.6), transparent 66%),
+    #f3faf9;
+}
