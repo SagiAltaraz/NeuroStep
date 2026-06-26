@@ -6,9 +6,7 @@
 
 .games-page {
   min-height: 100vh;
-  background:
-    radial-gradient(ellipse 80% 60% at 50% -10%, rgba(99, 102, 241, 0.12) 0%, transparent 70%),
-    linear-gradient(170deg, #EEF2FF 0%, #E8EDFF 45%, #EDE9FE 100%);
+  background: transparent;
 }
 
 .games-container {
