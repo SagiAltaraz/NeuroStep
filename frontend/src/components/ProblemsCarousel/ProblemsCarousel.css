@@ -16,26 +16,50 @@
 
 .problems-eyebrow {
   margin: 0;
-  font-size: 0.78rem;
+  font-size: 0.72rem;
   font-weight: 700;
-  letter-spacing: 0.14em;
+  letter-spacing: 0.18em;
   text-transform: uppercase;
-  color: #6b8cba;
+  color: #2f86d6;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 0.5rem;
+}
+
+.problems-eyebrow::before,
+.problems-eyebrow::after {
+  content: '';
+  display: inline-block;
+  width: 28px;
+  height: 1.5px;
+  background: linear-gradient(90deg, transparent, #2f86d6);
+  border-radius: 2px;
+}
+
+.problems-eyebrow::after {
+  background: linear-gradient(90deg, #2f86d6, transparent);
 }
 
 .problems-title {
   margin: 0;
-  font-size: clamp(1.5rem, 3.5vw, 2.25rem);
-  font-weight: 700;
-  color: #1a365d;
-  letter-spacing: -0.02em;
+  font-family: 'Heebo', 'Sora', sans-serif;
+  font-size: clamp(1.5rem, 3.5vw, 2.2rem);
+  font-weight: 800;
+  letter-spacing: -0.03em;
+  line-height: 1.15;
+  background: linear-gradient(135deg, #1c3a45 0%, #2f86d6 100%);
+  -webkit-background-clip: text;
+  -webkit-text-fill-color: transparent;
+  background-clip: text;
 }
 
 .problems-subtitle {
   margin: 0;
-  font-size: 1rem;
-  color: #4a6fa5;
-  line-height: 1.6;
+  font-size: 0.97rem;
+  color: #5a7fa8;
+  line-height: 1.65;
+  font-weight: 400;
 }
 
 /* ── Carousel wrap with arrows ────────────────────────────────────────────── */
@@ -54,18 +78,18 @@
   width: 44px;
   height: 44px;
   border-radius: 50%;
-  border: 1px solid rgba(99, 102, 241, 0.22);
+  border: 1px solid rgba(47, 134, 214, 0.25);
   background: #ffffff;
-  color: #4338ca;
+  color: #2f86d6;
   cursor: pointer;
   display: flex;
   align-items: center;
   justify-content: center;
   z-index: 2;
-  box-shadow: 0 6px 20px rgba(15, 23, 42, 0.08);
+  box-shadow: 0 6px 20px rgba(47, 134, 214, 0.1);
   transition: transform 0.15s ease, box-shadow 0.15s ease, background 0.15s ease;
 }
-.pc-arrow:hover  { background: #f5f3ff; transform: translateY(-50%) scale(1.06); }
+.pc-arrow:hover  { background: rgba(47, 134, 214, 0.06); transform: translateY(-50%) scale(1.06); }
 .pc-arrow:active { transform: translateY(-50%) scale(0.96); }
 
 .pc-arrow--prev { right: -8px; }
@@ -85,12 +109,12 @@
   scroll-behavior: smooth;
   padding: 1rem 0.5rem;
   scrollbar-width: thin;
-  scrollbar-color: rgba(99, 102, 241, 0.35) transparent;
+  scrollbar-color: rgba(47, 134, 214, 0.35) transparent;
   /* shared 3D scene for every card */
   perspective: 1200px;
 }
 .pc-track::-webkit-scrollbar        { height: 6px; }
-.pc-track::-webkit-scrollbar-thumb  { background: rgba(99, 102, 241, 0.35); border-radius: 3px; }
+.pc-track::-webkit-scrollbar-thumb  { background: rgba(47, 134, 214, 0.35); border-radius: 3px; }
 .pc-track::-webkit-scrollbar-track  { background: transparent; }
 
 /* ── Cards ────────────────────────────────────────────────────────────────── */
@@ -104,7 +128,7 @@
   flex-direction: column;
   text-align: right;
   background: #ffffff;
-  border: 1px solid rgba(99, 102, 241, 0.10);
+  border: 1px solid rgba(47, 134, 214, 0.10);
   border-radius: 22px;
   overflow: hidden;
   cursor: pointer;
