@@ -3,6 +3,7 @@ import { useAuth } from "../../context/AuthContext";
 import { useLang, type Lang } from "../../context/LanguageContext";
 import { useNavigate, Link } from "react-router-dom";
 import { Button } from "../ui/button";
+import Logo from "../Logo";
 import {
   Card,
   CardContent,
@@ -138,6 +139,9 @@ export function SignupForm({ ...props }: React.ComponentProps<typeof Card>) {
   return (
     <Card className="mx-auto max-w-sm" {...props}>
       <CardHeader>
+        <div style={{ display: "flex", justifyContent: "center", marginBottom: "0.75rem" }}>
+          <Logo height={28} />
+        </div>
         <CardTitle>{t('signup.title')}</CardTitle>
         <CardDescription>{t('signup.subtitle')}</CardDescription>
       </CardHeader>
