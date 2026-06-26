@@ -95,15 +95,15 @@
   padding: 0.45rem 0.85rem;
   font-size: 0.85rem;
   font-weight: 600;
-  color: #4338ca;
-  background: rgba(99, 102, 241, 0.08);
-  border: 1px solid rgba(99, 102, 241, 0.22);
+  color: #2f86d6;
+  background: rgba(47, 134, 214, 0.08);
+  border: 1px solid rgba(47, 134, 214, 0.25);
   border-radius: 999px;
   cursor: pointer;
   transition: background 0.15s ease, border-color 0.15s ease, transform 0.1s ease;
 }
 
-.lang-toggle:hover  { background: rgba(99, 102, 241, 0.16); border-color: rgba(99, 102, 241, 0.35); }
+.lang-toggle:hover  { background: rgba(47, 134, 214, 0.15); border-color: rgba(47, 134, 214, 0.4); }
 .lang-toggle:active { transform: scale(0.96); }
 
 /* ===== MOBILE MENU BUTTON ===== */

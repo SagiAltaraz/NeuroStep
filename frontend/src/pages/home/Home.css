@@ -77,7 +77,7 @@
 }
 
 .cta-section button {
-  background: linear-gradient(135deg, #3b82f6 0%, #1d4ed8 100%);
+  background: linear-gradient(135deg, #3f9fcf 0%, #2f86d6 100%);
   color: white;
   font-size: 1.1rem;
   font-weight: 600;
@@ -85,7 +85,7 @@
   border-radius: 50px;
   border: none;
   cursor: pointer;
-  box-shadow: 0 4px 15px rgba(59, 130, 246, 0.4);
+  box-shadow: 0 4px 15px rgba(47, 134, 214, 0.4);
   transition: all 0.3s ease;
   position: relative;
   overflow: hidden;
@@ -109,7 +109,7 @@
 
 .cta-section button:hover {
   transform: translateY(-3px);
-  box-shadow: 0 8px 25px rgba(59, 130, 246, 0.5);
+  box-shadow: 0 8px 25px rgba(47, 134, 214, 0.55);
 }
 
 .cta-section button:hover::before {
