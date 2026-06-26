@@ -62,67 +62,23 @@
   font-weight: 400;
 }
 
-/* ── Carousel wrap with arrows ────────────────────────────────────────────── */
+/* ── Grid ─────────────────────────────────────────────────────────────────── */
 
-.problems-carousel-wrap {
-  position: relative;
+.pc-grid {
   max-width: 1200px;
   margin: 0 auto;
-  padding: 0 0.5rem;
-}
-
-.pc-arrow {
-  position: absolute;
-  top: 50%;
-  transform: translateY(-50%);
-  width: 44px;
-  height: 44px;
-  border-radius: 50%;
-  border: 1px solid rgba(47, 134, 214, 0.25);
-  background: #ffffff;
-  color: #2f86d6;
-  cursor: pointer;
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  z-index: 2;
-  box-shadow: 0 6px 20px rgba(47, 134, 214, 0.1);
-  transition: transform 0.15s ease, box-shadow 0.15s ease, background 0.15s ease;
-}
-.pc-arrow:hover  { background: rgba(47, 134, 214, 0.06); transform: translateY(-50%) scale(1.06); }
-.pc-arrow:active { transform: translateY(-50%) scale(0.96); }
-
-.pc-arrow--prev { right: -8px; }
-.pc-arrow--next { left:  -8px; }
-
-@media (max-width: 700px) {
-  .pc-arrow { display: none; }
-}
-
-/* ── Scrollable track ─────────────────────────────────────────────────────── */
-
-.pc-track {
-  display: flex;
-  gap: 1rem;
-  overflow-x: auto;
-  scroll-snap-type: x mandatory;
-  scroll-behavior: smooth;
-  padding: 1rem 0.5rem;
-  scrollbar-width: thin;
-  scrollbar-color: rgba(47, 134, 214, 0.35) transparent;
-  /* shared 3D scene for every card */
+  padding: 0 1rem 1rem;
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(260px, 1fr));
+  gap: 1.25rem;
   perspective: 1200px;
 }
-.pc-track::-webkit-scrollbar        { height: 6px; }
-.pc-track::-webkit-scrollbar-thumb  { background: rgba(47, 134, 214, 0.35); border-radius: 3px; }
-.pc-track::-webkit-scrollbar-track  { background: transparent; }
 
 /* ── Cards ────────────────────────────────────────────────────────────────── */
 
 .pc-card {
-  flex: 0 0 320px;
-  min-height: 320px;
-  scroll-snap-align: start;
+  width: 100%;
+  min-height: 300px;
 
   display: flex;
   flex-direction: column;
@@ -282,9 +238,9 @@
 
 /* ── Mobile ───────────────────────────────────────────────────────────────── */
 
-@media (max-width: 480px) {
-  .problems-section { padding: 3rem 0.5rem 4rem; }
-  .pc-card          { flex: 0 0 280px; min-height: 300px; }
+@media (max-width: 600px) {
+  .problems-section { padding: 2.5rem 0.5rem 3rem; }
+  .pc-grid          { grid-template-columns: 1fr; gap: 1rem; }
   .pc-card-header   { height: 132px; }
   .pc-card-stage    { width: 96px; height: 96px; }
   .pc-card-emoji    { font-size: 2.6rem; }
