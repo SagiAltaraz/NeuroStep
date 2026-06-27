@@ -1,0 +1,58 @@
+/**
+ * JourneyMap.css — the Candy-Crush-style winding 1..100 path.
+ * Frosted/blue-teal language (Lian's tokens). Accent (--jm-accent) is set
+ * inline per selected domain. Scoped under .jm-* to avoid global bleed.
+ */
+.jm-wrap { display: flex; justify-content: center; }
+.jm-map { position: relative; width: 460px; max-width: 100%; }
+.jm-trail { position: absolute; inset: 0; width: 100%; height: 100%; z-index: 0; }
+.jm-flow { stroke-dasharray: 2 15; animation: jm-march 1.1s linear infinite; }
+@keyframes jm-march { to { stroke-dashoffset: -17; } }
+
+.jm-node {
+  position: absolute; transform: translate(-50%, -50%); z-index: 1;
+  display: grid; place-items: center; border-radius: 50%;
+  font-family: 'Sora', 'Heebo', sans-serif; font-weight: 800; cursor: default;
+}
+.jm-done { color: #fff; box-shadow: var(--ns-soft-sm); }
+.jm-locked { background: rgba(255, 255, 255, 0.7); border: 1px solid var(--ns-cardline); color: #c2cdda; }
+.jm-locked.jm-num { color: var(--ns-slate); }
+.jm-next { animation: jm-invite 1.4s ease-in-out infinite; }
+@keyframes jm-invite {
+  0%, 100% { box-shadow: 0 0 0 0 rgba(0, 0, 0, 0); }
+  50% { box-shadow: 0 0 0 8px var(--jm-accent-a); }
+}
+.jm-mile { outline: 3px solid var(--ns-amber); outline-offset: 2px; }
+.jm-mbadge { position: absolute; top: -7px; right: -5px; font-size: 12px; color: var(--ns-amber);
+  filter: drop-shadow(0 1px 1px rgba(0, 0, 0, 0.25)); }
+
+/* walking character */
+.jm-char { position: absolute; width: 46px; height: 54px; z-index: 4;
+  transform: translate(-50%, -86%); pointer-events: none; animation: jm-bob 1.6s ease-in-out infinite; }
+@keyframes jm-bob { 0%, 100% { margin-top: 0; } 50% { margin-top: -3px; } }
+.jm-leg-a, .jm-leg-b, .jm-arm-a, .jm-arm-b { transform-origin: top center; }
+.jm-leg-a, .jm-arm-b { animation: jm-swa 1.5s ease-in-out infinite; }
+.jm-leg-b, .jm-arm-a { animation: jm-swb 1.5s ease-in-out infinite; }
+@keyframes jm-swa { 0%, 100% { transform: rotate(7deg); } 50% { transform: rotate(-7deg); } }
+@keyframes jm-swb { 0%, 100% { transform: rotate(-7deg); } 50% { transform: rotate(7deg); } }
+.jm-youtag {
+  position: absolute; top: -20px; left: 50%; transform: translateX(-50%); white-space: nowrap;
+  background: var(--jm-accent); color: #fff; font-size: 10px; font-weight: 800;
+  padding: 2px 9px; border-radius: 999px; box-shadow: var(--ns-soft-sm);
+  font-family: 'Sora', 'Heebo', sans-serif;
+}
+
+/* domain chips */
+.jm-chips { display: flex; gap: 7px; overflow-x: auto; padding-bottom: 4px; }
+.jm-chips::-webkit-scrollbar { height: 0; }
+.jm-chip {
+  flex: none; display: flex; align-items: center; gap: 6px; cursor: pointer;
+  border: 1px solid var(--ns-cardline); background: var(--ns-card); color: var(--ns-slate);
+  border-radius: 999px; padding: 6px 11px; font-weight: 700; font-size: 12.5px; box-shadow: var(--ns-soft-sm);
+}
+.jm-chip .jm-dot { width: 11px; height: 11px; border-radius: 50%; }
+.jm-chip.jm-on { color: #fff; border: 0; }
+
+@media (prefers-reduced-motion: reduce) {
+  .jm-flow, .jm-char, .jm-leg-a, .jm-leg-b, .jm-arm-a, .jm-arm-b, .jm-next { animation: none !important; }
+}

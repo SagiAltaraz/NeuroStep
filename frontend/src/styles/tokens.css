@@ -1,0 +1,31 @@
+/**
+ * Design tokens — single source of truth for the NeuroStep visual language.
+ * Values are lifted verbatim from Lian's existing design (index.css .site-bg +
+ * GamesPage.css), so the games/journey inherit the brand instead of inventing a
+ * new look. Additive only — nothing here overrides existing styles.
+ */
+:root {
+  /* brand palette */
+  --ns-teal: #1c3a45;
+  --ns-blue: #2f86d6;
+  --ns-slate: #5a7fa8;
+  --ns-indigo: #6366f1;
+  --ns-surface: #f3faf9;
+  --ns-card: rgba(255, 255, 255, 0.62);
+  --ns-cardline: rgba(47, 134, 214, 0.18);
+  --ns-grad-brand: linear-gradient(135deg, #1c3a45, #2f86d6);
+  --ns-soft: 0 10px 30px -12px rgba(28, 58, 69, 0.35);
+  --ns-soft-sm: 0 6px 16px -10px rgba(28, 58, 69, 0.3);
+  --ns-good: #16a34a;
+  --ns-amber: #f59e0b;
+
+  /* 8 cognitive-domain accents (mirror data/cognitiveProblems.ts) */
+  --ns-d-working-memory: #8b5cf6;
+  --ns-d-selective-attention: #2563eb;
+  --ns-d-divided-attention: #0d9488;
+  --ns-d-processing-speed: #d97706;
+  --ns-d-reaction-time: #16a34a;
+  --ns-d-response-inhibition: #db2777;
+  --ns-d-strategic-thinking: #dc2626;
+  --ns-d-visual-spatial: #ea580c;
+}
