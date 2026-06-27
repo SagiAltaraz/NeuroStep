@@ -22,6 +22,7 @@ interface GameEntry {
   descKey?:    TKey;
   color:       string;
   glow:        string;
+  gradient:    string;
   route?:      string;     // undefined for upcoming games
   comingSoon?: boolean;
 }
@@ -36,8 +37,9 @@ const games: GameEntry[] = [
     icon: '🚂',
     descHe: 'עקוב אחרי הרכבות ושלח כל אחת לתחנה הנכונה',
     descEn: 'Track each train and route it to the matching station',
-    color: '#3B82F6',                                 // blue
-    glow:  'rgba(59, 130, 246, 0.22)',
+    color:    '#2563EB',
+    glow:     'rgba(37, 99, 235, 0.25)',
+    gradient: 'linear-gradient(135deg, #1E3A8A 0%, #2563EB 55%, #93C5FD 100%)',
     route: '/games/colorTracking',
   },
   {
@@ -47,8 +49,9 @@ const games: GameEntry[] = [
     icon: '♟️',
     descHe: 'שחק נגד המחשב, חשוב אסטרטגית ותכנן קדימה לנצח',
     descEn: 'Play against the computer, think strategically, plan ahead',
-    color: '#7C3AED',                                 // purple
-    glow:  'rgba(124, 58, 237, 0.22)',
+    color:    '#6D28D9',
+    glow:     'rgba(109, 40, 217, 0.25)',
+    gradient: 'linear-gradient(135deg, #2E1065 0%, #6D28D9 50%, #C4B5FD 100%)',
     route: '/games/ticTacToe',
   },
   {
@@ -58,8 +61,9 @@ const games: GameEntry[] = [
     icon: '🃏',
     descHe: 'הפוך קלפים ומצא זוגות תואמים',
     descEn: 'Flip cards and find matching pairs',
-    color: '#22C55E',                                 // green
-    glow:  'rgba(34, 197, 94, 0.22)',
+    color:    '#16A34A',
+    glow:     'rgba(22, 163, 74, 0.25)',
+    gradient: 'linear-gradient(135deg, #14532D 0%, #16A34A 50%, #86EFAC 100%)',
     route: '/games/memory',
   },
   {
@@ -69,18 +73,19 @@ const games: GameEntry[] = [
     icon: '🔵',
     descHe: 'לחץ רק על העיגולים שמופיעים על המסך ‒ הימנע משאר הצורות',
     descEn: 'Tap only the circles — ignore every other shape',
-    color: '#F97316',                                 // orange
-    glow:  'rgba(249, 115, 22, 0.22)',
+    color:    '#EA580C',
+    glow:     'rgba(234, 88, 12, 0.25)',
+    gradient: 'linear-gradient(135deg, #7C2D12 0%, #EA580C 50%, #FDBA74 100%)',
     route: '/games/shapesClick',
   },
-
   {
     id: 'greenLight',
     nameKey: 'game.greenLight.name',
     descKey: 'game.greenLight.desc',
     icon: '🚦',
-    color: '#EAB308',                                 // yellow / gold
-    glow:  'rgba(234, 179, 8, 0.22)',
+    color:    '#D97706',
+    glow:     'rgba(217, 119, 6, 0.25)',
+    gradient: 'linear-gradient(135deg, #78350F 0%, #D97706 50%, #FDE68A 100%)',
     route: '/games/greenLight',
   },
   {
@@ -88,8 +93,9 @@ const games: GameEntry[] = [
     nameKey: 'game.spotDifference.name',
     descKey: 'game.spotDifference.desc',
     icon: '🔍',
-    color: '#EC4899',                                 // pink / magenta
-    glow:  'rgba(236, 72, 153, 0.22)',
+    color:    '#DB2777',
+    glow:     'rgba(219, 39, 119, 0.25)',
+    gradient: 'linear-gradient(135deg, #831843 0%, #DB2777 50%, #FBCFE8 100%)',
     route: '/games/spotDifference',
   },
   {
@@ -97,8 +103,9 @@ const games: GameEntry[] = [
     nameKey: 'game.whereWasIt.name',
     descKey: 'game.whereWasIt.desc',
     icon: '🧩',
-    color: '#EF4444',                                 // red
-    glow:  'rgba(239, 68, 68, 0.22)',
+    color:    '#DC2626',
+    glow:     'rgba(220, 38, 38, 0.25)',
+    gradient: 'linear-gradient(135deg, #7F1D1D 0%, #DC2626 50%, #FCA5A5 100%)',
     route: '/games/whereWasIt',
   },
   {
@@ -106,8 +113,9 @@ const games: GameEntry[] = [
     nameKey: 'game.findLetter.name',
     descKey: 'game.findLetter.desc',
     icon: '🔤',
-    color: '#06B6D4',                                 // cyan
-    glow:  'rgba(6, 182, 212, 0.22)',
+    color:    '#0891B2',
+    glow:     'rgba(8, 145, 178, 0.25)',
+    gradient: 'linear-gradient(135deg, #164E63 0%, #0891B2 50%, #7DD3FC 100%)',
     route: '/games/findLetter',
   },
 ];
@@ -160,8 +168,9 @@ function GameCard({
       disabled={isComing}
       aria-label={ariaLabel}
       style={{
-        ['--card-color' as string]: game.color,
-        ['--card-glow' as string]:  game.glow,
+        ['--card-color' as string]:    game.color,
+        ['--card-glow' as string]:     game.glow,
+        ['--card-gradient' as string]: game.gradient,
         rotateX: cardRotX,
         rotateY: cardRotY,
         transformPerspective: 1100,

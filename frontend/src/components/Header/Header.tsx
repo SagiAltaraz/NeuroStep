@@ -3,6 +3,7 @@ import { Link } from 'react-router-dom';
 import { Globe } from 'lucide-react';
 import { useAuth } from '../../context/AuthContext';
 import { useLang } from '../../context/LanguageContext';
+import Logo from '../Logo';
 import './Header.css';
 
 const Header: React.FC = () => {
@@ -15,9 +16,9 @@ const Header: React.FC = () => {
          <div className="header-container">
             {/* Logo */}
             <div className="logo">
-               <h1>
-                  <Link to="/">NeuroStep</Link>
-               </h1>
+               <Link to="/" style={{ textDecoration: "none" }}>
+                  <Logo height={28} />
+               </Link>
             </div>
 
             {/* Navigation */}

@@ -16,95 +16,82 @@
 
 .problems-eyebrow {
   margin: 0;
-  font-size: 0.78rem;
+  font-size: 0.72rem;
   font-weight: 700;
-  letter-spacing: 0.14em;
+  letter-spacing: 0.18em;
   text-transform: uppercase;
-  color: #6b8cba;
+  color: #2f86d6;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 0.5rem;
+}
+
+.problems-eyebrow::before,
+.problems-eyebrow::after {
+  content: '';
+  display: inline-block;
+  width: 28px;
+  height: 1.5px;
+  background: linear-gradient(90deg, transparent, #2f86d6);
+  border-radius: 2px;
+}
+
+.problems-eyebrow::after {
+  background: linear-gradient(90deg, #2f86d6, transparent);
 }
 
 .problems-title {
   margin: 0;
-  font-size: clamp(1.5rem, 3.5vw, 2.25rem);
-  font-weight: 700;
-  color: #1a365d;
-  letter-spacing: -0.02em;
+  font-family: 'Heebo', 'Sora', sans-serif;
+  font-size: clamp(1.5rem, 3.5vw, 2.2rem);
+  font-weight: 800;
+  letter-spacing: -0.03em;
+  line-height: 1.15;
+  background: linear-gradient(135deg, #1c3a45 0%, #2f86d6 100%);
+  -webkit-background-clip: text;
+  -webkit-text-fill-color: transparent;
+  background-clip: text;
 }
 
 .problems-subtitle {
   margin: 0;
-  font-size: 1rem;
-  color: #4a6fa5;
-  line-height: 1.6;
+  font-size: 0.97rem;
+  color: #5a7fa8;
+  line-height: 1.65;
+  font-weight: 400;
 }
 
-/* ── Carousel wrap with arrows ────────────────────────────────────────────── */
+/* ── Grid ─────────────────────────────────────────────────────────────────── */
 
-.problems-carousel-wrap {
-  position: relative;
+.pc-grid {
   max-width: 1200px;
   margin: 0 auto;
-  padding: 0 0.5rem;
-}
-
-.pc-arrow {
-  position: absolute;
-  top: 50%;
-  transform: translateY(-50%);
-  width: 44px;
-  height: 44px;
-  border-radius: 50%;
-  border: 1px solid rgba(99, 102, 241, 0.22);
-  background: #ffffff;
-  color: #4338ca;
-  cursor: pointer;
-  display: flex;
-  align-items: center;
+  padding: 0 1rem 1rem;
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(260px, 1fr));
+  gap: 1.25rem;
   justify-content: center;
-  z-index: 2;
-  box-shadow: 0 6px 20px rgba(15, 23, 42, 0.08);
-  transition: transform 0.15s ease, box-shadow 0.15s ease, background 0.15s ease;
-}
-.pc-arrow:hover  { background: #f5f3ff; transform: translateY(-50%) scale(1.06); }
-.pc-arrow:active { transform: translateY(-50%) scale(0.96); }
-
-.pc-arrow--prev { right: -8px; }
-.pc-arrow--next { left:  -8px; }
-
-@media (max-width: 700px) {
-  .pc-arrow { display: none; }
-}
-
-/* ── Scrollable track ─────────────────────────────────────────────────────── */
-
-.pc-track {
-  display: flex;
-  gap: 1rem;
-  overflow-x: auto;
-  scroll-snap-type: x mandatory;
-  scroll-behavior: smooth;
-  padding: 1rem 0.5rem;
-  scrollbar-width: thin;
-  scrollbar-color: rgba(99, 102, 241, 0.35) transparent;
-  /* shared 3D scene for every card */
   perspective: 1200px;
 }
-.pc-track::-webkit-scrollbar        { height: 6px; }
-.pc-track::-webkit-scrollbar-thumb  { background: rgba(99, 102, 241, 0.35); border-radius: 3px; }
-.pc-track::-webkit-scrollbar-track  { background: transparent; }
+
+/* Center the lone card when it's the only one in its row */
+.pc-grid > *:last-child:nth-child(4n+1) {
+  justify-self: center;
+  width: 260px;
+}
 
 /* ── Cards ────────────────────────────────────────────────────────────────── */
 
 .pc-card {
-  flex: 0 0 320px;
-  min-height: 320px;
-  scroll-snap-align: start;
+  width: 100%;
+  min-height: 300px;
 
   display: flex;
   flex-direction: column;
   text-align: right;
   background: #ffffff;
-  border: 1px solid rgba(99, 102, 241, 0.10);
+  border: 1px solid rgba(47, 134, 214, 0.10);
   border-radius: 22px;
   overflow: hidden;
   cursor: pointer;
@@ -258,9 +245,9 @@
 
 /* ── Mobile ───────────────────────────────────────────────────────────────── */
 
-@media (max-width: 480px) {
-  .problems-section { padding: 3rem 0.5rem 4rem; }
-  .pc-card          { flex: 0 0 280px; min-height: 300px; }
+@media (max-width: 600px) {
+  .problems-section { padding: 2.5rem 0.5rem 3rem; }
+  .pc-grid          { grid-template-columns: 1fr; gap: 1rem; }
   .pc-card-header   { height: 132px; }
   .pc-card-stage    { width: 96px; height: 96px; }
   .pc-card-emoji    { font-size: 2.6rem; }

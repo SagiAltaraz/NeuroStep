@@ -2,49 +2,58 @@
    position: fixed;
    bottom: 24px;
    left: 24px;
-   width: 56px;
-   height: 56px;
+   width: 52px;
+   height: 52px;
    border-radius: 50%;
-   background: #3b82f6;
+   background: linear-gradient(135deg, #3f9fcf 0%, #2f86d6 100%);
    color: #ffffff;
    border: none;
    cursor: pointer;
    display: flex;
    align-items: center;
    justify-content: center;
-   box-shadow: 0 6px 20px rgba(59, 130, 246, 0.4);
+   box-shadow:
+      0 4px 14px rgba(47, 134, 214, 0.45),
+      0 2px 6px rgba(0, 0, 0, 0.1);
    z-index: 9999;
    transition:
       transform 0.2s ease,
       box-shadow 0.2s ease,
-      background 0.2s ease;
+      filter 0.2s ease;
 }
 
 .a11y-fab:hover {
-   transform: scale(1.06);
-   background: #2563eb;
-   box-shadow: 0 8px 24px rgba(37, 99, 235, 0.5);
+   transform: translateY(-2px) scale(1.04);
+   filter: brightness(1.08);
+   box-shadow:
+      0 8px 22px rgba(47, 134, 214, 0.55),
+      0 2px 6px rgba(0, 0, 0, 0.1);
 }
 
 .a11y-fab:focus-visible {
-   outline: 3px solid #1d4ed8;
+   outline: 3px solid #2f86d6;
    outline-offset: 3px;
 }
 
 .a11y-panel {
    position: fixed;
-   bottom: 96px;
+   bottom: 86px;
    left: 24px;
    width: 320px;
    max-width: calc(100vw - 48px);
-   background: #ffffff;
-   border-radius: 16px;
-   border: 1px solid #e2e8f0;
-   box-shadow: 0 20px 50px rgba(15, 23, 42, 0.18);
-   padding: 1rem;
+   background: rgba(248, 252, 255, 0.97);
+   backdrop-filter: blur(16px);
+   -webkit-backdrop-filter: blur(16px);
+   border-radius: 20px;
+   border: 1px solid rgba(47, 134, 214, 0.15);
+   box-shadow:
+      0 4px 6px rgba(0, 0, 0, 0.04),
+      0 20px 50px rgba(47, 134, 214, 0.16);
+   overflow: hidden;
+   padding: 0;
    z-index: 9999;
-   font-family: 'Inter', -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;
-   color: #0b1727;
+   font-family: 'Heebo', 'Inter', -apple-system, sans-serif;
+   color: #1a3550;
    animation: a11y-fade-in 0.18s ease-out;
 }
 
@@ -63,14 +72,18 @@
    display: flex;
    align-items: center;
    justify-content: space-between;
-   margin-bottom: 0.75rem;
+   padding: 0.85rem 1rem;
+   background: linear-gradient(135deg, #3f9fcf 0%, #2f86d6 100%);
+   color: #fff;
 }
 
 .a11y-panel-header h2 {
-   font-size: 1rem;
-   font-weight: 600;
+   font-size: 0.95rem;
+   font-weight: 800;
    margin: 0;
-   color: #0b1727;
+   color: #fff;
+   font-family: 'Heebo', sans-serif;
+   letter-spacing: -0.01em;
 }
 
 .a11y-close-btn {
@@ -79,17 +92,16 @@
    display: flex;
    align-items: center;
    justify-content: center;
-   border: none;
-   background: transparent;
-   color: #64748b;
-   border-radius: 6px;
+   border: 1px solid rgba(255, 255, 255, 0.3);
+   background: rgba(255, 255, 255, 0.18);
+   color: #fff;
+   border-radius: 50%;
    cursor: pointer;
    transition: background 0.15s ease;
 }
 
 .a11y-close-btn:hover {
-   background: #f1f5f9;
-   color: #0b1727;
+   background: rgba(255, 255, 255, 0.3);
 }
 
 .a11y-options {
@@ -97,6 +109,7 @@
    grid-template-columns: 1fr 1fr;
    gap: 0.5rem;
    margin-bottom: 0.75rem;
+   padding: 0.85rem 0.85rem 0;
 }
 
 .a11y-option {
@@ -106,34 +119,37 @@
    justify-content: center;
    gap: 0.35rem;
    padding: 0.85rem 0.5rem;
-   border: 1px solid #e2e8f0;
-   border-radius: 10px;
-   background: #ffffff;
-   color: #475569;
+   border: 1.5px solid rgba(47, 134, 214, 0.12);
+   border-radius: 12px;
+   background: rgba(255, 255, 255, 0.85);
+   color: #4a6f8a;
    font-size: 0.8rem;
    font-weight: 500;
    cursor: pointer;
    text-align: center;
+   font-family: 'Heebo', sans-serif;
    transition:
       background 0.15s ease,
       border-color 0.15s ease,
-      color 0.15s ease;
+      color 0.15s ease,
+      box-shadow 0.15s ease;
 }
 
 .a11y-option:hover {
-   background: #f8fafc;
-   border-color: #cbd5e1;
-   color: #0b1727;
+   background: rgba(47, 134, 214, 0.06);
+   border-color: rgba(47, 134, 214, 0.35);
+   color: #1a3550;
 }
 
 .a11y-option.is-active {
-   background: #eff6ff;
-   border-color: #3b82f6;
-   color: #1d4ed8;
+   background: rgba(47, 134, 214, 0.1);
+   border-color: #2f86d6;
+   color: #1c6bb0;
+   box-shadow: 0 0 0 1px rgba(47, 134, 214, 0.2) inset;
 }
 
 .a11y-option:focus-visible {
-   outline: 2px solid #3b82f6;
+   outline: 2px solid #2f86d6;
    outline-offset: 2px;
 }
 
@@ -143,48 +159,52 @@
 
 .a11y-option-value {
    font-size: 0.7rem;
-   color: #94a3b8;
+   color: #a8c0d6;
    font-weight: 400;
 }
 
 .a11y-option.is-active .a11y-option-value {
-   color: #3b82f6;
+   color: #2f86d6;
 }
 
 .a11y-reset-btn {
-   width: 100%;
+   width: calc(100% - 1.7rem);
+   margin: 0 0.85rem 0.85rem;
    display: flex;
    align-items: center;
    justify-content: center;
    gap: 0.4rem;
    padding: 0.6rem;
-   border: 1px solid #e2e8f0;
-   border-radius: 8px;
-   background: #ffffff;
-   color: #64748b;
-   font-size: 0.85rem;
-   font-weight: 500;
+   border: 1.5px solid rgba(47, 134, 214, 0.18);
+   border-radius: 10px;
+   background: rgba(255, 255, 255, 0.8);
+   color: #4a6f8a;
+   font-size: 0.83rem;
+   font-weight: 600;
    cursor: pointer;
+   font-family: 'Heebo', sans-serif;
    transition:
       background 0.15s ease,
+      border-color 0.15s ease,
       color 0.15s ease;
 }
 
 .a11y-reset-btn:hover {
-   background: #f1f5f9;
-   color: #0b1727;
+   background: rgba(47, 134, 214, 0.07);
+   border-color: rgba(47, 134, 214, 0.35);
+   color: #2f86d6;
 }
 
 @media (max-width: 480px) {
    .a11y-fab {
       bottom: 16px;
       left: 16px;
-      width: 50px;
-      height: 50px;
+      width: 46px;
+      height: 46px;
    }
 
    .a11y-panel {
-      bottom: 80px;
+      bottom: 74px;
       left: 16px;
       right: 16px;
       width: auto;

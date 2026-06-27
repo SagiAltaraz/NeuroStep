@@ -3,6 +3,7 @@ import { useAuth } from "../../context/AuthContext";
 import { useLang, type Lang } from "../../context/LanguageContext";
 import { useNavigate, Link } from "react-router-dom";
 import { Button } from "../ui/button";
+import Logo from "../Logo";
 import {
   Card,
   CardContent,
@@ -136,10 +137,13 @@ export function SignupForm({ ...props }: React.ComponentProps<typeof Card>) {
   }
 
   return (
-    <Card className="mx-auto max-w-sm" {...props}>
-      <CardHeader>
-        <CardTitle>{t('signup.title')}</CardTitle>
-        <CardDescription>{t('signup.subtitle')}</CardDescription>
+    <Card className="mx-auto max-w-sm auth-form-card" {...props}>
+      <CardHeader className="auth-card-header">
+        <div style={{ display: "flex", justifyContent: "center", marginBottom: "1rem" }}>
+          <Logo height={30} />
+        </div>
+        <CardTitle className="auth-card-title">{t('signup.title')}</CardTitle>
+        <CardDescription className="auth-card-desc">{t('signup.subtitle')}</CardDescription>
       </CardHeader>
       <CardContent>
         <form onSubmit={handleSubmit}>
@@ -199,11 +203,10 @@ export function SignupForm({ ...props }: React.ComponentProps<typeof Card>) {
               <div role="radiogroup" className="flex gap-2">
                 <button
                   type="button"
-                  className={`flex-1 px-3 py-2 rounded-md border text-sm font-medium transition ${
-                    language === 'he'
-                      ? 'bg-indigo-50 border-indigo-400 text-indigo-700'
-                      : 'bg-white border-slate-200 text-slate-600 hover:bg-slate-50'
-                  }`}
+                  className="flex-1 px-3 py-2 rounded-md border text-sm font-medium transition"
+                  style={language === 'he'
+                    ? { background: 'rgba(47,134,214,0.10)', borderColor: '#2f86d6', color: '#1c6bb0' }
+                    : { background: '#fff', borderColor: '#e2e8f0', color: '#64748b' }}
                   onClick={() => setLanguage('he')}
                   disabled={isLoading}
                   aria-pressed={language === 'he'}
@@ -212,11 +215,10 @@ export function SignupForm({ ...props }: React.ComponentProps<typeof Card>) {
                 </button>
                 <button
                   type="button"
-                  className={`flex-1 px-3 py-2 rounded-md border text-sm font-medium transition ${
-                    language === 'en'
-                      ? 'bg-indigo-50 border-indigo-400 text-indigo-700'
-                      : 'bg-white border-slate-200 text-slate-600 hover:bg-slate-50'
-                  }`}
+                  className="flex-1 px-3 py-2 rounded-md border text-sm font-medium transition"
+                  style={language === 'en'
+                    ? { background: 'rgba(47,134,214,0.10)', borderColor: '#2f86d6', color: '#1c6bb0' }
+                    : { background: '#fff', borderColor: '#e2e8f0', color: '#64748b' }}
                   onClick={() => setLanguage('en')}
                   disabled={isLoading}
                   aria-pressed={language === 'en'}
@@ -231,8 +233,8 @@ export function SignupForm({ ...props }: React.ComponentProps<typeof Card>) {
               <Field>
                 <Button
                   type="submit"
-                  className="w-full"
-                  variant="black"
+                  className="w-full auth-submit-btn"
+                  variant="brand"
                   disabled={isLoading}
                 >
                   {isLoading ? t('signup.submit.loading') : t('signup.submit')}

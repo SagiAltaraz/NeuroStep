@@ -1,5 +1,7 @@
+@import '../../styles/auth-forms.css';
+
 .login-page {
-  min-height: 100vh;
+  min-height: calc(100vh - 64px);
   display: flex;
   align-items: center;
   justify-content: center;
@@ -9,11 +11,13 @@
 
 .login-container {
   width: 100%;
-  max-width: 400px;
+  max-width: 440px;
 }
 
 @media (max-width: 480px) {
   .login-page {
     padding: 1rem;
+    align-items: flex-start;
+    padding-top: 2rem;
   }
 }

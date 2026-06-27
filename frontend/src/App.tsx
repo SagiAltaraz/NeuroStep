@@ -1,6 +1,7 @@
 import './App.css';
 import { Routes, Route } from 'react-router-dom';
 import Header from './components/Header/Header';
+import SiteBackground from './components/SiteBackground/SiteBackground';
 
 import HomePage from './pages/home/Home';
 import SignupPage from './pages/sign-up/SignUp';
@@ -28,6 +29,7 @@ import AccessibilityWidget from './components/AccessibilityWidget/AccessibilityW
 function App() {
    return (
       <div className="App">
+         <SiteBackground />
          <Header />
          <Routes>
             {/* home page */}

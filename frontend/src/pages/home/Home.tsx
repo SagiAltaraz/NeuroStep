@@ -3,6 +3,7 @@ import { Button } from '../../components/ui/button';
 import { useNavigate } from 'react-router-dom';
 import { useAuth } from '../../context/AuthContext';
 import { useLang } from '../../context/LanguageContext';
+import Logo from '../../components/Logo';
 
 const Home = () => {
   const navigate = useNavigate();
@@ -17,14 +18,9 @@ const Home = () => {
     <main className="home-page" dir={dir}>
       <div className="home-container">
         <section className="hero-section">
-          <img
-            src="/logo5.png"
-            alt="NeuroStep Logo"
-            className="hero-logo"
-            width={1024}
-            height={1024}
-            fetchPriority="high"
-          />
+          <div className="hero-logo">
+            <Logo height={46} />
+          </div>
 
           <div className="cta-section">
             <Button variant="black" size="lg" onClick={handlePlayClick}>
