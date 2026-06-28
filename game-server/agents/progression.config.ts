@@ -14,9 +14,6 @@ export const PROFILE_TUNING = {
   ALPHA_MAX:          0.5,    // cap on the boosted alpha
   TREND_THRESHOLD:    3,      // level delta over the recent window to call up/down
   TREND_WINDOW:       5,      // number of recent domain scores kept for trend
-  COLD_START_PRIOR:   25,     // first session ramps from this neutral prior instead of
-                              // snapping the level straight to the score (prevents the
-                              // journey node leaping, e.g. 1→8, after a single game)
 } as const;
 
 export const PROGRESSION_TUNING = {
@@ -55,4 +52,9 @@ export const CROSSGAME_TUNING = {
   MIN_CONFIDENCE: 0.4,   // ignore domains we are not yet confident about
   W_PRIMARY:      1.0,   // weight of the new game's primary domain
   W_SECONDARY:    0.5,   // weight of each secondary domain
+  // Every session — including a returning player's same-game resume — starts a
+  // touch BELOW their stored level and lets the controller ramp back up to it.
+  // This warms the player in for a smooth flow instead of snapping straight to
+  // full difficulty (which felt like a jarring jump after the first session).
+  RESUME_FACTOR:  0.9,
 } as const;

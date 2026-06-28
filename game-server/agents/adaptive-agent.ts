@@ -209,8 +209,12 @@ async function ensureProfileLoaded(state: AdaptiveState): Promise<DifficultyPara
   state.baselineMean   = p.mean;
   state.baselineStdDev = p.stdDev;
   if (p.difficulty !== null) {
-    state.D         = p.difficulty;
-    state.dSmoothed = p.difficulty;
+    // Ease-in: open a touch BELOW the saved level and let the controller ramp
+    // back up to it, so a returning player warms up smoothly instead of being
+    // dropped straight into full difficulty (the "jarring jump" after session 1).
+    const warmed    = clamp01(p.difficulty * CROSSGAME_TUNING.RESUME_FACTOR);
+    state.D         = warmed;
+    state.dSmoothed = p.difficulty;   // keep the true converged level as the EMA target
     return paramsFromD(state.gameId, state.D);
   }
   return null;

@@ -68,16 +68,14 @@ export function computeProfileUpdate(
   weight:      number,
   tuning = PROFILE_TUNING,
 ): ProfileState {
-  // Cold start — first ever score for this domain. Ramp from a neutral prior
-  // instead of snapping the level straight to the score: a single good game used
-  // to leap the journey node (e.g. 1→8) and spike the next session's difficulty.
-  // The EMA now climbs toward true ability gradually over the first few games.
+  // Cold start — first ever score for this domain seeds the EMA directly, so the
+  // stored level reflects the player's ability. (The per-session "ease-in" lives
+  // in the adaptive warm-up, which starts each session a touch BELOW this level
+  // and ramps up to it — see RESUME_FACTOR in adaptive-agent.)
   if (prev === null) {
-    const alpha = weight >= 1 ? tuning.ALPHA_PRIMARY : tuning.ALPHA_SECONDARY;
-    const _ema  = tuning.COLD_START_PRIOR * (1 - alpha) + domainScore * alpha;
     return {
-      _ema,
-      level:            Math.round(_ema),
+      _ema:             domainScore,
+      level:            Math.round(domainScore),
       confidence:       Math.min(1, 1 / tuning.WARMUP_SESSIONS),
       sessionsCount:    1,
       trend:            'stable',
