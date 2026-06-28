@@ -281,8 +281,8 @@ class FindLetterScene extends Phaser.Scene {
         }
       }
 
-      const bg = this.add.rectangle(x, y, cellSize, cellSize, 0x1a1a24, 1)
-        .setStrokeStyle(1, 0x2a2a3a)
+      const bg = this.add.rectangle(x, y, cellSize, cellSize, 0xffffff, 1)
+        .setStrokeStyle(2, 0xbcd6ef)
         .setDepth(4)
         .setInteractive({ useHandCursor: true });
       const tx = this.add.text(x, y, letter, {
@@ -319,8 +319,8 @@ class FindLetterScene extends Phaser.Scene {
       this.foundCount++;
       this.score++;
       this.scoreText.setText(String(this.score));
-      this.cells[idx].setColor('#38bdf8');
-      this.bg[idx].setFillStyle(0x1e3a5f, 1).setStrokeStyle(2, 0x38bdf8);
+      this.cells[idx].setColor('#ffffff');
+      this.bg[idx].setFillStyle(0x2f86d6, 1).setStrokeStyle(2, 0x1c3a45);
       this.tweens.add({
         targets: this.cells[idx], scale: 1.3, duration: 120, yoyo: true,
       });
