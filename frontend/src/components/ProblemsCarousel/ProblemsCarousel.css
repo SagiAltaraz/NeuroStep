@@ -1,7 +1,7 @@
 /* ── Section frame ────────────────────────────────────────────────────────── */
 
 .problems-section {
-  padding: 0.5rem 1rem 1rem;
+  padding: 1.6rem 1rem 1rem;   /* top gap separates the hero CTAs from the carousel */
   background: transparent;
   display: flex;
   flex-direction: column;
@@ -77,6 +77,7 @@
   flex: 1;
   min-height: 0;
   gap: 1rem;
+  align-items: center;   /* shorter cards centre in the rail, leaving even breathing room */
   overflow-x: auto;
   overflow-y: hidden;
   scroll-snap-type: x mandatory;
@@ -90,7 +91,8 @@
 .pc-card {
   flex: none;
   width: 210px;
-  height: 100%;
+  height: auto;          /* sized to content → shorter cards */
+  max-height: 100%;      /* never taller than the rail */
   min-height: 0;
   scroll-snap-align: start;
 
