@@ -54,10 +54,9 @@ export default function SessionResults({ result, onFinish }: Props) {
       <button
         type="button"
         onClick={() => { setFinishing(true); onFinish(); }}
-        className="fixed bottom-6 left-1/2 z-40 -translate-x-1/2 rounded-full bg-indigo-600 px-8 py-3
+        className="ns-btn-brand ns-display fixed bottom-6 left-1/2 z-40 -translate-x-1/2 rounded-full px-8 py-3
                    text-base font-semibold text-white shadow-xl ring-1 ring-black/5 transition-transform
-                   hover:scale-105 hover:bg-indigo-700 focus-visible:outline-none focus-visible:ring-4
-                   focus-visible:ring-indigo-300"
+                   hover:scale-105 focus-visible:outline-none focus-visible:ring-4 focus-visible:ring-sky-300"
       >
         {t('results.finish')}
       </button>
@@ -82,7 +81,7 @@ export default function SessionResults({ result, onFinish }: Props) {
           <motion.div
             initial={{ scale: 0.94, y: 16, opacity: 0 }}
             animate={{ scale: 1, y: 0, opacity: 1 }}
-            className="w-full max-w-md rounded-2xl bg-white p-6 text-slate-900 shadow-2xl"
+            className="ns-card-glass w-full max-w-md rounded-2xl p-6 text-slate-900 shadow-2xl"
           >
             {/* ── Loading / fallback ───────────────────────────────── */}
             {phase === 'none' && !timedOut && (
@@ -105,13 +104,13 @@ export default function SessionResults({ result, onFinish }: Props) {
                 {/* Level-up moment (only when the journey map advanced) */}
                 {phase === 'report' && leveledUp && <LevelUpBanner result={result} t={t} />}
 
-                <h2 className="text-center text-2xl font-bold text-slate-900">{t('results.title')}</h2>
+                <h2 className="ns-display text-center text-2xl font-bold text-slate-900">{t('results.title')}</h2>
 
                 {/* Cognitive score ring (report only) */}
                 {phase === 'report' && report && (
                   <div className="flex flex-col items-center gap-1">
-                    <div className="flex h-24 w-24 items-center justify-center rounded-full
-                                    bg-indigo-50 text-3xl font-extrabold text-indigo-600 ring-4 ring-indigo-100">
+                    <div className="ns-display flex h-24 w-24 items-center justify-center rounded-full
+                                    bg-sky-50 text-3xl font-extrabold text-[#2f86d6] ring-4 ring-sky-100">
                       {report.cognitiveScore}
                     </div>
                     <span className="text-sm text-slate-500">{t('results.score')}</span>
@@ -174,9 +173,9 @@ function PrimaryButton({
     <button
       type="button"
       onClick={onClick}
-      className={`inline-flex items-center justify-center rounded-xl bg-indigo-600 px-5 py-3
-                  text-base font-semibold text-white shadow-sm transition-colors hover:bg-indigo-700
-                  focus-visible:outline-none focus-visible:ring-4 focus-visible:ring-indigo-300 ${className}`}
+      className={`ns-btn-brand ns-display inline-flex items-center justify-center rounded-xl px-5 py-3
+                  text-base font-semibold text-white shadow-sm transition-transform hover:scale-[1.02]
+                  focus-visible:outline-none focus-visible:ring-4 focus-visible:ring-sky-300 ${className}`}
     >
       {children}
     </button>

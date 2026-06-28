@@ -19,6 +19,9 @@
   --ns-good: #16a34a;
   --ns-amber: #f59e0b;
 
+  /* shared helper surfaces */
+  --ns-glass-bg: rgba(255, 255, 255, 0.85);
+
   /* 8 cognitive-domain accents (mirror data/cognitiveProblems.ts) */
   --ns-d-working-memory: #8b5cf6;
   --ns-d-selective-attention: #2563eb;
@@ -28,4 +31,13 @@
   --ns-d-response-inhibition: #db2777;
   --ns-d-strategic-thinking: #dc2626;
   --ns-d-visual-spatial: #ea580c;
+}
+
+/* shared helpers (additive — opt-in via className) */
+.ns-display { font-family: 'Sora', 'Heebo', sans-serif; }
+.ns-btn-brand { background: var(--ns-grad-brand); color: #fff; }
+.ns-card-glass {
+  background: var(--ns-glass-bg);
+  backdrop-filter: blur(12px);
+  border: 1px solid var(--ns-cardline);
 }

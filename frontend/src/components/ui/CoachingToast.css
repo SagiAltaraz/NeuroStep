@@ -3,13 +3,17 @@
   bottom: 2rem;
   left: 50%;
   transform: translateX(-50%);
-  background: rgba(16, 185, 129, 0.92);  /* emerald-500 */
-  color: #fff;
-  font-size: 1.15rem;
-  font-weight: 600;
+  /* v3 frosted brand pill (was solid emerald) */
+  background: rgba(255, 255, 255, 0.85);
+  backdrop-filter: blur(12px);
+  border: 1px solid var(--ns-cardline, rgba(47, 134, 214, 0.18));
+  color: var(--ns-teal, #1c3a45);
+  font-family: 'Sora', 'Heebo', sans-serif;
+  font-size: 1.1rem;
+  font-weight: 700;
   padding: 0.75rem 1.75rem;
   border-radius: 2rem;
-  box-shadow: 0 4px 20px rgba(0, 0, 0, 0.18);
+  box-shadow: var(--ns-soft, 0 10px 30px -12px rgba(28, 58, 69, 0.35));
   z-index: 9999;
   direction: rtl;
   text-align: center;
