@@ -124,7 +124,7 @@ class WhereWasItScene extends Phaser.Scene {
   private createBackground() {
     const { canvasWidth: W, canvasHeight: H } = this.cfg;
     const bg = this.add.graphics();
-    bg.fillGradientStyle(0x0a0a0f, 0x0a0a0f, 0x18181f, 0x18181f, 1);
+    bg.fillGradientStyle(0xf3faf9, 0xeef6ff, 0xe7f1fb, 0xdcebf7, 1);
     bg.fillRect(0, 0, W, H);
   }
 
@@ -160,17 +160,17 @@ class WhereWasItScene extends Phaser.Scene {
   private createUI() {
     const { canvasWidth: W, canvasHeight: H } = this.cfg;
 
-    this.add.rectangle(W / 2, 38, W, 76, 0x0a0a0f, 0.9).setDepth(10);
+    this.add.rectangle(W / 2, 38, W, 76, 0xffffff, 0.72).setDepth(10);
 
     this.scoreLabel = this.add.text(80, 20, this.labels.score,
-      { fontSize: '11px', color: '#94a3b8', fontFamily: 'Arial' }
+      { fontSize: '11px', color: '#5a7fa8', fontFamily: 'Arial' }
     ).setOrigin(0.5).setDepth(10);
     this.scoreText = this.add.text(80, 44, '0',
-      { fontSize: '26px', fontFamily: 'Arial Black', color: '#e0e7ff' }
+      { fontSize: '26px', fontFamily: 'Arial Black', color: '#1c3a45' }
     ).setOrigin(0.5).setDepth(10);
 
     this.seqLabel = this.add.text(W - 80, 20, this.labels.sequence,
-      { fontSize: '11px', color: '#94a3b8', fontFamily: 'Arial' }
+      { fontSize: '11px', color: '#5a7fa8', fontFamily: 'Arial' }
     ).setOrigin(0.5).setDepth(10);
     this.seqText = this.add.text(W - 80, 44, '0',
       { fontSize: '26px', fontFamily: 'Arial Black', color: '#c084fc' }
@@ -185,7 +185,7 @@ class WhereWasItScene extends Phaser.Scene {
     }).setOrigin(0.5).setAlpha(0).setDepth(30);
 
     this.instructionLabel = this.add.text(W / 2, H - 18, this.labels.instruction, {
-      fontSize: '13px', fontFamily: 'Arial', color: '#94a3b8', fontStyle: 'bold',
+      fontSize: '13px', fontFamily: 'Arial', color: '#5a7fa8', fontStyle: 'bold',
     }).setOrigin(0.5).setDepth(10);
   }
 
@@ -249,7 +249,7 @@ class WhereWasItScene extends Phaser.Scene {
   private startInputPhase() {
     this.phase = 'input';
     this.inputStartTime = Date.now();
-    this.statusText.setText(this.labels.yourTurn).setColor('#00f5a0');
+    this.statusText.setText(this.labels.yourTurn).setColor('#16a34a');
   }
 
   private onCellClick(idx: number) {
@@ -364,7 +364,7 @@ export default function WhereWasIt({ config, onAction, adjustment }: WhereWasItP
       width:           mergedCfg.canvasWidth,
       height:          mergedCfg.canvasHeight,
       parent:          containerRef.current,
-      backgroundColor: '#0a0a0f',
+      backgroundColor: '#f3faf9',
       banner:          false,
       scene:           WhereWasItScene,
     });

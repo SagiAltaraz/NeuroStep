@@ -145,7 +145,7 @@ class TicTacToeScene extends Phaser.Scene {
     const { canvasWidth: W, canvasHeight: H } = this.cfg;
 
     const bg = this.add.graphics();
-    bg.fillGradientStyle(0x0f172a, 0x0f172a, 0x1e1b4b, 0x1e1b4b, 1);
+    bg.fillGradientStyle(0xf3faf9, 0xeef6ff, 0xe7f1fb, 0xdcebf7, 1);
     bg.fillRect(0, 0, W, H);
 
     this.bgStars = this.add.graphics();
@@ -168,33 +168,33 @@ class TicTacToeScene extends Phaser.Scene {
     const { canvasWidth: W } = this.cfg;
 
     // Top bar
-    this.add.rectangle(W / 2, 38, W, 76, 0x0f172a, 0.9).setDepth(10);
+    this.add.rectangle(W / 2, 38, W, 76, 0xffffff, 0.72).setDepth(10);
     this.add.rectangle(W / 2, 76, W, 2, 0x3730a3, 1).setDepth(10);
 
     // Player score (right side in RTL feel)
-    this.playerLabel = this.add.text(W - 90, 20, this.labels.you, { fontSize: '11px', color: '#94a3b8', fontFamily: 'Arial' }).setOrigin(0.5).setDepth(10);
+    this.playerLabel = this.add.text(W - 90, 20, this.labels.you, { fontSize: '11px', color: '#5a7fa8', fontFamily: 'Arial' }).setOrigin(0.5).setDepth(10);
     this.playerScoreText = this.add.text(W - 90, 44, '0', {
-      fontSize: '26px', fontFamily: 'Arial Black', color: '#a5b4fc',
+      fontSize: '26px', fontFamily: 'Arial Black', color: '#2f86d6',
     }).setOrigin(0.5).setDepth(10);
 
     // Draws (center)
-    this.drawLabel = this.add.text(W / 2, 18, this.labels.draw, { fontSize: '11px', color: '#94a3b8', fontFamily: 'Arial' }).setOrigin(0.5).setDepth(10);
+    this.drawLabel = this.add.text(W / 2, 18, this.labels.draw, { fontSize: '11px', color: '#5a7fa8', fontFamily: 'Arial' }).setOrigin(0.5).setDepth(10);
     this.drawScoreText = this.add.text(W / 2, 40, '0', {
-      fontSize: '22px', fontFamily: 'Arial Black', color: '#cbd5e1',
+      fontSize: '22px', fontFamily: 'Arial Black', color: '#1c3a45',
     }).setOrigin(0.5).setDepth(10);
     this.depthText = this.add.text(W / 2, 62, this.depthLabel(this.cfg.aiDepth), {
-      fontSize: '11px', fontFamily: 'Arial', color: '#a5b4fc',
+      fontSize: '11px', fontFamily: 'Arial', color: '#2f86d6',
     }).setOrigin(0.5).setDepth(10);
 
     // AI score
-    this.computerLabel = this.add.text(90, 20, this.labels.computer, { fontSize: '11px', color: '#94a3b8', fontFamily: 'Arial' }).setOrigin(0.5).setDepth(10);
+    this.computerLabel = this.add.text(90, 20, this.labels.computer, { fontSize: '11px', color: '#5a7fa8', fontFamily: 'Arial' }).setOrigin(0.5).setDepth(10);
     this.aiScoreText = this.add.text(90, 44, '0', {
-      fontSize: '26px', fontFamily: 'Arial Black', color: '#fca5a5',
+      fontSize: '26px', fontFamily: 'Arial Black', color: '#e5484d',
     }).setOrigin(0.5).setDepth(10);
 
     // Status
     this.statusText = this.add.text(W / 2, this.cfg.canvasHeight - 26, this.labels.statusYourTurn, {
-      fontSize: '14px', fontFamily: 'Arial', color: '#94a3b8', fontStyle: 'bold',
+      fontSize: '14px', fontFamily: 'Arial', color: '#5a7fa8', fontStyle: 'bold',
     }).setOrigin(0.5).setDepth(10);
 
     // Feedback
@@ -326,19 +326,19 @@ class TicTacToeScene extends Phaser.Scene {
     if (result === PLAYER) {
       this.playerWins++;
       this.playerScoreText.setText(String(this.playerWins));
-      this.showFeedback(this.labels.feedbackWin, '#a5b4fc');
+      this.showFeedback(this.labels.feedbackWin, '#2f86d6');
       this.setStatus('won');
       this.fireAction('GAME_WON', { winner: 'player', aiDepth: this.cfg.aiDepth });
     } else if (result === AI) {
       this.aiWins++;
       this.aiScoreText.setText(String(this.aiWins));
-      this.showFeedback(this.labels.feedbackLose, '#fca5a5');
+      this.showFeedback(this.labels.feedbackLose, '#e5484d');
       this.setStatus('lost');
       this.fireAction('GAME_WON', { winner: 'ai', aiDepth: this.cfg.aiDepth });
     } else {
       this.draws++;
       this.drawScoreText.setText(String(this.draws));
-      this.showFeedback(this.labels.feedbackDraw, '#cbd5e1');
+      this.showFeedback(this.labels.feedbackDraw, '#5a7fa8');
       this.setStatus('draw');
       this.fireAction('GAME_DRAW', { aiDepth: this.cfg.aiDepth });
     }
@@ -518,7 +518,7 @@ export default function TicTacToe({ config, onAction, adjustment }: TicTacToePro
       width:           mergedCfg.canvasWidth,
       height:          mergedCfg.canvasHeight,
       parent:          containerRef.current,
-      backgroundColor: '#0f172a',
+      backgroundColor: '#f3faf9',
       banner:          false,
       scene:           TicTacToeScene,
     });

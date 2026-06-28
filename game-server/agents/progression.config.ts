@@ -52,4 +52,9 @@ export const CROSSGAME_TUNING = {
   MIN_CONFIDENCE: 0.4,   // ignore domains we are not yet confident about
   W_PRIMARY:      1.0,   // weight of the new game's primary domain
   W_SECONDARY:    0.5,   // weight of each secondary domain
+  // Every session — including a returning player's same-game resume — starts a
+  // touch BELOW their stored level and lets the controller ramp back up to it.
+  // This warms the player in for a smooth flow instead of snapping straight to
+  // full difficulty (which felt like a jarring jump after the first session).
+  RESUME_FACTOR:  0.9,
 } as const;

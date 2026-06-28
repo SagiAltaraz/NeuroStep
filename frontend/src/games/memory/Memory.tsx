@@ -167,7 +167,7 @@ class MemoryScene extends Phaser.Scene {
     const { canvasWidth: W, canvasHeight: H } = this.cfg;
 
     const bg = this.add.graphics();
-    bg.fillGradientStyle(0x0f172a, 0x0f172a, 0x1e1b4b, 0x1e1b4b, 1);
+    bg.fillGradientStyle(0xf3faf9, 0xeef6ff, 0xe7f1fb, 0xdcebf7, 1);
     bg.fillRect(0, 0, W, H);
 
     this.bgStars = this.add.graphics();
@@ -189,30 +189,30 @@ class MemoryScene extends Phaser.Scene {
   private createUI() {
     const { canvasWidth: W, canvasHeight: H } = this.cfg;
 
-    this.add.rectangle(W / 2, 38, W, 76, 0x0f172a, 0.9).setDepth(10);
+    this.add.rectangle(W / 2, 38, W, 76, 0xffffff, 0.72).setDepth(10);
     this.add.rectangle(W / 2, 76, W, 2, 0x3730a3, 1).setDepth(10);
 
     // Pairs (right)
-    this.pairsLabel = this.add.text(W - 90, 20, this.labels.pairs, { fontSize: '11px', color: '#94a3b8', fontFamily: 'Arial' }).setOrigin(0.5).setDepth(10);
+    this.pairsLabel = this.add.text(W - 90, 20, this.labels.pairs, { fontSize: '11px', color: '#5a7fa8', fontFamily: 'Arial' }).setOrigin(0.5).setDepth(10);
     this.pairsText = this.add.text(W - 90, 44, '0/0', {
-      fontSize: '24px', fontFamily: 'Arial Black', color: '#a5b4fc',
+      fontSize: '24px', fontFamily: 'Arial Black', color: '#2f86d6',
     }).setOrigin(0.5).setDepth(10);
 
     // Flip time (center)
-    this.exposureLabel = this.add.text(W / 2, 18, this.labels.exposureTime, { fontSize: '11px', color: '#94a3b8', fontFamily: 'Arial' }).setOrigin(0.5).setDepth(10);
+    this.exposureLabel = this.add.text(W / 2, 18, this.labels.exposureTime, { fontSize: '11px', color: '#5a7fa8', fontFamily: 'Arial' }).setOrigin(0.5).setDepth(10);
     this.flipTimeText = this.add.text(W / 2, 44,
       this.labels.timeSec.replace('{n}', (this.cfg.flipTimeMs / 1000).toFixed(1)), {
-      fontSize: '22px', fontFamily: 'Arial Black', color: '#cbd5e1',
+      fontSize: '22px', fontFamily: 'Arial Black', color: '#1c3a45',
     }).setOrigin(0.5).setDepth(10);
 
     // Moves (left)
-    this.movesLabel = this.add.text(90, 20, this.labels.moves, { fontSize: '11px', color: '#94a3b8', fontFamily: 'Arial' }).setOrigin(0.5).setDepth(10);
+    this.movesLabel = this.add.text(90, 20, this.labels.moves, { fontSize: '11px', color: '#5a7fa8', fontFamily: 'Arial' }).setOrigin(0.5).setDepth(10);
     this.movesText = this.add.text(90, 44, '0', {
-      fontSize: '26px', fontFamily: 'Arial Black', color: '#e0e7ff',
+      fontSize: '26px', fontFamily: 'Arial Black', color: '#1c3a45',
     }).setOrigin(0.5).setDepth(10);
 
     this.statusText = this.add.text(W / 2, H - 22, this.labels.statusInitial, {
-      fontSize: '13px', fontFamily: 'Arial', color: '#94a3b8', fontStyle: 'bold',
+      fontSize: '13px', fontFamily: 'Arial', color: '#5a7fa8', fontStyle: 'bold',
     }).setOrigin(0.5).setDepth(10);
 
     this.feedbackTx = this.add.text(W / 2, H / 2, '', {
@@ -466,7 +466,7 @@ class MemoryScene extends Phaser.Scene {
   private endRound() {
     this.gameFinished = true;
     this.statusText.setText(this.labels.finished.replace('{moves}', String(this.moves)));
-    this.showBigFeedback(this.labels.allFound, '#a5b4fc');
+    this.showBigFeedback(this.labels.allFound, '#2f86d6');
     this.time.delayedCall(700, () => this.newRoundBtn.setVisible(true));
   }
 
@@ -529,7 +529,7 @@ export default function Memory({ config, onAction, adjustment }: MemoryProps) {
       width:           mergedCfg.canvasWidth,
       height:          mergedCfg.canvasHeight,
       parent:          containerRef.current,
-      backgroundColor: '#0f172a',
+      backgroundColor: '#f3faf9',
       banner:          false,
       scene:           MemoryScene,
     });

@@ -68,7 +68,10 @@ export function computeProfileUpdate(
   weight:      number,
   tuning = PROFILE_TUNING,
 ): ProfileState {
-  // Cold start — first ever score for this domain seeds the EMA directly.
+  // Cold start — first ever score for this domain seeds the EMA directly, so the
+  // stored level reflects the player's ability. (The per-session "ease-in" lives
+  // in the adaptive warm-up, which starts each session a touch BELOW this level
+  // and ramps up to it — see RESUME_FACTOR in adaptive-agent.)
   if (prev === null) {
     return {
       _ema:             domainScore,

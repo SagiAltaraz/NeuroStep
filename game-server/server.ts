@@ -214,13 +214,14 @@ wss.on('connection', (ws: WebSocket) => {
       }
     }
 
-    // ── 2. Write to Kafka ────────────────────────────────────────
-    try {
-      await sendGameEvent(event);
-      console.log(`[Kafka] ✓ ${event.type} | user:${event.userId}`);
-    } catch (err) {
-      console.error(`[Kafka] ✗ ${(err as Error).message}`);
-    }
+    // ── 2. Write to Kafka (fire-and-forget) ──────────────────────
+    // Audit/analytics only — never block the real-time adaptive loop on the
+    // Kafka produce. A slow or degraded broker must not add latency to
+    // difficulty adjustments; the write runs concurrently with processEvent and
+    // errors are logged and swallowed.
+    sendGameEvent(event)
+      .then(() => console.log(`[Kafka] ✓ ${event.type} | user:${event.userId}`))
+      .catch((err) => console.error(`[Kafka] ✗ ${(err as Error).message}`));
 
     // ── 3. Run adaptive agent ────────────────────────────────────
     const result = await processEvent(session.adaptive, {
