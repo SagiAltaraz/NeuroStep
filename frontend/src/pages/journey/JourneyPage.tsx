@@ -133,8 +133,10 @@ export default function JourneyPage() {
         </div>
       </div>
 
-      {/* ── Ability chips ─────────────────────────────────────── */}
-      <div className="jm-chips mb-4">
+      {/* ── Ability chips — sticky, so you can switch abilities while
+             scrolling the long path without jumping back to the top ───── */}
+      <div className="jm-chipbar">
+        <div className="jm-chips">
         {COGNITIVE_PROBLEMS.map((p) => {
           const on = p.id === problem.id;
           return (
@@ -150,6 +152,7 @@ export default function JourneyPage() {
             </button>
           );
         })}
+        </div>
       </div>
 
       {/* ── Ability header ────────────────────────────────────── */}
@@ -232,6 +235,16 @@ export default function JourneyPage() {
           {t('journey.play')}
         </button>
       )}
+
+      {/* Jump back to the top of the path */}
+      <button
+        type="button"
+        aria-label="scroll to top"
+        onClick={() => window.scrollTo({ top: 0, behavior: 'smooth' })}
+        className="jm-totop"
+      >
+        ↑
+      </button>
     </div>
   );
 }

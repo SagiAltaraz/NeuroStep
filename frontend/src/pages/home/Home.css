@@ -47,57 +47,47 @@
   font-weight: 400;
 }
 
-/* ===== HERO FEATURES ===== */
-.hero-features {
-  display: flex;
-  justify-content: center;
-  gap: 0.75rem;
-  margin-bottom: 0;
-  flex-wrap: wrap;
-}
-
-.feature-item {
-  display: inline-flex;
-  align-items: center;
-  gap: 0.45rem;
-  padding: 0.45rem 1rem;
-  background: rgba(47, 134, 214, 0.07);
-  border: 1px solid rgba(47, 134, 214, 0.18);
-  border-radius: 999px;
-  color: #2f86d6;
-  font-size: 0.9rem;
-  font-weight: 600;
-  letter-spacing: 0.01em;
-  backdrop-filter: blur(4px);
-}
-
-.feature-icon {
-  font-size: 1.1rem;
-  line-height: 1;
-}
-
 /* ===== CTA SECTION ===== */
 .cta-section {
   display: flex;
   flex-direction: column;
   align-items: center;
-  gap: 0.5rem;
+  gap: 0.8rem;
+  margin-top: 0.4rem;
   margin-bottom: 1rem;
 }
 
+/* Primary CTA — "start training": the bigger of the two. */
 .cta-section button {
   background: linear-gradient(135deg, #3f9fcf 0%, #2f86d6 100%);
   color: white;
-  font-size: 1.1rem;
-  font-weight: 600;
-  padding: 1rem 2.5rem;
+  font-family: 'Heebo', 'Sora', sans-serif;
+  font-size: 1.3rem;
+  font-weight: 700;
+  padding: 1.15rem 2.75rem;
+  min-width: 300px;
   border-radius: 50px;
   border: none;
   cursor: pointer;
-  box-shadow: 0 4px 15px rgba(47, 134, 214, 0.4);
+  box-shadow: 0 6px 18px rgba(47, 134, 214, 0.4);
   transition: all 0.3s ease;
   position: relative;
   overflow: hidden;
+}
+
+/* Secondary CTA — "my journey": same width, a touch smaller, outlined. */
+.cta-section .cta-secondary {
+  background: #ffffff;
+  color: #2f86d6;
+  border: 2px solid #2f86d6;
+  font-size: 1.12rem;
+  padding: 0.9rem 2.75rem;
+  min-width: 300px;
+  box-shadow: 0 4px 14px rgba(47, 134, 214, 0.18);
+}
+
+.cta-section .cta-secondary:hover {
+  background: #eaf4fd;
 }
 
 .cta-section button::before {

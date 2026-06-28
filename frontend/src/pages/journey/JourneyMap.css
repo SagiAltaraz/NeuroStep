@@ -42,8 +42,41 @@
   font-family: 'Sora', 'Heebo', sans-serif;
 }
 
-/* domain chips */
+/* domain chips — sticky bar so abilities stay switchable while scrolling */
+.jm-chipbar {
+  position: sticky;
+  top: 60px;                 /* sits just under the sticky global header */
+  z-index: 20;
+  margin: 0 -1rem 1rem;      /* bleed to the page padding edges */
+  padding: 8px 1rem;
+  background: rgba(243, 250, 249, 0.92);
+  backdrop-filter: blur(8px);
+  border-bottom: 1px solid var(--ns-cardline);
+}
 .jm-chips { display: flex; gap: 7px; overflow-x: auto; padding-bottom: 4px; }
+
+/* floating "back to top" of the path */
+.jm-totop {
+  position: fixed;
+  bottom: 18px;
+  inset-inline-start: 16px;   /* left in LTR, right in RTL */
+  z-index: 30;
+  width: 46px;
+  height: 46px;
+  border-radius: 50%;
+  border: 1px solid var(--ns-cardline);
+  background: rgba(255, 255, 255, 0.85);
+  backdrop-filter: blur(8px);
+  box-shadow: var(--ns-soft-sm);
+  color: var(--ns-teal);
+  font-size: 22px;
+  font-weight: 800;
+  line-height: 1;
+  cursor: pointer;
+  display: grid;
+  place-items: center;
+}
+.jm-totop:hover { background: #fff; }
 .jm-chips::-webkit-scrollbar { height: 0; }
 .jm-chip {
   flex: none; display: flex; align-items: center; gap: 6px; cursor: pointer;
