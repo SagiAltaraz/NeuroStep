@@ -49,9 +49,8 @@
   z-index: 20;
   margin: 0 -1rem 1rem;      /* bleed to the page padding edges */
   padding: 8px 1rem;
-  background: rgba(243, 250, 249, 0.92);
-  backdrop-filter: blur(8px);
-  border-bottom: 1px solid var(--ns-cardline);
+  /* transparent — the bar itself blends into the site background; only the
+     ability chips (each its own frosted pill) are visible. */
 }
 .jm-chips { display: flex; gap: 7px; overflow-x: auto; padding-bottom: 4px; }
 

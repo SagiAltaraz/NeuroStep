@@ -10,18 +10,22 @@
 }
 
 /* ===== HERO SECTION ===== */
+/* Fills the first screen so the cognitive-challenges carousel below only
+   appears once the user starts scrolling. */
 .hero-section {
   text-align: center;
-  padding: 2.5rem 0 2rem;
+  min-height: calc(100vh - 80px);
+  padding: 2rem 0;
   display: flex;
   flex-direction: column;
   align-items: center;
+  justify-content: center;
 }
 
 .hero-logo {
   display: flex;
   justify-content: center;
-  margin-bottom: 0.6rem;
+  margin-bottom: 2.25rem;   /* breathing room between the logo and the title */
   filter: drop-shadow(0 4px 12px rgba(47, 134, 214, 0.18));
 }
 
@@ -57,33 +61,34 @@
   margin-bottom: 1rem;
 }
 
-/* Primary CTA — "start training": the bigger of the two. */
+/* Primary CTA — "start training": the clear hero action, big and inviting. */
 .cta-section button {
   background: linear-gradient(135deg, #3f9fcf 0%, #2f86d6 100%);
   color: white;
   font-family: 'Heebo', 'Sora', sans-serif;
-  font-size: 1.3rem;
-  font-weight: 700;
-  padding: 1.15rem 2.75rem;
-  min-width: 300px;
+  font-size: 1.5rem;
+  font-weight: 800;
+  padding: 1.35rem 3.5rem;
+  min-width: 340px;
   border-radius: 50px;
   border: none;
   cursor: pointer;
-  box-shadow: 0 6px 18px rgba(47, 134, 214, 0.4);
+  box-shadow: 0 10px 26px rgba(47, 134, 214, 0.5);
   transition: all 0.3s ease;
   position: relative;
   overflow: hidden;
 }
 
-/* Secondary CTA — "my journey": same width, a touch smaller, outlined. */
+/* Secondary CTA — "my journey": clearly smaller / lighter than the primary. */
 .cta-section .cta-secondary {
   background: #ffffff;
   color: #2f86d6;
   border: 2px solid #2f86d6;
-  font-size: 1.12rem;
-  padding: 0.9rem 2.75rem;
-  min-width: 300px;
-  box-shadow: 0 4px 14px rgba(47, 134, 214, 0.18);
+  font-size: 1rem;
+  font-weight: 600;
+  padding: 0.7rem 2rem;
+  min-width: 220px;
+  box-shadow: 0 4px 12px rgba(47, 134, 214, 0.15);
 }
 
 .cta-section .cta-secondary:hover {
