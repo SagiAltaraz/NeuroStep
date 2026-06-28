@@ -37,8 +37,10 @@ function App() {
                path="/"
                element={
                   <>
-                     <HomePage />
-                     <ProblemsCarousel />
+                     <div className="home-onescreen">
+                        <HomePage />
+                        <ProblemsCarousel />
+                     </div>
                      <ChatAssistant />
                   </>
                }
