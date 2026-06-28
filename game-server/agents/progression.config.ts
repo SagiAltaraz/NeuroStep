@@ -14,6 +14,9 @@ export const PROFILE_TUNING = {
   ALPHA_MAX:          0.5,    // cap on the boosted alpha
   TREND_THRESHOLD:    3,      // level delta over the recent window to call up/down
   TREND_WINDOW:       5,      // number of recent domain scores kept for trend
+  COLD_START_PRIOR:   25,     // first session ramps from this neutral prior instead of
+                              // snapping the level straight to the score (prevents the
+                              // journey node leaping, e.g. 1→8, after a single game)
 } as const;
 
 export const PROGRESSION_TUNING = {

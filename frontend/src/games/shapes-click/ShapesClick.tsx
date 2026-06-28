@@ -123,24 +123,24 @@ class ShapesScene extends Phaser.Scene {
   private createBackground() {
     const { canvasWidth: W, canvasHeight: H } = this.cfg;
 
-    // Deep gradient bg
+    // Light brand gradient bg (matches Lian's .site-bg palette)
     const bg = this.add.graphics();
-    bg.fillGradientStyle(0x0f172a, 0x0f172a, 0x1e1b4b, 0x1e1b4b, 1);
+    bg.fillGradientStyle(0xf3faf9, 0xeef6ff, 0xe7f1fb, 0xdcebf7, 1);
     bg.fillRect(0, 0, W, H);
 
-    // Star field (static)
+    // Soft floating dots (subtle, brand-tinted — replaces the dark star field)
     this.bgStars = this.add.graphics();
-    for (let i = 0; i < 90; i++) {
+    for (let i = 0; i < 70; i++) {
       const x = Phaser.Math.Between(0, W);
       const y = Phaser.Math.Between(90, H);
-      const r = Math.random() < 0.15 ? 1.8 : 1.1;
-      this.bgStars.fillStyle(0xffffff, 0.15 + Math.random() * 0.4);
+      const r = Math.random() < 0.15 ? 2.2 : 1.3;
+      this.bgStars.fillStyle(0x2f86d6, 0.05 + Math.random() * 0.06);
       this.bgStars.fillCircle(x, y, r);
     }
 
-    // Subtle grid glow
+    // Very subtle light grid
     const grid = this.add.graphics();
-    grid.lineStyle(1, 0x312e81, 0.35);
+    grid.lineStyle(1, 0x2f86d6, 0.06);
     for (let x = 0; x <= W; x += 80) grid.lineBetween(x, 90, x, H);
     for (let y = 90; y <= H; y += 80) grid.lineBetween(0, y, W, y);
   }
@@ -149,38 +149,38 @@ class ShapesScene extends Phaser.Scene {
   private createUI() {
     const { canvasWidth: W, canvasHeight: H } = this.cfg;
 
-    // Top bar background
-    this.add.rectangle(W / 2, 38, W, 76, 0x0f172a, 0.9).setDepth(10);
-    this.add.rectangle(W / 2, 76, W, 2, 0x3730a3, 1).setDepth(10);
+    // Top bar background — light frosted with a brand divider
+    this.add.rectangle(W / 2, 38, W, 76, 0xffffff, 0.72).setDepth(10);
+    this.add.rectangle(W / 2, 76, W, 2, 0x2f86d6, 0.25).setDepth(10);
 
     // Score
-    this.scoreLabel = this.add.text(72, 20, this.labels.score, { fontSize: '11px', color: '#94a3b8', fontFamily: 'Arial' }).setOrigin(0.5).setDepth(10);
+    this.scoreLabel = this.add.text(72, 20, this.labels.score, { fontSize: '11px', color: '#5a7fa8', fontFamily: 'Arial' }).setOrigin(0.5).setDepth(10);
     this.scoreText = this.add.text(72, 44, '0', {
-      fontSize: '26px', fontFamily: 'Arial Black', color: '#e0e7ff',
+      fontSize: '26px', fontFamily: 'Arial Black', color: '#1c3a45',
     }).setOrigin(0.5).setDepth(10);
 
     // Streak
-    this.streakLabel = this.add.text(W - 72, 20, this.labels.streak, { fontSize: '11px', color: '#94a3b8', fontFamily: 'Arial' }).setOrigin(0.5).setDepth(10);
+    this.streakLabel = this.add.text(W - 72, 20, this.labels.streak, { fontSize: '11px', color: '#5a7fa8', fontFamily: 'Arial' }).setOrigin(0.5).setDepth(10);
     this.streakText = this.add.text(W - 72, 44, '0', {
-      fontSize: '26px', fontFamily: 'Arial Black', color: '#e0e7ff',
+      fontSize: '26px', fontFamily: 'Arial Black', color: '#1c3a45',
     }).setOrigin(0.5).setDepth(10);
 
     // Level
-    this.levelLabel = this.add.text(W / 2, 18, this.labels.level, { fontSize: '11px', color: '#94a3b8', fontFamily: 'Arial' }).setOrigin(0.5).setDepth(10);
+    this.levelLabel = this.add.text(W / 2, 18, this.labels.level, { fontSize: '11px', color: '#5a7fa8', fontFamily: 'Arial' }).setOrigin(0.5).setDepth(10);
     this.levelText = this.add.text(W / 2, 40, '1', {
-      fontSize: '22px', fontFamily: 'Arial Black', color: '#a5b4fc',
+      fontSize: '22px', fontFamily: 'Arial Black', color: '#2f86d6',
     }).setOrigin(0.5).setDepth(10);
 
     // Level progress bar
     const barW = 160;
-    this.add.rectangle(W / 2, 62, barW, 8, 0x312e81).setDepth(10);
-    this.levelBarFill = this.add.rectangle(W / 2 - barW / 2, 62, 0, 8, 0x818cf8)
+    this.add.rectangle(W / 2, 62, barW, 8, 0xdbeafe).setDepth(10);
+    this.levelBarFill = this.add.rectangle(W / 2 - barW / 2, 62, 0, 8, 0x2f86d6)
       .setOrigin(0, 0.5).setDepth(10);
     this.updateLevelBar();
 
     // Instruction
     this.instructionLabel = this.add.text(W / 2, H - 18, this.labels.instruction, {
-      fontSize: '13px', fontFamily: 'Arial', color: '#94a3b8', fontStyle: 'bold',
+      fontSize: '13px', fontFamily: 'Arial', color: '#5a7fa8', fontStyle: 'bold',
     }).setOrigin(0.5).setDepth(10);
 
     // Feedback
@@ -441,7 +441,7 @@ export default function ShapesClick({ config, onAction, adjustment }: ShapesClic
       width:           mergedCfg.canvasWidth,
       height:          mergedCfg.canvasHeight,
       parent:          containerRef.current,
-      backgroundColor: '#0f172a',
+      backgroundColor: '#f3faf9',
       banner:          false,
       scene:           ShapesScene,
     });

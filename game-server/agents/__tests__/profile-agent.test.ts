@@ -6,10 +6,11 @@ const PRIMARY = 1.0;
 const SECONDARY = 0.5;
 
 describe('computeProfileUpdate — cold start', () => {
-  it('seeds the EMA to the score, confidence 0.2, sessionsCount 1, stable', () => {
+  it('ramps gently from the neutral prior (not straight to the score), confidence 0.2', () => {
     const s = computeProfileUpdate(null, 70, PRIMARY);
-    expect(s.level).toBe(70);
-    expect(s._ema).toBe(70);
+    // 25*(1-0.25) + 70*0.25 = 36.25  → gradual climb, not an instant jump to 70
+    expect(s._ema).toBeCloseTo(36.25);
+    expect(s.level).toBe(36);
     expect(s.confidence).toBeCloseTo(0.2);
     expect(s.sessionsCount).toBe(1);
     expect(s.trend).toBe('stable');
