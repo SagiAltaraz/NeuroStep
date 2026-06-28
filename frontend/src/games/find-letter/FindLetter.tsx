@@ -172,7 +172,7 @@ class FindLetterScene extends Phaser.Scene {
   private createBackground() {
     const { canvasWidth: W, canvasHeight: H } = this.cfg;
     const bg = this.add.graphics();
-    bg.fillGradientStyle(0x0a0a0f, 0x0a0a0f, 0x18181f, 0x18181f, 1);
+    bg.fillGradientStyle(0xf3faf9, 0xeef6ff, 0xe7f1fb, 0xdcebf7, 1);
     bg.fillRect(0, 0, W, H);
   }
 
@@ -180,18 +180,18 @@ class FindLetterScene extends Phaser.Scene {
   private createUI() {
     const { canvasWidth: W, canvasHeight: H } = this.cfg;
 
-    this.add.rectangle(W / 2, 38, W, 76, 0x0a0a0f, 0.9).setDepth(10);
+    this.add.rectangle(W / 2, 38, W, 76, 0xffffff, 0.72).setDepth(10);
 
     this.scoreLabel = this.add.text(80, 20, this.labels.score,
-      { fontSize: '11px', color: '#94a3b8', fontFamily: 'Arial' }
+      { fontSize: '11px', color: '#5a7fa8', fontFamily: 'Arial' }
     ).setOrigin(0.5).setDepth(10);
     this.scoreText = this.add.text(80, 44, '0',
-      { fontSize: '26px', fontFamily: 'Arial Black', color: '#e0e7ff' }
+      { fontSize: '26px', fontFamily: 'Arial Black', color: '#1c3a45' }
     ).setOrigin(0.5).setDepth(10);
 
     // Target display centered top
     this.targetLabel = this.add.text(W / 2, 22, this.labels.findLabel, {
-      fontSize: '11px', color: '#94a3b8', fontFamily: 'Arial',
+      fontSize: '11px', color: '#5a7fa8', fontFamily: 'Arial',
     }).setOrigin(0.5).setDepth(10);
     this.targetText = this.add.text(W / 2, 50, '', {
       fontSize: '36px', fontFamily: 'Arial Black', color: '#38bdf8',
@@ -215,7 +215,7 @@ class FindLetterScene extends Phaser.Scene {
 
     // Instruction
     this.instructionLabel = this.add.text(W / 2, H - 18, this.labels.instruction, {
-      fontSize: '13px', fontFamily: 'Arial', color: '#94a3b8', fontStyle: 'bold',
+      fontSize: '13px', fontFamily: 'Arial', color: '#5a7fa8', fontStyle: 'bold',
     }).setOrigin(0.5).setDepth(10);
   }
 
@@ -286,7 +286,7 @@ class FindLetterScene extends Phaser.Scene {
         .setDepth(4)
         .setInteractive({ useHandCursor: true });
       const tx = this.add.text(x, y, letter, {
-        fontSize: `${fontSize}px`, fontFamily: 'monospace', color: '#cbd5e1', fontStyle: 'bold',
+        fontSize: `${fontSize}px`, fontFamily: 'monospace', color: '#1c3a45', fontStyle: 'bold',
       }).setOrigin(0.5).setDepth(5);
 
       const idx = i;
@@ -337,7 +337,7 @@ class FindLetterScene extends Phaser.Scene {
       this.cells[idx].setColor('#ef4444');
       this.tweens.add({
         targets: this.cells[idx], x: this.cells[idx].x + 5, yoyo: true, repeat: 3, duration: 50,
-        onComplete: () => this.cells[idx].setColor('#cbd5e1').setX(this.bg[idx].x),
+        onComplete: () => this.cells[idx].setColor('#5a7fa8').setX(this.bg[idx].x),
       });
       this.fireAction('WRONG_PICK', { round: this.round, index: idx, reactionMs }, reactionMs, false);
     }
@@ -453,7 +453,7 @@ export default function FindLetter({ config, onAction, adjustment }: FindLetterP
       width:           mergedCfg.canvasWidth,
       height:          mergedCfg.canvasHeight,
       parent:          containerRef.current,
-      backgroundColor: '#0a0a0f',
+      backgroundColor: '#f3faf9',
       banner:          false,
       scene:           FindLetterScene,
     });

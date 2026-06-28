@@ -136,7 +136,7 @@ class GreenLightScene extends Phaser.Scene {
   private createBackground() {
     const { canvasWidth: W, canvasHeight: H } = this.cfg;
     const bg = this.add.graphics();
-    bg.fillGradientStyle(0x0a0a0f, 0x0a0a0f, 0x18181f, 0x18181f, 1);
+    bg.fillGradientStyle(0xf3faf9, 0xeef6ff, 0xe7f1fb, 0xdcebf7, 1);
     bg.fillRect(0, 0, W, H);
   }
 
@@ -145,17 +145,17 @@ class GreenLightScene extends Phaser.Scene {
     const { canvasWidth: W, canvasHeight: H } = this.cfg;
 
     // Top stats bar
-    this.add.rectangle(W / 2, 38, W, 76, 0x0a0a0f, 0.9).setDepth(10);
+    this.add.rectangle(W / 2, 38, W, 76, 0xffffff, 0.72).setDepth(10);
 
     this.scoreLabel = this.add.text(80, 20, this.labels.score,
-      { fontSize: '11px', color: '#94a3b8', fontFamily: 'Arial' }
+      { fontSize: '11px', color: '#5a7fa8', fontFamily: 'Arial' }
     ).setOrigin(0.5).setDepth(10);
     this.scoreText = this.add.text(80, 44, '0',
-      { fontSize: '26px', fontFamily: 'Arial Black', color: '#e0e7ff' }
+      { fontSize: '26px', fontFamily: 'Arial Black', color: '#1c3a45' }
     ).setOrigin(0.5).setDepth(10);
 
     this.bestLabel = this.add.text(W - 80, 20, this.labels.bestMs,
-      { fontSize: '11px', color: '#94a3b8', fontFamily: 'Arial' }
+      { fontSize: '11px', color: '#5a7fa8', fontFamily: 'Arial' }
     ).setOrigin(0.5).setDepth(10);
     this.bestText = this.add.text(W - 80, 44, '—',
       { fontSize: '22px', fontFamily: 'Arial Black', color: '#86efac' }
@@ -182,7 +182,7 @@ class GreenLightScene extends Phaser.Scene {
 
     // Status text under the housing
     this.statusText = this.add.text(cx, H - 150, this.labels.waitRed, {
-      fontSize: '28px', fontFamily: 'Arial Black', color: '#cbd5e1',
+      fontSize: '28px', fontFamily: 'Arial Black', color: '#1c3a45',
     }).setOrigin(0.5).setDepth(10);
 
     // TAP button (big, full-width)
@@ -191,7 +191,7 @@ class GreenLightScene extends Phaser.Scene {
       .setStrokeStyle(2, 0x374151).setDepth(10)
       .setInteractive({ useHandCursor: true });
     this.tapText = this.add.text(cx, btnY, 'TAP', {
-      fontSize: '28px', fontFamily: 'Arial Black', color: '#94a3b8', fontStyle: 'bold',
+      fontSize: '28px', fontFamily: 'Arial Black', color: '#5a7fa8', fontStyle: 'bold',
     }).setOrigin(0.5).setDepth(11);
     this.tapButton.on('pointerdown', () => this.onTap());
 
@@ -202,7 +202,7 @@ class GreenLightScene extends Phaser.Scene {
 
     // Instruction at very bottom
     this.instructionLabel = this.add.text(cx, H - 18, this.labels.instruction, {
-      fontSize: '13px', fontFamily: 'Arial', color: '#94a3b8', fontStyle: 'bold',
+      fontSize: '13px', fontFamily: 'Arial', color: '#5a7fa8', fontStyle: 'bold',
     }).setOrigin(0.5).setDepth(10);
   }
 
@@ -226,7 +226,7 @@ class GreenLightScene extends Phaser.Scene {
 
   private toGreen() {
     this.setPhase('green');
-    this.statusText.setText(this.labels.go).setColor('#00f5a0');
+    this.statusText.setText(this.labels.go).setColor('#16a34a');
     this.greenStartTime = Date.now();
 
     // Pulse the green light
@@ -237,7 +237,7 @@ class GreenLightScene extends Phaser.Scene {
 
     // Pulse the TAP button border
     this.tapButton.setStrokeStyle(3, 0x00f5a0);
-    this.tapText.setColor('#00f5a0');
+    this.tapText.setColor('#16a34a');
     this.tweens.add({
       targets: this.tapButton, alpha: 0.7, duration: 280, yoyo: true, repeat: -1,
     });
@@ -267,7 +267,7 @@ class GreenLightScene extends Phaser.Scene {
         this.bestMs = reactionMs;
         this.bestText.setText(String(reactionMs));
       }
-      this.flashFeedback(this.labels.reactionMs.replace('{n}', String(reactionMs)), '#00f5a0');
+      this.flashFeedback(this.labels.reactionMs.replace('{n}', String(reactionMs)), '#16a34a');
       this.fireAction('GO_HIT', { round: this.rounds }, reactionMs, true);
       this.setPhase('feedback');
       this.time.delayedCall(this.cfg.interRoundMs, () => this.startRound(), [], this);
@@ -277,7 +277,7 @@ class GreenLightScene extends Phaser.Scene {
   private onMiss() {
     if (this.phase !== 'green') return;
     this.cancelAllTimers();
-    this.flashFeedback(this.labels.miss, '#ffd60a');
+    this.flashFeedback(this.labels.miss, '#d97706');
     this.fireAction('MISS', { round: this.rounds }, undefined, false);
     this.setPhase('feedback');
     this.time.delayedCall(this.cfg.interRoundMs, () => this.startRound(), [], this);
@@ -303,7 +303,7 @@ class GreenLightScene extends Phaser.Scene {
     if (phase === 'red') {
       this.redLight.setFillStyle(0xff3b3b, 1);
       this.redGlow.setAlpha(0.35);
-      this.statusText.setText(this.labels.waitRed).setColor('#cbd5e1');
+      this.statusText.setText(this.labels.waitRed).setColor('#5a7fa8');
       this.tapButton.setStrokeStyle(2, 0x374151);
       this.tapText.setColor('#94a3b8');
     } else if (phase === 'yellow') {
@@ -382,7 +382,7 @@ export default function GreenLight({ config, onAction, adjustment }: GreenLightP
       width:           mergedCfg.canvasWidth,
       height:          mergedCfg.canvasHeight,
       parent:          containerRef.current,
-      backgroundColor: '#0a0a0f',
+      backgroundColor: '#f3faf9',
       banner:          false,
       scene:           GreenLightScene,
     });
