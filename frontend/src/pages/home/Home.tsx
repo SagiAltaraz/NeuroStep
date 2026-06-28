@@ -19,7 +19,7 @@ const Home = () => {
       <div className="home-container">
         <section className="hero-section">
           <div className="hero-logo">
-            <Logo height={46} />
+            <Logo height={58} />
           </div>
 
           <h1 className="hero-title">{t('home.title')}</h1>
