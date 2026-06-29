@@ -154,7 +154,7 @@
 
 .jm-ai-button-text {
   display: block;
-  color: #1c3a45;
+  color: var(--jm-accent, #1c3a45);
   font-family: 'Sora', 'Heebo', sans-serif;
   font-size: 0.98rem;
   font-weight: 800;
@@ -164,7 +164,7 @@
 }
 
 .jm-ai-button-text strong {
-  color: #2f86d6;
+  color: var(--jm-accent, #2f86d6);
   font-size: 0.92rem;
   font-weight: 900;
 }
@@ -183,7 +183,7 @@
   background: rgba(255, 255, 255, 0.94);
   backdrop-filter: blur(12px);
   box-shadow: var(--ns-soft, 0 18px 40px -18px rgba(28, 58, 69, 0.48));
-  color: var(--ns-teal, #1c3a45);
+  color: var(--jm-accent, #1c3a45);
   direction: rtl;
   text-align: right;
   pointer-events: auto;
@@ -321,7 +321,7 @@
 .jm-ai-title {
   font-size: 0.82rem;
   font-weight: 900;
-  color: #2f86d6;
+  color: var(--jm-accent, #2f86d6);
   text-align: right;
 }
 
@@ -333,7 +333,7 @@
   font-size: 0.88rem;
   font-weight: 650;
   line-height: 1.55;
-  color: #315264;
+  color: #111827;
   text-align: right;
 }
 
@@ -349,7 +349,7 @@
   margin-top: 0.25rem;
   font-size: 0.78rem;
   font-weight: 700;
-  color: #64748b;
+  color: #111827;
 }
 
 .jm-ai-spinner {
@@ -358,7 +358,7 @@
   flex: 0 0 auto;
   border-radius: 50%;
   border: 2px solid rgba(47, 134, 214, 0.18);
-  border-top-color: #2f86d6;
+  border-top-color: var(--jm-accent, #2f86d6);
   animation: jm-ai-spin 0.8s linear infinite;
 }
 

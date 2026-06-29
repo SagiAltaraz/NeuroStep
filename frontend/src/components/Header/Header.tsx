@@ -31,6 +31,10 @@ const Header: React.FC = () => {
                         </li>
 
                         <li>
+                           <Link to="/progress">{t('header.progress')}</Link>
+                        </li>
+
+                        <li>
                            <Link to="/journey">{t('header.journey')}</Link>
                         </li>
 

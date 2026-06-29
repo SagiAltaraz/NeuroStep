@@ -197,7 +197,7 @@ export default function JourneyPage() {
         </div>
       </div>
 
-      <div className="jm-ai-dock">
+      <div className="jm-ai-dock" style={{ ['--jm-accent' as string]: color }}>
         {isAssistantOpen && (
           <button
             type="button"

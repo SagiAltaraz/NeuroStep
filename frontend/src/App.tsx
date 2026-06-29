@@ -19,6 +19,7 @@ import SpotDifferencePage from './pages/games/SpotDifferencePage';
 import WhereWasItPage from './pages/games/WhereWasItPage';
 import FindLetterPage from './pages/games/FindLetterPage';
 import JourneyPage from './pages/journey/JourneyPage';
+import ProgressPage from './pages/progress/ProgressPage';
 import AdminPage from './pages/admin/AdminPage';
 import CognitiveTrendPage from './pages/admin/trend/CognitiveTrendPage';
 import AlertsPage from './pages/admin/alerts/AlertsPage';
@@ -117,6 +118,17 @@ function App() {
                element={
                   <ProtectedRoute>
                      <FindLetterPage />
+                  </ProtectedRoute>
+               }
+            />
+            <Route
+               path="/progress"
+               element={
+                  <ProtectedRoute>
+                     <>
+                        <ProgressPage />
+                        <ChatAssistant />
+                     </>
                   </ProtectedRoute>
                }
             />
