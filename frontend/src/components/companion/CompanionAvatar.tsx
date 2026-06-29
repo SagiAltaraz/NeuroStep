@@ -33,12 +33,24 @@ const FALLBACK: CompanionResponse = {
   mood: 'welcome',
 };
 
+// Robot poses → image files in /public/companion/. Any missing pose gracefully
+// falls back to idle; a missing idle falls back to the SVG placeholder.
+type Pose = 'idle' | 'wave' | 'think' | 'celebrate';
+const POSE_SRC: Record<Pose, string> = {
+  idle: '/companion/neurostep-bot.png',
+  wave: '/companion/neurostep-bot-wave.png',
+  think: '/companion/neurostep-bot-think.png',
+  celebrate: '/companion/neurostep-bot-celebrate.png',
+};
+
 export default function CompanionAvatar() {
   const { token, user } = useAuth();
   const navigate = useNavigate();
   const [data, setData] = useState<CompanionResponse | null>(null);
   const [open, setOpen] = useState(false);
-  const [imgOk, setImgOk] = useState(true);   // falls back to the SVG until the PNG is added
+  const [pose, setPose] = useState<Pose>('idle');
+  // which pose images failed to load (missing files) → fall back to idle/SVG
+  const [broken, setBroken] = useState<Record<string, boolean>>({});
 
   useEffect(() => {
     if (!user) return;
@@ -52,11 +64,17 @@ export default function CompanionAvatar() {
       if (cancelled) return;
       setData(res);
       setOpen(true);
+      // greet with a wave, then settle back to idle
+      setPose('wave');
+      setTimeout(() => { if (!cancelled) setPose('idle'); }, 2600);
     })();
     return () => { cancelled = true; };
   }, [token, user]);
 
   if (!user || !data) return null;
+
+  // resolve the pose to show: a missing pose image degrades to idle
+  const resolvedPose: Pose = broken[pose] ? 'idle' : pose;
 
   const goPlay = () => {
     setOpen(false);
@@ -82,12 +100,13 @@ export default function CompanionAvatar() {
         aria-label="המאמן שלי"
         title="המאמן שלי"
       >
-        {imgOk ? (
+        {!broken.idle ? (
           <img
+            key={resolvedPose}
             className="companion-img"
-            src="/companion/neurostep-bot.png"
+            src={POSE_SRC[resolvedPose]}
             alt="המאמן שלי"
-            onError={() => setImgOk(false)}
+            onError={() => setBroken((b) => ({ ...b, [resolvedPose]: true }))}
           />
         ) : (
           // Fallback placeholder until the PNG is dropped into /public/companion/
