@@ -5,6 +5,7 @@ import {
   getMyProgression,
   getMyReport,
   getMyGameStats,
+  getMyCompanion,
 } from "../controllers/MeController.js";
 import { protect } from "../middleware/authMiddleware.js";
 
@@ -12,6 +13,7 @@ const router = express.Router();
 
 router.get("/profile",            protect, getMyProfile);
 router.get("/progression",        protect, getMyProgression);
+router.get("/companion",          protect, getMyCompanion);
 router.get("/reports/:sessionId", protect, getMyReport);
 router.get("/stats/:gameId",      protect, getMyGameStats);
 

@@ -50,6 +50,15 @@ export interface GameStats {
   [key: string]:    unknown;
 }
 
+// The proactive companion's next message, derived from the caller's own data.
+export interface CompanionResponse {
+  greetingHe:      string;
+  reasonHe:        string;
+  suggestedGameId: string;
+  suggestedGameHe: string;
+  mood:            'welcome' | 'nudge' | 'praise';
+}
+
 export type ApiResult<T> = T | { error: string };
 
 export function isApiError<T>(r: ApiResult<T>): r is { error: string } {
@@ -85,4 +94,9 @@ export function getMyReport(token: string, sessionId: string) {
 /** GET /api/me/stats/:gameId — the caller's per-game stats. */
 export function getMyGameStats(token: string, gameId: string) {
   return authedGet<GameStats>(`/api/me/stats/${encodeURIComponent(gameId)}`, token);
+}
+
+/** GET /api/me/companion — the proactive companion's data-driven next message. */
+export function getMyCompanion(token: string) {
+  return authedGet<CompanionResponse>('/api/me/companion', token);
 }
