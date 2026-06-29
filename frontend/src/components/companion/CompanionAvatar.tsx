@@ -38,6 +38,7 @@ export default function CompanionAvatar() {
   const navigate = useNavigate();
   const [data, setData] = useState<CompanionResponse | null>(null);
   const [open, setOpen] = useState(false);
+  const [imgOk, setImgOk] = useState(true);   // falls back to the SVG until the PNG is added
 
   useEffect(() => {
     if (!user) return;
@@ -76,33 +77,36 @@ export default function CompanionAvatar() {
       )}
 
       <button
-        className="companion-char"
+        className={`companion-char ${open ? 'is-talking' : ''}`}
         onClick={() => setOpen((o) => !o)}
         aria-label="המאמן שלי"
         title="המאמן שלי"
       >
-        <svg viewBox="0 0 72 84" width="72" height="84" aria-hidden="true">
-          <ellipse cx="36" cy="80" rx="20" ry="4" fill="rgba(28,58,69,.15)" />
-          {/* waving arm */}
-          <g className="cm-arm">
+        {imgOk ? (
+          <img
+            className="companion-img"
+            src="/companion/neurostep-bot.png"
+            alt="המאמן שלי"
+            onError={() => setImgOk(false)}
+          />
+        ) : (
+          // Fallback placeholder until the PNG is dropped into /public/companion/
+          <svg viewBox="0 0 72 84" width="72" height="84" aria-hidden="true">
+            <ellipse cx="36" cy="80" rx="20" ry="4" fill="rgba(28,58,69,.15)" />
             <rect x="52" y="34" width="7" height="20" rx="3.5" fill="#2f86d6" />
-          </g>
-          <rect x="13" y="38" width="7" height="20" rx="3.5" fill="#2f86d6" />
-          {/* body */}
-          <ellipse cx="36" cy="48" rx="23" ry="25" fill="#2f86d6" />
-          <ellipse cx="36" cy="52" rx="14" ry="16" fill="#eaf4fd" />
-          {/* legs */}
-          <rect x="26" y="68" width="8" height="12" rx="4" fill="#1c3a45" />
-          <rect x="38" y="68" width="8" height="12" rx="4" fill="#244a59" />
-          {/* head */}
-          <circle cx="36" cy="24" r="16" fill="#fff" stroke="#2f86d6" strokeWidth="3" />
-          <circle cx="30" cy="23" r="2.6" fill="#1c3a45" />
-          <circle cx="42" cy="23" r="2.6" fill="#1c3a45" />
-          <path d="M30 30 q6 5 12 0" fill="none" stroke="#1c3a45" strokeWidth="2" strokeLinecap="round" />
-          {/* little antenna (brain spark) */}
-          <line x1="36" y1="8" x2="36" y2="2" stroke="#2f86d6" strokeWidth="2.5" strokeLinecap="round" />
-          <circle cx="36" cy="2" r="2.6" fill="#f59e0b" />
-        </svg>
+            <rect x="13" y="38" width="7" height="20" rx="3.5" fill="#2f86d6" />
+            <ellipse cx="36" cy="48" rx="23" ry="25" fill="#2f86d6" />
+            <ellipse cx="36" cy="52" rx="14" ry="16" fill="#eaf4fd" />
+            <rect x="26" y="68" width="8" height="12" rx="4" fill="#1c3a45" />
+            <rect x="38" y="68" width="8" height="12" rx="4" fill="#244a59" />
+            <circle cx="36" cy="24" r="16" fill="#fff" stroke="#2f86d6" strokeWidth="3" />
+            <circle cx="30" cy="23" r="2.6" fill="#1c3a45" />
+            <circle cx="42" cy="23" r="2.6" fill="#1c3a45" />
+            <path d="M30 30 q6 5 12 0" fill="none" stroke="#1c3a45" strokeWidth="2" strokeLinecap="round" />
+            <line x1="36" y1="8" x2="36" y2="2" stroke="#2f86d6" strokeWidth="2.5" strokeLinecap="round" />
+            <circle cx="36" cy="2" r="2.6" fill="#f59e0b" />
+          </svg>
+        )}
       </button>
     </div>
   );

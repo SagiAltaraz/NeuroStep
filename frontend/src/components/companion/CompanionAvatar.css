@@ -12,15 +12,29 @@
 }
 .companion > * { pointer-events: auto; }
 
+.companion { animation: cm-in 0.5s ease both; }
+@keyframes cm-in { from { opacity: 0; transform: translateY(24px); } to { opacity: 1; transform: none; } }
+
 .companion-char {
   border: 0;
   background: transparent;
   padding: 0;
   cursor: pointer;
-  filter: drop-shadow(0 8px 16px rgba(28, 58, 69, 0.28));
-  animation: cm-bob 2.4s ease-in-out infinite;
+  filter: drop-shadow(0 10px 18px rgba(28, 58, 69, 0.3));
+  animation: cm-bob 3s ease-in-out infinite;
 }
-@keyframes cm-bob { 0%, 100% { transform: translateY(0); } 50% { transform: translateY(-5px); } }
+/* the robot image */
+.companion-img {
+  width: 132px;
+  height: auto;
+  display: block;
+  -webkit-user-drag: none;
+  user-select: none;
+}
+/* livelier bob while a message is showing */
+.companion-char.is-talking { animation: cm-bob 1.5s ease-in-out infinite; }
+.companion-char:hover { animation-play-state: paused; transform: scale(1.04); }
+@keyframes cm-bob { 0%, 100% { transform: translateY(0) rotate(0deg); } 50% { transform: translateY(-7px) rotate(-1.5deg); } }
 
 .cm-arm { transform-origin: 55px 38px; animation: cm-wave 2.4s ease-in-out infinite; }
 @keyframes cm-wave { 0%, 70%, 100% { transform: rotate(0deg); } 80%, 90% { transform: rotate(-22deg); } }
