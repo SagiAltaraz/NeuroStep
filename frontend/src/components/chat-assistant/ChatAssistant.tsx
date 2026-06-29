@@ -86,11 +86,18 @@ const ChatAssistant = () => {
       <div className="chat-assistant">
          {!isOpen ? (
             <button className="chat-toggle-button" onClick={openChat} aria-label="Open AI assistant">
-               <svg width="18" height="18" viewBox="0 0 24 24" fill="none" aria-hidden="true">
-                  <path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z"
-                     stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"/>
-               </svg>
-               עוזר AI
+               <span className="chat-avatar chat-toggle-avatar" aria-hidden="true">
+                  <span className="chat-avatar-ring" />
+                  <span className="chat-avatar-face">
+                     <span className="chat-avatar-antenna" />
+                     <span className="chat-avatar-eye left" />
+                     <span className="chat-avatar-eye right" />
+                     <span className="chat-avatar-smile" />
+                  </span>
+                  <span className="chat-avatar-spark one" />
+                  <span className="chat-avatar-spark two" />
+               </span>
+               <span className="chat-toggle-label">עוזר AI</span>
             </button>
          ) : (
             <div className="chat-overlay" onClick={closeChat}>
@@ -100,7 +107,17 @@ const ChatAssistant = () => {
                >
                   <div className="chat-header">
                      <div className="chat-title">
-                        <div className="chat-avatar" aria-hidden="true">🧠</div>
+                        <div className={`chat-avatar ${isLoading ? 'responding' : ''}`} aria-hidden="true">
+                           <span className="chat-avatar-ring" />
+                           <span className="chat-avatar-face">
+                              <span className="chat-avatar-antenna" />
+                              <span className="chat-avatar-eye left" />
+                              <span className="chat-avatar-eye right" />
+                              <span className="chat-avatar-smile" />
+                           </span>
+                           <span className="chat-avatar-spark one" />
+                           <span className="chat-avatar-spark two" />
+                        </div>
                         <div className="chat-title-text">
                            <span className="chat-title-main">עוזר AI</span>
                            <span className="chat-title-sub">מבוסס על הפרופיל שלך</span>

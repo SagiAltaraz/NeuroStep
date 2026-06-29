@@ -30,8 +30,27 @@ function hexA(hex: string, a: number): string {
   return `rgba(${(n >> 16) & 255}, ${(n >> 8) & 255}, ${n & 255}, ${a})`;
 }
 
+function trendText(trend?: DomainProfile['trend']): string {
+  if (trend === 'up') return 'מגמת שיפור';
+  if (trend === 'down') return 'נדרשת תשומת לב';
+  return 'מגמה יציבה';
+}
+
+function confidenceText(confidence?: number): string {
+  if (typeof confidence !== 'number') return 'רמת ודאות נמוכה - כדאי להשלים עוד אימונים.';
+  if (confidence >= 0.7) return 'רמת ודאות טובה על בסיס האימונים האחרונים.';
+  if (confidence >= 0.4) return 'רמת ודאות בינונית - עוד כמה אימונים יחדדו את התמונה.';
+  return 'רמת ודאות נמוכה - כדאי לצבור עוד נתוני אימון.';
+}
+
+function improvementText(level: number, trend?: DomainProfile['trend']): string {
+  if (level < 35) return 'כדאי להתחיל באימון קצר ורגוע, להתמקד בדיוק לפני מהירות, ולחזור על התחום כמה פעמים השבוע.';
+  if (level < 65) return 'כדאי לשפר עקביות: לשמור על קצב נוח, להקטין טעויות, ולנסות להעלות רצף הצלחות.';
+  if (trend === 'down') return 'היכולת גבוהה, אבל יש ירידה זמנית. כדאי לבצע אימון קל יותר ולבדוק אם העייפות משפיעה.';
+  return 'המצב טוב. כדאי לאתגר בהדרגה עם רמות קושי גבוהות יותר ולשמור על יציבות לאורך זמן.';
+}
 export default function JourneyPage() {
-  const { token } = useAuth();
+  const { token, user } = useAuth();
   const { t } = useLang();
   const navigate = useNavigate();
 
@@ -39,6 +58,8 @@ export default function JourneyPage() {
   const [profiles, setProfiles] = useState<Record<string, DomainProfile>>({});
   const [status, setStatus]     = useState<'loading' | 'ready' | 'error'>('loading');
   const [selected, setSelected] = useState<ProblemId | null>(null);
+  const [assistantStatus, setAssistantStatus] = useState<'idle' | 'loading' | 'ready' | 'error'>('idle');
+  const [isAssistantOpen, setIsAssistantOpen] = useState(false);
   const charRef = useRef<HTMLDivElement>(null);
 
   useEffect(() => {
@@ -75,11 +96,54 @@ export default function JourneyPage() {
     const id = setTimeout(() => charRef.current?.scrollIntoView({ block: 'center' }), 40);
     return () => clearTimeout(id);
   }, [selected, status]);
+  useEffect(() => {
+    if (!token || status !== 'ready') return;
+
+    let cancelled = false;
+    setAssistantStatus('loading');
+
+    fetch('/api/askAI', {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        Authorization: `Bearer ${token}`,
+      },
+      body: JSON.stringify({
+        intent: 'progression',
+        prompt: 'תן הסבר קצר על מצב המסע הנוכחי שלי.',
+      }),
+    })
+      .then(async (res) => {
+        const data = await res.json();
+        if (!res.ok) throw new Error(data?.response || 'Assistant request failed');
+        return data?.response as string | undefined;
+      })
+      .then((response) => {
+        if (cancelled) return;
+        setAssistantStatus(response ? 'ready' : 'error');
+      })
+      .catch(() => {
+        if (cancelled) return;
+        setAssistantStatus('error');
+      });
+
+    return () => { cancelled = true; };
+  }, [token, status]);
 
   const problem = useMemo(
     () => COGNITIVE_PROBLEMS.find((p) => p.id === selected) ?? COGNITIVE_PROBLEMS[0],
     [selected],
   );
+  const selectedProfile = profiles[problem.id];
+  const selectedLevel = Math.min(N, Math.max(1, levelOf(problem.id)));
+  const selectedTrend = selectedProfile?.trend ?? 'stable';
+
+  const topicSummary = [
+    `רמה נוכחית: ${selectedLevel} מתוך ${N}`,
+    `${trendText(selectedTrend)}. ${confidenceText(selectedProfile?.confidence)}`,
+    `מה כדאי לשפר: ${improvementText(selectedLevel, selectedTrend)}`,
+  ].join('\n');
+  const assistantUserName = user?.name?.trim() || 'משתמש';
 
   if (status === 'loading') {
     return (
@@ -106,7 +170,7 @@ export default function JourneyPage() {
   }
 
   const color = problem.color;
-  const cur = Math.min(N, Math.max(1, levelOf(problem.id)));
+  const cur = selectedLevel;
   const trailD = (() => {
     let d = 'M';
     for (let i = N; i >= 1; i--) { const p = xy(i); d += ` ${p.x.toFixed(1)} ${p.y.toFixed(1)}${i > 1 ? ' L' : ''}`; }
@@ -128,9 +192,59 @@ export default function JourneyPage() {
         <h1 className="text-2xl font-bold text-slate-900">{t('journey.title')}</h1>
         <div className="mt-1 flex items-center gap-2 rounded-full bg-indigo-50 px-4 py-1.5 text-sm font-semibold text-indigo-700">
           <span>{t(`rank.${prog.rank}` as TKey)}</span>
-          <span className="text-indigo-300">·</span>
+          <span className="text-indigo-300">ֲ·</span>
           <span>{t('journey.overall')} {prog.overallLevel}</span>
         </div>
+      </div>
+
+      <div className="jm-ai-dock">
+        {isAssistantOpen && (
+          <button
+            type="button"
+            className="jm-ai-scrim"
+            aria-label="סגור הסבר"
+            onClick={() => setIsAssistantOpen(false)}
+          />
+        )}
+        {!isAssistantOpen && (
+          <button
+            type="button"
+            className="jm-ai-avatar-button"
+            aria-label="פתח הסבר"
+            aria-expanded={isAssistantOpen}
+            onClick={() => setIsAssistantOpen(true)}
+          >
+            <span className="jm-ai-avatar" aria-hidden="true">
+              <span className="jm-ai-avatar-ring" />
+              <span className="jm-ai-avatar-face">
+                <span className="jm-ai-avatar-antenna" />
+                <span className="jm-ai-avatar-eye left" />
+                <span className="jm-ai-avatar-eye right" />
+                <span className="jm-ai-avatar-smile" />
+              </span>
+              <span className="jm-ai-avatar-spark one" />
+              <span className="jm-ai-avatar-spark two" />
+            </span>
+            <span className="jm-ai-button-text">שלום {assistantUserName}<br /><strong>לחץ עליי להוראות</strong></span>
+          </button>
+        )}
+        {isAssistantOpen && (
+          <section className="jm-ai-summary" aria-live="polite" dir="rtl">
+            <div className="jm-ai-copy" dir="rtl">
+              <div className="jm-ai-title">העוזר האישי - {t(`problem.${problem.id}.title` as TKey)}</div>
+              <p>{topicSummary}</p>
+              {assistantStatus === 'loading' && (
+                <div className="jm-ai-loading jm-ai-loading-compact">
+                  <span className="jm-ai-spinner" />
+                  <span>מסנכרן עם העוזר האישי...</span>
+                </div>
+              )}
+              {assistantStatus === 'error' && (
+                <div className="jm-ai-note">ההסבר מוצג לפי נתוני המסע המקומיים כרגע.</div>
+              )}
+            </div>
+          </section>
+        )}
       </div>
 
       {/* ── Ability chips — sticky, so you can switch abilities while
