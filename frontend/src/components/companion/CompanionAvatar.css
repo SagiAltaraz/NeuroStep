@@ -12,25 +12,27 @@
 }
 .companion > * { pointer-events: auto; }
 
-/* full opacity always (no entrance fade that could get stuck when paused);
-   only the roam animates, and is-talking pauses just the roam. */
-.companion { opacity: 1; animation: cm-roam 20s ease-in-out infinite; }
+/* full opacity always; only the roam animates, and is-talking pauses just it. */
+.companion { opacity: 1; animation: cm-roam 16s ease-in-out infinite; }
 
-/* Roam the whole RIGHT side of the screen — drifts up and down (in vh, so it
-   spans the viewport) with a gentle side sway, staying near the right edge so
-   it never crosses into the centre content. */
+/* Patrols a CONTAINED vertical band on the right edge (empty gutter) — gentle
+   up/down with a tiny sway, anchored to its base position so it never crosses
+   into the centred content. */
 @keyframes cm-roam {
-  0%   { transform: translate(0px,   0vh); }
-  14%  { transform: translate(-16px, -16vh); }
-  28%  { transform: translate(8px,  -34vh); }
-  42%  { transform: translate(-12px,-48vh); }
-  56%  { transform: translate(10px, -36vh); }
-  70%  { transform: translate(-14px,-22vh); }
-  84%  { transform: translate(6px,  -8vh); }
-  100% { transform: translate(0px,   0vh); }
+  0%   { transform: translate(0px,  0vh); }
+  25%  { transform: translate(-6px, -9vh); }
+  50%  { transform: translate(4px, -15vh); }
+  75%  { transform: translate(-5px, -7vh); }
+  100% { transform: translate(0px,  0vh); }
 }
 /* hold still while a message is showing, so the bubble is readable */
 .companion.is-talking { animation-play-state: paused; }
+
+/* Per-page anchoring (right-edge gutter): on the home/journey screens sit up at
+   the "My Journey" CTA line; inside a game stay low so we never cover gameplay. */
+.companion--home,
+.companion--journey { bottom: 28vh; }
+.companion--game .companion-img { width: 92px; }
 
 .companion-char {
   border: 0;
@@ -98,6 +100,22 @@
   cursor: pointer;
 }
 .companion-cta:hover { filter: brightness(1.05); }
+
+/* quick-reply chips (the "what to work on" chooser) */
+.companion-replies { display: flex; flex-wrap: wrap; gap: 6px; margin-top: 8px; }
+.companion-reply {
+  border: 1px solid var(--ns-cardline, rgba(47, 134, 214, 0.25));
+  background: #fff;
+  color: var(--ns-blue, #2f86d6);
+  font-family: 'Heebo', sans-serif;
+  font-weight: 700;
+  font-size: 0.82rem;
+  padding: 6px 11px;
+  border-radius: 999px;
+  cursor: pointer;
+  transition: background 0.15s;
+}
+.companion-reply:hover { background: #eaf4fd; }
 
 @media (prefers-reduced-motion: reduce) {
   .companion-char, .cm-arm, .companion-bubble { animation: none !important; }

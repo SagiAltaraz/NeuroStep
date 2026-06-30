@@ -1,14 +1,13 @@
 /**
- * CompanionAvatar — a friendly mascot that sits on the side of the screen and
- * pops a proactive, data-driven message: a greeting + a game suggestion derived
- * from the player's own cognitive profile (GET /api/me/companion).
- *
- * The character here is a placeholder SVG (to be replaced by the original
- * Higgsfield asset). Clicking the character toggles the bubble; the CTA opens
- * the suggested game. Resilient: if the API is unavailable it still greets.
+ * CompanionAvatar — a coach-like mascot that lives on the RIGHT edge of the
+ * screen, roams only the empty side gutter (never over content), and talks to
+ * the user with page-aware, data-driven messages: greetings + game suggestions
+ * from their cognitive profile (GET /api/me/companion), quick-reply buttons, and
+ * encouraging tips inside games. Always visible; the bottom chat can later take
+ * over the conversation via a professional LLM.
  */
-import { useEffect, useState } from 'react';
-import { useNavigate } from 'react-router-dom';
+import { useEffect, useMemo, useState } from 'react';
+import { useNavigate, useLocation } from 'react-router-dom';
 import { useAuth } from '../../context/AuthContext';
 import { getMyCompanion, isApiError, type CompanionResponse } from '../../api/me';
 import './CompanionAvatar.css';
@@ -25,16 +24,6 @@ const GAME_ROUTE: Record<string, string> = {
   'where-was-it': 'whereWasIt',
 };
 
-const FALLBACK: CompanionResponse = {
-  greetingHe: 'היי! כיף לראות אותך 👋',
-  reasonHe: 'בא לך אימון קצר ונעים? בוא נתחיל 🙂',
-  suggestedGameId: 'memory',
-  suggestedGameHe: 'זיכרון',
-  mood: 'welcome',
-};
-
-// Robot poses → image files in /public/companion/. Any missing pose gracefully
-// falls back to idle; a missing idle falls back to the SVG placeholder.
 type Pose = 'idle' | 'wave' | 'think' | 'celebrate';
 const POSE_SRC: Record<Pose, string> = {
   idle: '/companion/neurostep-bot.png',
@@ -43,58 +32,131 @@ const POSE_SRC: Record<Pose, string> = {
   celebrate: '/companion/neurostep-bot-celebrate.png',
 };
 
+type Ctx = 'home' | 'journey' | 'games' | 'game' | 'other';
+interface Reply { label: string; gameId: string }
+interface Msg { text: string; cta?: { label: string; gameId: string }; replies?: Reply[] }
+
+// quick "what to work on" chooser — routes straight into a matching game
+const CHOOSE: Msg = {
+  text: 'על מה בא לך לעבוד עכשיו?',
+  replies: [
+    { label: 'זיכרון 🧠', gameId: 'memory' },
+    { label: 'קשב 🎯', gameId: 'find-letter' },
+    { label: 'תגובה ⚡', gameId: 'green-light' },
+  ],
+};
+
+// Build the message queue for the current page, weaving in the user's data.
+function buildMessages(ctx: Ctx, data: CompanionResponse | null): Msg[] {
+  if (ctx === 'game') {
+    return [
+      { text: 'אתה מתקדם יפה — תישאר ממוקד 💪' },
+      { text: 'טיפ קטן: קח נשימה לפני כל סבב, זה משפר דיוק 🙂' },
+      { text: 'כל תרגול קטן מחזק את המוח. כל הכבוד שאתה כאן!' },
+      { text: 'אם זה מאתגר — זה אומר שאתה לומד. תמשיך 🚀' },
+    ];
+  }
+  if (ctx === 'games') {
+    return [
+      { text: 'בחר אתגר ואני אעזור להתאים לך את המשחק 👇' },
+      CHOOSE,
+    ];
+  }
+  // home / journey / other — personalised from the DB profile
+  const gameId = data?.suggestedGameId ?? 'memory';
+  const gameHe = data?.suggestedGameHe ?? 'זיכרון';
+  return [
+    { text: data?.greetingHe ?? 'היי! כיף לראות אותך 👋' },
+    {
+      text: data?.reasonHe ?? 'בא לך אימון קצר ונעים? בוא נתחיל 🙂',
+      cta: { label: `בוא נשחק ב${gameHe}`, gameId },
+    },
+    CHOOSE,
+    { text: 'אני המאמן שלך — כאן לאורך כל הדרך 🤖' },
+  ];
+}
+
 export default function CompanionAvatar() {
   const { token } = useAuth();
   const navigate = useNavigate();
-  // Always renders (never vanishes on logout/auth hiccups): starts with a friendly
-  // default greeting, upgraded to a personalised one once we have a token.
-  const [data, setData] = useState<CompanionResponse>(FALLBACK);
-  const [open, setOpen] = useState(false);
-  const [pose, setPose] = useState<Pose>('idle');
-  // which pose images failed to load (missing files) → fall back to idle/SVG
-  const [broken, setBroken] = useState<Record<string, boolean>>({});
+  const loc = useLocation();
 
+  const [data, setData] = useState<CompanionResponse | null>(null);
+  const [pose, setPose] = useState<Pose>('idle');
+  const [broken, setBroken] = useState<Record<string, boolean>>({});
+  const [open, setOpen] = useState(true);
+  const [idx, setIdx] = useState(0);
+
+  const ctx: Ctx = useMemo(() => {
+    const p = loc.pathname;
+    if (p === '/') return 'home';
+    if (p.startsWith('/journey')) return 'journey';
+    if (p === '/games') return 'games';
+    if (p.startsWith('/games/')) return 'game';
+    return 'other';
+  }, [loc.pathname]);
+
+  // personalised data (once we have a token); silent fallback otherwise
   useEffect(() => {
+    if (!token) return;
     let cancelled = false;
-    (async () => {
-      let res: CompanionResponse = FALLBACK;
-      if (token) {
-        const r = await getMyCompanion(token);
-        if (!isApiError(r)) res = r;
-      }
-      if (cancelled) return;
-      setData(res);
-      setOpen(true);
-      // greet with a wave, then settle back to idle
-      setPose('wave');
-      setTimeout(() => { if (!cancelled) setPose('idle'); }, 2600);
-    })();
+    getMyCompanion(token).then((r) => {
+      if (!cancelled && !isApiError(r)) setData(r);
+    });
     return () => { cancelled = true; };
   }, [token]);
 
-  // resolve the pose to show: a missing pose image degrades to idle
-  const resolvedPose: Pose = broken[pose] ? 'idle' : pose;
+  const messages = useMemo(() => buildMessages(ctx, data), [ctx, data]);
 
-  const goPlay = () => {
+  // new page (or data arrived) → restart the conversation with a wave
+  useEffect(() => {
+    setIdx(0);
+    setOpen(true);
+    setPose('wave');
+    const t = setTimeout(() => setPose('idle'), 2600);
+    return () => clearTimeout(t);
+  }, [ctx, data]);
+
+  // frequent gentle pushes — cycle through the page's messages
+  useEffect(() => {
+    if (!open || messages.length < 2) return;
+    const t = setInterval(() => setIdx((i) => (i + 1) % messages.length), 13000);
+    return () => clearInterval(t);
+  }, [open, messages.length]);
+
+  const goGame = (gameId: string) => {
     setOpen(false);
-    navigate(`/games/${GAME_ROUTE[data.suggestedGameId] ?? 'memory'}`);
+    navigate(`/games/${GAME_ROUTE[gameId] ?? 'memory'}`);
   };
 
+  const msg = messages[Math.min(idx, messages.length - 1)];
+  const resolvedPose: Pose = broken[pose] ? 'idle' : pose;
+
   return (
-    <div className={`companion ${open ? 'is-talking' : ''}`} dir="rtl">
-      {open && (
+    <div className={`companion companion--${ctx} ${open ? 'is-talking' : ''}`} dir="rtl">
+      {open && msg && (
         <div className="companion-bubble" role="status">
           <button className="companion-close" onClick={() => setOpen(false)} aria-label="סגור">×</button>
-          <p className="companion-greet">{data.greetingHe}</p>
-          <p className="companion-reason">{data.reasonHe}</p>
-          <button className="companion-cta" onClick={goPlay}>
-            בוא נשחק ב{data.suggestedGameHe} ←
-          </button>
+          <p className="companion-greet">{msg.text}</p>
+          {msg.cta && (
+            <button className="companion-cta" onClick={() => goGame(msg.cta!.gameId)}>
+              {msg.cta.label} ←
+            </button>
+          )}
+          {msg.replies && (
+            <div className="companion-replies">
+              {msg.replies.map((r) => (
+                <button key={r.gameId} className="companion-reply" onClick={() => goGame(r.gameId)}>
+                  {r.label}
+                </button>
+              ))}
+            </div>
+          )}
         </div>
       )}
 
       <button
-        className={`companion-char ${open ? 'is-talking' : ''}`}
+        className="companion-char"
         onClick={() => setOpen((o) => !o)}
         aria-label="המאמן שלי"
         title="המאמן שלי"
@@ -108,7 +170,6 @@ export default function CompanionAvatar() {
             onError={() => setBroken((b) => ({ ...b, [resolvedPose]: true }))}
           />
         ) : (
-          // Fallback placeholder until the PNG is dropped into /public/companion/
           <svg viewBox="0 0 72 84" width="72" height="84" aria-hidden="true">
             <ellipse cx="36" cy="80" rx="20" ry="4" fill="rgba(28,58,69,.15)" />
             <rect x="52" y="34" width="7" height="20" rx="3.5" fill="#2f86d6" />
