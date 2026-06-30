@@ -9,6 +9,7 @@ import LoginPage from './pages/log-in/LogIn';
 
 import ProblemsCarousel from './components/ProblemsCarousel/ProblemsCarousel';
 import ChatAssistant from './components/chat-assistant/ChatAssistant';
+import CompanionAvatar from './components/companion/CompanionAvatar';
 import ColorTrackingPage from './pages/games/ColorTrainsPage';
 import GamesPage from './pages/games/GamesPage';
 import TicTacToePage from './pages/games/TicTacToePage';
@@ -31,6 +32,7 @@ function App() {
       <div className="App">
          <SiteBackground />
          <Header />
+         <CompanionAvatar />
          <Routes>
             {/* home page */}
             <Route

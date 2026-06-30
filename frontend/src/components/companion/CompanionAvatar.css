@@ -1,0 +1,104 @@
+/* CompanionAvatar — floating mascot on the side of the screen + speech bubble. */
+.companion {
+  position: fixed;
+  right: 18px;
+  bottom: 18px;
+  z-index: 900;            /* above content, below modals/chat overlay */
+  display: flex;
+  flex-direction: column;
+  align-items: flex-end;
+  gap: 10px;
+  pointer-events: none;    /* only the children are interactive */
+}
+.companion > * { pointer-events: auto; }
+
+/* full opacity always (no entrance fade that could get stuck when paused);
+   only the roam animates, and is-talking pauses just the roam. */
+.companion { opacity: 1; animation: cm-roam 20s ease-in-out infinite; }
+
+/* Roam the whole RIGHT side of the screen — drifts up and down (in vh, so it
+   spans the viewport) with a gentle side sway, staying near the right edge so
+   it never crosses into the centre content. */
+@keyframes cm-roam {
+  0%   { transform: translate(0px,   0vh); }
+  14%  { transform: translate(-16px, -16vh); }
+  28%  { transform: translate(8px,  -34vh); }
+  42%  { transform: translate(-12px,-48vh); }
+  56%  { transform: translate(10px, -36vh); }
+  70%  { transform: translate(-14px,-22vh); }
+  84%  { transform: translate(6px,  -8vh); }
+  100% { transform: translate(0px,   0vh); }
+}
+/* hold still while a message is showing, so the bubble is readable */
+.companion.is-talking { animation-play-state: paused; }
+
+.companion-char {
+  border: 0;
+  background: transparent;
+  padding: 0;
+  cursor: pointer;
+  filter: drop-shadow(0 10px 18px rgba(28, 58, 69, 0.3));
+  animation: cm-wobble 3.6s ease-in-out infinite;   /* the robot's own little life */
+  will-change: transform;
+}
+.companion-img {
+  width: 116px;
+  height: auto;
+  display: block;
+  -webkit-user-drag: none;
+  user-select: none;
+}
+.companion-char:hover { animation-play-state: paused; }
+@keyframes cm-wobble {
+  0%, 100% { transform: translateY(0) rotate(0deg); }
+  50%      { transform: translateY(-5px) rotate(2.5deg); }
+}
+
+.cm-arm { transform-origin: 55px 38px; animation: cm-wave 2.4s ease-in-out infinite; }
+@keyframes cm-wave { 0%, 70%, 100% { transform: rotate(0deg); } 80%, 90% { transform: rotate(-22deg); } }
+
+/* speech bubble */
+.companion-bubble {
+  position: relative;
+  max-width: 270px;
+  background: var(--ns-card, rgba(255, 255, 255, 0.92));
+  backdrop-filter: blur(12px);
+  border: 1px solid var(--ns-cardline, rgba(47, 134, 214, 0.18));
+  border-radius: 18px 18px 4px 18px;
+  box-shadow: var(--ns-soft, 0 10px 30px -12px rgba(28, 58, 69, 0.35));
+  padding: 14px 16px 14px;
+  color: var(--ns-teal, #1c3a45);
+  animation: cm-pop 0.28s cubic-bezier(0.2, 1.3, 0.5, 1);
+}
+@keyframes cm-pop { from { opacity: 0; transform: translateY(8px) scale(0.96); } to { opacity: 1; transform: none; } }
+
+.companion-close {
+  position: absolute;
+  top: 6px;
+  inset-inline-start: 8px;
+  border: 0;
+  background: transparent;
+  font-size: 18px;
+  line-height: 1;
+  color: var(--ns-slate, #5a7fa8);
+  cursor: pointer;
+}
+.companion-greet { margin: 0 0 4px; font-family: 'Sora', 'Heebo', sans-serif; font-weight: 800; font-size: 0.98rem; }
+.companion-reason { margin: 0 0 10px; font-size: 0.9rem; line-height: 1.5; color: var(--ns-slate, #5a7fa8); }
+.companion-cta {
+  border: 0;
+  width: 100%;
+  background: var(--ns-grad-brand, linear-gradient(135deg, #1c3a45, #2f86d6));
+  color: #fff;
+  font-family: 'Sora', 'Heebo', sans-serif;
+  font-weight: 700;
+  font-size: 0.9rem;
+  padding: 9px 12px;
+  border-radius: 12px;
+  cursor: pointer;
+}
+.companion-cta:hover { filter: brightness(1.05); }
+
+@media (prefers-reduced-motion: reduce) {
+  .companion-char, .cm-arm, .companion-bubble { animation: none !important; }
+}
