@@ -27,7 +27,7 @@
 }
 /* the robot image */
 .companion-img {
-  width: 132px;
+  width: 116px;
   height: auto;
   display: block;
   -webkit-user-drag: none;
@@ -37,15 +37,15 @@
 .companion-char.is-talking { animation: cm-float 4s ease-in-out infinite; }
 .companion-char:hover { animation-play-state: paused; }
 
+/* Free-feeling but CORNER-CONTAINED float: only up and toward the screen edge —
+   positive X (toward the right edge in RTL), never drifting inward onto content. */
 @keyframes cm-float {
-  0%   { transform: translate(0px,   0px)  rotate(0deg); }
-  14%  { transform: translate(-7px, -9px)  rotate(-2.5deg); }
-  28%  { transform: translate(6px, -14px)  rotate(2deg); }
-  43%  { transform: translate(10px, -5px)  rotate(3deg); }
-  58%  { transform: translate(2px, -12px)  rotate(0.5deg); }
-  72%  { transform: translate(-9px, -6px)  rotate(-3deg); }
-  86%  { transform: translate(-3px, -10px) rotate(-1deg); }
-  100% { transform: translate(0px,   0px)  rotate(0deg); }
+  0%   { transform: translate(0px,  0px) rotate(0deg); }
+  20%  { transform: translate(3px, -7px) rotate(-2deg); }
+  40%  { transform: translate(6px, -3px) rotate(2deg); }
+  60%  { transform: translate(2px, -8px) rotate(2.5deg); }
+  80%  { transform: translate(5px, -4px) rotate(-1deg); }
+  100% { transform: translate(0px,  0px) rotate(0deg); }
 }
 
 .cm-arm { transform-origin: 55px 38px; animation: cm-wave 2.4s ease-in-out infinite; }
