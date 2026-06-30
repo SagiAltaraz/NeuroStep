@@ -12,8 +12,25 @@
 }
 .companion > * { pointer-events: auto; }
 
-.companion { animation: cm-in 0.5s ease both; }
-@keyframes cm-in { from { opacity: 0; transform: translateY(24px); } to { opacity: 1; transform: none; } }
+/* entrance is opacity-only — the transform is owned by the roam below */
+.companion { animation: cm-in 0.5s ease both, cm-roam 20s ease-in-out infinite; }
+@keyframes cm-in { from { opacity: 0; } to { opacity: 1; } }
+
+/* Roam the whole RIGHT side of the screen — drifts up and down (in vh, so it
+   spans the viewport) with a gentle side sway, staying near the right edge so
+   it never crosses into the centre content. */
+@keyframes cm-roam {
+  0%   { transform: translate(0px,   0vh); }
+  14%  { transform: translate(-16px, -16vh); }
+  28%  { transform: translate(8px,  -34vh); }
+  42%  { transform: translate(-12px,-48vh); }
+  56%  { transform: translate(10px, -36vh); }
+  70%  { transform: translate(-14px,-22vh); }
+  84%  { transform: translate(6px,  -8vh); }
+  100% { transform: translate(0px,   0vh); }
+}
+/* hold still while a message is showing, so the bubble is readable */
+.companion.is-talking { animation-play-state: paused; }
 
 .companion-char {
   border: 0;
@@ -21,11 +38,9 @@
   padding: 0;
   cursor: pointer;
   filter: drop-shadow(0 10px 18px rgba(28, 58, 69, 0.3));
-  /* free, multi-directional float (up/down/left/right + gentle tilt) */
-  animation: cm-float 7s ease-in-out infinite;
+  animation: cm-wobble 3.6s ease-in-out infinite;   /* the robot's own little life */
   will-change: transform;
 }
-/* the robot image */
 .companion-img {
   width: 116px;
   height: auto;
@@ -33,19 +48,10 @@
   -webkit-user-drag: none;
   user-select: none;
 }
-/* livelier, snappier wander while a message is showing */
-.companion-char.is-talking { animation: cm-float 4s ease-in-out infinite; }
 .companion-char:hover { animation-play-state: paused; }
-
-/* Free-feeling but CORNER-CONTAINED float: only up and toward the screen edge —
-   positive X (toward the right edge in RTL), never drifting inward onto content. */
-@keyframes cm-float {
-  0%   { transform: translate(0px,  0px) rotate(0deg); }
-  20%  { transform: translate(3px, -7px) rotate(-2deg); }
-  40%  { transform: translate(6px, -3px) rotate(2deg); }
-  60%  { transform: translate(2px, -8px) rotate(2.5deg); }
-  80%  { transform: translate(5px, -4px) rotate(-1deg); }
-  100% { transform: translate(0px,  0px) rotate(0deg); }
+@keyframes cm-wobble {
+  0%, 100% { transform: translateY(0) rotate(0deg); }
+  50%      { transform: translateY(-5px) rotate(2.5deg); }
 }
 
 .cm-arm { transform-origin: 55px 38px; animation: cm-wave 2.4s ease-in-out infinite; }

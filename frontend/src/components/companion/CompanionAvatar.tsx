@@ -82,7 +82,7 @@ export default function CompanionAvatar() {
   };
 
   return (
-    <div className="companion" dir="rtl">
+    <div className={`companion ${open ? 'is-talking' : ''}`} dir="rtl">
       {open && (
         <div className="companion-bubble" role="status">
           <button className="companion-close" onClick={() => setOpen(false)} aria-label="סגור">×</button>
