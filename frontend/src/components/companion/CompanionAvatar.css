@@ -21,7 +21,9 @@
   padding: 0;
   cursor: pointer;
   filter: drop-shadow(0 10px 18px rgba(28, 58, 69, 0.3));
-  animation: cm-bob 3s ease-in-out infinite;
+  /* free, multi-directional float (up/down/left/right + gentle tilt) */
+  animation: cm-float 7s ease-in-out infinite;
+  will-change: transform;
 }
 /* the robot image */
 .companion-img {
@@ -31,10 +33,20 @@
   -webkit-user-drag: none;
   user-select: none;
 }
-/* livelier bob while a message is showing */
-.companion-char.is-talking { animation: cm-bob 1.5s ease-in-out infinite; }
-.companion-char:hover { animation-play-state: paused; transform: scale(1.04); }
-@keyframes cm-bob { 0%, 100% { transform: translateY(0) rotate(0deg); } 50% { transform: translateY(-7px) rotate(-1.5deg); } }
+/* livelier, snappier wander while a message is showing */
+.companion-char.is-talking { animation: cm-float 4s ease-in-out infinite; }
+.companion-char:hover { animation-play-state: paused; }
+
+@keyframes cm-float {
+  0%   { transform: translate(0px,   0px)  rotate(0deg); }
+  14%  { transform: translate(-7px, -9px)  rotate(-2.5deg); }
+  28%  { transform: translate(6px, -14px)  rotate(2deg); }
+  43%  { transform: translate(10px, -5px)  rotate(3deg); }
+  58%  { transform: translate(2px, -12px)  rotate(0.5deg); }
+  72%  { transform: translate(-9px, -6px)  rotate(-3deg); }
+  86%  { transform: translate(-3px, -10px) rotate(-1deg); }
+  100% { transform: translate(0px,   0px)  rotate(0deg); }
+}
 
 .cm-arm { transform-origin: 55px 38px; animation: cm-wave 2.4s ease-in-out infinite; }
 @keyframes cm-wave { 0%, 70%, 100% { transform: rotate(0deg); } 80%, 90% { transform: rotate(-22deg); } }
