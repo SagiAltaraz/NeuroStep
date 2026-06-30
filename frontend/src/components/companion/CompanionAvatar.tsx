@@ -44,16 +44,17 @@ const POSE_SRC: Record<Pose, string> = {
 };
 
 export default function CompanionAvatar() {
-  const { token, user } = useAuth();
+  const { token } = useAuth();
   const navigate = useNavigate();
-  const [data, setData] = useState<CompanionResponse | null>(null);
+  // Always renders (never vanishes on logout/auth hiccups): starts with a friendly
+  // default greeting, upgraded to a personalised one once we have a token.
+  const [data, setData] = useState<CompanionResponse>(FALLBACK);
   const [open, setOpen] = useState(false);
   const [pose, setPose] = useState<Pose>('idle');
   // which pose images failed to load (missing files) → fall back to idle/SVG
   const [broken, setBroken] = useState<Record<string, boolean>>({});
 
   useEffect(() => {
-    if (!user) return;
     let cancelled = false;
     (async () => {
       let res: CompanionResponse = FALLBACK;
@@ -69,9 +70,7 @@ export default function CompanionAvatar() {
       setTimeout(() => { if (!cancelled) setPose('idle'); }, 2600);
     })();
     return () => { cancelled = true; };
-  }, [token, user]);
-
-  if (!user || !data) return null;
+  }, [token]);
 
   // resolve the pose to show: a missing pose image degrades to idle
   const resolvedPose: Pose = broken[pose] ? 'idle' : pose;
