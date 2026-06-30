@@ -12,9 +12,9 @@
 }
 .companion > * { pointer-events: auto; }
 
-/* entrance is opacity-only — the transform is owned by the roam below */
-.companion { animation: cm-in 0.5s ease both, cm-roam 20s ease-in-out infinite; }
-@keyframes cm-in { from { opacity: 0; } to { opacity: 1; } }
+/* full opacity always (no entrance fade that could get stuck when paused);
+   only the roam animates, and is-talking pauses just the roam. */
+.companion { opacity: 1; animation: cm-roam 20s ease-in-out infinite; }
 
 /* Roam the whole RIGHT side of the screen — drifts up and down (in vh, so it
    spans the viewport) with a gentle side sway, staying near the right edge so
