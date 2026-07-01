@@ -16,7 +16,7 @@
  * call site that needs updating.
  */
 
-import { createContext, useContext, useEffect, useMemo, useState } from 'react';
+import { createContext, useCallback, useContext, useEffect, useMemo, useState } from 'react';
 import type { ReactNode } from 'react';
 
 export type Lang = 'he' | 'en';
@@ -226,13 +226,20 @@ export function LanguageProvider({ children }: { children: ReactNode }) {
     document.documentElement.dir  = lang === 'he' ? 'rtl' : 'ltr';
   }, [lang]);
 
+  // Stable identities across language changes: consumers depend on these in
+  // effects (e.g. AuthContext syncing the saved preference). If they were
+  // recreated on every render, a toggle would re-fire those effects and clobber
+  // the user's fresh choice back to the saved default.
+  const setLang = useCallback((l: Lang) => setLangState(l), []);
+  const toggle  = useCallback(() => setLangState(prev => (prev === 'he' ? 'en' : 'he')), []);
+
   const value = useMemo<LanguageContextValue>(() => ({
     lang,
-    setLang: (l) => setLangState(l),
-    toggle:  () => setLangState(prev => prev === 'he' ? 'en' : 'he'),
-    t:       (key) => TRANSLATIONS[key][lang],
-    dir:     lang === 'he' ? 'rtl' : 'ltr',
-  }), [lang]);
+    setLang,
+    toggle,
+    t:   (key) => TRANSLATIONS[key][lang],
+    dir: lang === 'he' ? 'rtl' : 'ltr',
+  }), [lang, setLang, toggle]);
 
   return (
     <LanguageContext.Provider value={value}>
