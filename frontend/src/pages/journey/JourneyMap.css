@@ -47,12 +47,23 @@
   position: sticky;
   top: 60px;                 /* sits just under the sticky global header */
   z-index: 20;
-  margin: 0 -1rem 1rem;      /* bleed to the page padding edges */
-  padding: 8px 1rem;
+  /* full-bleed out of the width-capped page column to the whole viewport,
+     so every ability chip has room and none is clipped at the edges */
+  width: 100vw;
+  margin-inline: calc(50% - 50vw);
+  margin-bottom: 1rem;
+  padding: 8px 1.5rem;
   /* transparent — the bar itself blends into the site background; only the
      ability chips (each its own frosted pill) are visible. */
 }
-.jm-chips { display: flex; gap: 7px; overflow-x: auto; padding-bottom: 4px; }
+.jm-chips {
+  display: flex;
+  justify-content: center;   /* center the row; all chips fit on wide screens */
+  flex-wrap: wrap;           /* wrap instead of hiding when the viewport is narrow */
+  gap: 7px;
+  padding-bottom: 4px;
+  scroll-padding-inline: 1rem;
+}
 
 /* floating "back to top" of the path */
 .jm-totop {
