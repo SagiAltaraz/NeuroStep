@@ -2,13 +2,14 @@
   background: transparent;
 }
 
-/* Single-screen home: hero + cognitive-challenges carousel share one viewport,
-   no vertical scroll. The chat assistant is a floating widget (outside this). */
+/* Home: hero + cognitive-challenges carousel. Aims to fill one screen on tall
+   viewports, but is allowed to grow and let the page scroll when space is tight
+   (e.g. at 100% zoom) so the game cards are always shown at a comfortable size
+   instead of being clipped. The chat assistant is a floating widget (outside). */
 .home-onescreen {
-  height: calc(100dvh - 64px);   /* viewport minus the sticky header */
+  min-height: calc(100dvh - 64px);   /* at least a screen, but can grow */
   display: flex;
   flex-direction: column;
-  overflow: hidden;
 }
 .home-onescreen > .home-page        { flex: none; }
 .home-onescreen > .problems-section { flex: 1; min-height: 0; }

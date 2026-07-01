@@ -75,7 +75,7 @@
   padding: 0.5rem 0.5rem 0.75rem;
   display: flex;
   flex: 1;
-  min-height: 0;
+  min-height: 284px;     /* never shorter than a full card (260) + padding */
   gap: 1rem;
   align-items: center;   /* shorter cards centre in the rail, leaving even breathing room */
   overflow-x: auto;
@@ -91,9 +91,7 @@
 .pc-card {
   flex: none;
   width: 210px;
-  height: auto;          /* sized to content → shorter cards */
-  max-height: 100%;      /* never taller than the rail */
-  min-height: 0;
+  height: 260px;         /* fixed, comfortable height — always fully rendered */
   scroll-snap-align: start;
 
   display: flex;
