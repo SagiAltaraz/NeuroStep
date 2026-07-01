@@ -36,6 +36,11 @@ type Ctx = 'home' | 'journey' | 'games' | 'game' | 'other';
 interface Reply { label: string; gameId: string }
 interface Msg { text: string; cta?: { label: string; gameId: string }; replies?: Reply[] }
 
+// reading-time pacing: short lines linger less, long lines get time to read.
+const readMs = (t: string) => Math.min(11000, Math.max(4200, 2400 + t.length * 55));
+// after the page's queue is done, stay quiet this long before a gentle re-engage.
+const QUIET_MS = 32000;
+
 // quick "what to work on" chooser — routes straight into a matching game
 const CHOOSE: Msg = {
   text: 'על מה בא לך לעבוד עכשיו?',
@@ -86,6 +91,7 @@ export default function CompanionAvatar() {
   const [broken, setBroken] = useState<Record<string, boolean>>({});
   const [open, setOpen] = useState(true);
   const [idx, setIdx] = useState(0);
+  const [dismissed, setDismissed] = useState(false);  // user closed it → stay quiet until next page
 
   const ctx: Ctx = useMemo(() => {
     const p = loc.pathname;
@@ -112,17 +118,29 @@ export default function CompanionAvatar() {
   useEffect(() => {
     setIdx(0);
     setOpen(true);
+    setDismissed(false);
     setPose('wave');
     const t = setTimeout(() => setPose('idle'), 2600);
     return () => clearTimeout(t);
   }, [ctx, data]);
 
-  // frequent gentle pushes — cycle through the page's messages
+  // Smart pacing: linger on each message for its reading time, then move on;
+  // once the page's queue is done, go quiet — and only re-engage gently after a
+  // long pause. If the user dismissed it, stay quiet until the next page.
   useEffect(() => {
-    if (!open || messages.length < 2) return;
-    const t = setInterval(() => setIdx((i) => (i + 1) % messages.length), 13000);
-    return () => clearInterval(t);
-  }, [open, messages.length]);
+    if (dismissed) return;
+    if (open) {
+      const cur = messages[Math.min(idx, messages.length - 1)];
+      const t = setTimeout(() => {
+        if (idx < messages.length - 1) setIdx(idx + 1);   // next message
+        else setOpen(false);                              // queue done → go quiet
+      }, readMs(cur.text));
+      return () => clearTimeout(t);
+    }
+    // quiet → gentle re-engage after a long pause
+    const t = setTimeout(() => { setIdx(0); setOpen(true); }, QUIET_MS);
+    return () => clearTimeout(t);
+  }, [open, idx, dismissed, messages]);
 
   const goGame = (gameId: string) => {
     setOpen(false);
@@ -136,7 +154,7 @@ export default function CompanionAvatar() {
     <div className={`companion companion--${ctx} ${open ? 'is-talking' : ''}`} dir="rtl">
       {open && msg && (
         <div className="companion-bubble" role="status">
-          <button className="companion-close" onClick={() => setOpen(false)} aria-label="סגור">×</button>
+          <button className="companion-close" onClick={() => { setOpen(false); setDismissed(true); }} aria-label="סגור">×</button>
           <p className="companion-greet">{msg.text}</p>
           {msg.cta && (
             <button className="companion-cta" onClick={() => goGame(msg.cta!.gameId)}>
@@ -157,7 +175,7 @@ export default function CompanionAvatar() {
 
       <button
         className="companion-char"
-        onClick={() => setOpen((o) => !o)}
+        onClick={() => { setDismissed(false); setOpen((o) => !o); }}
         aria-label="המאמן שלי"
         title="המאמן שלי"
       >
