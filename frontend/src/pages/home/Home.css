@@ -2,13 +2,14 @@
   background: transparent;
 }
 
-/* Single-screen home: hero + cognitive-challenges carousel share one viewport,
-   no vertical scroll. The chat assistant is a floating widget (outside this). */
+/* Home: hero + cognitive-challenges carousel. Aims to fill one screen on tall
+   viewports, but is allowed to grow and let the page scroll when space is tight
+   (e.g. at 100% zoom) so the game cards are always shown at a comfortable size
+   instead of being clipped. The chat assistant is a floating widget (outside). */
 .home-onescreen {
-  height: calc(100dvh - 64px);   /* viewport minus the sticky header */
+  min-height: calc(100dvh - 64px);   /* at least a screen, but can grow */
   display: flex;
   flex-direction: column;
-  overflow: hidden;
 }
 .home-onescreen > .home-page        { flex: none; }
 .home-onescreen > .problems-section { flex: 1; min-height: 0; }
@@ -70,15 +71,16 @@
   margin-bottom: 0.5rem;
 }
 
-/* Primary CTA — "start training": the clear hero action, big and inviting. */
+/* Primary CTA — "start training": the clear hero action, inviting but not
+   oversized. Shares its width with the secondary so the pair stacks cleanly. */
 .cta-section button {
   background: linear-gradient(135deg, #3f9fcf 0%, #2f86d6 100%);
   color: white;
   font-family: 'Heebo', 'Sora', sans-serif;
-  font-size: 1.5rem;
+  font-size: 1.3rem;
   font-weight: 800;
-  padding: 1.35rem 3.5rem;
-  min-width: 340px;
+  padding: 0.7rem 2.25rem;
+  width: min(300px, 100%);
   border-radius: 50px;
   border: none;
   cursor: pointer;
@@ -88,15 +90,16 @@
   overflow: hidden;
 }
 
-/* Secondary CTA — "my journey": clearly smaller / lighter than the primary. */
+/* Secondary CTA — "my journey": same width as the primary for an aligned
+   stack, kept lighter through color/weight rather than a jarring size gap. */
 .cta-section .cta-secondary {
   background: #ffffff;
   color: #2f86d6;
   border: 2px solid #2f86d6;
-  font-size: 1rem;
-  font-weight: 600;
-  padding: 0.7rem 2rem;
-  min-width: 220px;
+  font-size: 1.15rem;
+  font-weight: 700;
+  padding: 0.55rem 1.85rem;
+  width: min(260px, 100%);
   box-shadow: 0 4px 12px rgba(47, 134, 214, 0.15);
 }
 

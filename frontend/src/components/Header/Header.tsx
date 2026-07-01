@@ -1,6 +1,6 @@
 import React, { useState } from 'react';
 import { Link } from 'react-router-dom';
-import { Globe } from 'lucide-react';
+import { Globe, LogOut } from 'lucide-react';
 import { useAuth } from '../../context/AuthContext';
 import { useLang } from '../../context/LanguageContext';
 import Logo from '../Logo';
@@ -44,7 +44,8 @@ const Header: React.FC = () => {
 
                         <li>
                            <button className="logout-btn" onClick={logout}>
-                              {t('header.logout')}
+                              <LogOut size={14} />
+                              <span>{t('header.logout')}</span>
                            </button>
                         </li>
                      </>

@@ -40,6 +40,7 @@ export default function JourneyPage() {
   const [status, setStatus]     = useState<'loading' | 'ready' | 'error'>('loading');
   const [selected, setSelected] = useState<ProblemId | null>(null);
   const charRef = useRef<HTMLDivElement>(null);
+  const activeChipRef = useRef<HTMLButtonElement>(null);
 
   useEffect(() => {
     if (!token) return;
@@ -74,6 +75,14 @@ export default function JourneyPage() {
     if (status !== 'ready') return;
     const id = setTimeout(() => charRef.current?.scrollIntoView({ block: 'center' }), 40);
     return () => clearTimeout(id);
+  }, [selected, status]);
+
+  // keep the selected ability chip fully in view — the chip bar scrolls
+  // horizontally inside a width-capped container, so the active (often
+  // furthest) chip would otherwise sit clipped past the edge
+  useEffect(() => {
+    if (status !== 'ready') return;
+    activeChipRef.current?.scrollIntoView({ inline: 'center', block: 'nearest' });
   }, [selected, status]);
 
   const problem = useMemo(
@@ -142,6 +151,7 @@ export default function JourneyPage() {
           return (
             <button
               key={p.id}
+              ref={on ? activeChipRef : undefined}
               type="button"
               className={`jm-chip ${on ? 'jm-on' : ''}`}
               style={on ? { background: p.color } : undefined}
