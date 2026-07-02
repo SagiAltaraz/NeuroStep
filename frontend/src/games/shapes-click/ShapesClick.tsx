@@ -33,9 +33,13 @@ const DEFAULT_CONFIG: GameConfig = {
   distractorCount: 0,
 };
 
-// Level thresholds — every N consecutive hits raises level
-const LEVEL_UP_AT  = 5;   // hits per level
-const MAX_LEVEL    = 8;
+// The visible level is NOT a local hit counter — it is derived from the DDA
+// agent's difficulty D (0..1), which the game-server computes per player in
+// real time from their performance, history and personal warm-up, and streams
+// here via the adjustment/telemetry messages (params.ddaLevel).
+const MAX_LEVEL = 8;
+const levelFromD = (d: number) =>
+  1 + Math.min(MAX_LEVEL - 1, Math.floor(Phaser.Math.Clamp(d, 0, 1) * (MAX_LEVEL - 1) + 1e-6));
 
 const CIRCLE_COLORS = [0xe11d48, 0x7c3aed, 0x0284c7, 0x059669, 0xd97706, 0xdb2777];
 
@@ -76,8 +80,8 @@ class ShapesScene extends Phaser.Scene {
   // Stats
   private score  = 0;
   private streak = 0;
-  private level  = 1;
-  private totalHits = 0;           // lifetime hits this session
+  private difficulty01 = 0.4;      // mirrors the server's D (cold-start 0.40)
+  private level  = levelFromD(0.4);
 
   // UI
   private scoreText!:  Phaser.GameObjects.Text;
@@ -135,6 +139,23 @@ class ShapesScene extends Phaser.Scene {
   applyParams(params: GameAdjustment) {
     if (typeof params.circleLifeMs    === 'number') this.cfg.circleLifeMs    = Math.max(500,  params.circleLifeMs);
     if (typeof params.distractorCount === 'number') this.cfg.distractorCount = Math.max(0, Math.round(params.distractorCount));
+    if (typeof params.ddaLevel        === 'number') this.setDifficulty(params.ddaLevel);
+  }
+
+  // The agent-computed difficulty drives the visible level, the shape ladder
+  // and the disguise tier — the whole game scales with the player's real level.
+  private setDifficulty(d: number) {
+    this.difficulty01 = Phaser.Math.Clamp(d, 0, 1);
+    const newLevel = levelFromD(this.difficulty01);
+    if (newLevel > this.level) {
+      this.level = newLevel;
+      this.levelText?.setText(String(this.level));
+      this.showBigFeedback(this.labels.levelUp.replace('{n}', String(this.level)), '#2f86d6');
+    } else if (newLevel < this.level) {
+      this.level = newLevel;               // eased down by the agent — no fanfare
+      this.levelText?.setText(String(this.level));
+    }
+    this.updateLevelBar();
   }
 
   // ── Background ──────────────────────────────────────────────────
@@ -185,7 +206,7 @@ class ShapesScene extends Phaser.Scene {
 
     // Level
     this.levelLabel = this.add.text(W / 2, 18, this.labels.level, { fontSize: '11px', color: '#5a7fa8', fontFamily: 'Arial' }).setOrigin(0.5).setDepth(10);
-    this.levelText = this.add.text(W / 2, 40, '1', {
+    this.levelText = this.add.text(W / 2, 40, String(this.level), {
       fontSize: '22px', fontFamily: 'Arial Black', color: '#2f86d6',
     }).setOrigin(0.5).setDepth(10);
 
@@ -220,9 +241,10 @@ class ShapesScene extends Phaser.Scene {
   }
 
   private updateLevelBar() {
+    // Position within the current level band of the agent's difficulty D.
     const barW   = 160;
-    const hitsInLevel = this.totalHits % LEVEL_UP_AT;
-    const progress    = hitsInLevel / LEVEL_UP_AT;
+    const scaled = Phaser.Math.Clamp(this.difficulty01, 0, 1) * (MAX_LEVEL - 1);
+    const progress = Phaser.Math.Clamp(scaled - Math.floor(scaled + 1e-6), 0, 1);
     this.tweens.add({ targets: this.levelBarFill, width: barW * progress, duration: 250 });
   }
 
@@ -416,24 +438,14 @@ class ShapesScene extends Phaser.Scene {
 
     this.score++;
     this.streak++;
-    this.totalHits++;
     this.scoreText.setText(String(this.score));
     this.streakText.setText(String(this.streak));
 
     // Hit juice — a burst in the circle's color + a floating "+1" at the spot.
+    // Levelling is owned by the DDA agent (setDifficulty), not by hit counting.
     this.burstAt(this.circlePos.x, this.circlePos.y, this.lastCircleColor);
     this.floatScore(this.circlePos.x, this.circlePos.y);
-
-    // Level up?
-    const newLevel = Math.min(MAX_LEVEL, Math.floor(this.totalHits / LEVEL_UP_AT) + 1);
-    if (newLevel > this.level) {
-      this.level = newLevel;
-      this.levelText.setText(String(this.level));
-      this.showBigFeedback(this.labels.levelUp.replace('{n}', String(this.level)), '#2f86d6');
-    } else {
-      this.showFeedback('✓', '#16a34a');
-    }
-    this.updateLevelBar();
+    this.showFeedback('✓', '#16a34a');
 
     this.fireAction('CIRCLE_HIT', { reactionMs, streak: this.streak, level: this.level });
     this.scheduleNextSpawn();
