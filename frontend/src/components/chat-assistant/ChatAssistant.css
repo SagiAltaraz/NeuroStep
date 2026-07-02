@@ -1,5 +1,5 @@
-/* ============================================================
-   CHAT ASSISTANT — brand blue palette
+﻿/* ============================================================
+   CHAT ASSISTANT ג€” brand blue palette
    ============================================================ */
 
 .chat-assistant {
@@ -147,6 +147,35 @@
   flex-shrink: 0;
 }
 
+.chat-header-actions {
+  display: flex;
+  align-items: center;
+  gap: 0.45rem;
+}
+
+.chat-new-session-button {
+  height: 30px;
+  padding: 0 0.75rem;
+  border-radius: 999px;
+  border: 1px solid rgba(255, 255, 255, 0.32);
+  background: rgba(255, 255, 255, 0.16);
+  color: #fff;
+  font-family: 'Heebo', sans-serif;
+  font-size: 0.76rem;
+  font-weight: 800;
+  cursor: pointer;
+  white-space: nowrap;
+  transition: background 0.18s ease, opacity 0.18s ease;
+}
+
+.chat-new-session-button:hover:not(:disabled) {
+  background: rgba(255, 255, 255, 0.28);
+}
+
+.chat-new-session-button:disabled {
+  opacity: 0.55;
+  cursor: not-allowed;
+}
 .chat-close-button {
   background: rgba(255, 255, 255, 0.18);
   border: 1px solid rgba(255, 255, 255, 0.28);
@@ -328,3 +357,21 @@
     font-size: 0.82rem;
   }
 }
+
+.chat-inline-link {
+  display: inline;
+  padding: 0;
+  border: 0;
+  background: transparent;
+  color: #1f76c2;
+  font: inherit;
+  font-weight: 800;
+  text-decoration: underline;
+  text-underline-offset: 3px;
+  cursor: pointer;
+}
+
+.chat-inline-link:hover {
+  color: #145ea3;
+}
+

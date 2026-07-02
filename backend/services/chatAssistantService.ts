@@ -1,7 +1,8 @@
-import { chatPromptAgent, type ChatIntent } from '../agents/chatPromptAgent.ts';
-import { domainConceptAgent } from '../agents/domainConceptAgent.ts';
-import { progressionChatAgent } from '../agents/progressionChatAgent.ts';
-import { chatAssistantRepository } from '../repositories/chatAssistantRepository.ts';
+﻿import type { ChatIntent } from '../agents/chatPromptAgent.ts';
+import {
+   gameAgentChatOrchestrator,
+   type ChatHistoryMessage,
+} from '../agents/gameAgentChatOrchestrator.ts';
 
 export class InvalidPromptError extends Error {
    constructor() {
@@ -14,7 +15,9 @@ export const chatAssistantService = {
    async ask(
       prompt?: string,
       userId?: string,
-      explicitIntent?: ChatIntent
+      _explicitIntent?: ChatIntent,
+      history?: ChatHistoryMessage[],
+      sessionId?: string
    ): Promise<string> {
       const normalizedPrompt = prompt?.trim();
 
@@ -22,16 +25,11 @@ export const chatAssistantService = {
          throw new InvalidPromptError();
       }
 
-      const intent = chatPromptAgent.detectIntent(normalizedPrompt, explicitIntent);
-
-      if (intent === 'progression') {
-         return progressionChatAgent.answer(userId);
-      }
-
-      if (intent === 'domainConcept') {
-         return domainConceptAgent.answer(normalizedPrompt);
-      }
-
-      return chatAssistantRepository.generateReply(normalizedPrompt);
+      return gameAgentChatOrchestrator.answer(
+         normalizedPrompt,
+         userId,
+         history,
+         sessionId
+      );
    },
 };
