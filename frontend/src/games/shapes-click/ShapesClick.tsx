@@ -25,12 +25,15 @@ interface GameConfig {
   distractorCount: number;
 }
 
+// Defaults mirror the server's cold-start difficulty (D = 0.40 on the anchor
+// maps), so the first seconds — before the DDA's first message lands — already
+// look and feel like the real game (shapes on screen, real pace).
 const DEFAULT_CONFIG: GameConfig = {
   canvasWidth:     920,
   canvasHeight:    560,
-  circleLifeMs:    3000,
-  spawnIntervalMs: 1000,
-  distractorCount: 0,
+  circleLifeMs:    2400,
+  spawnIntervalMs: 800,
+  distractorCount: 2,
 };
 
 // The visible level is NOT a local hit counter — it is derived from the DDA
@@ -87,6 +90,7 @@ class ShapesScene extends Phaser.Scene {
   private scoreText!:  Phaser.GameObjects.Text;
   private streakText!: Phaser.GameObjects.Text;
   private levelText!:  Phaser.GameObjects.Text;
+  private trendTx!:    Phaser.GameObjects.Text;
   private feedbackTx!: Phaser.GameObjects.Text;
   private levelBarFill!: Phaser.GameObjects.Rectangle;
   // Round timer lives at the TOP of the screen (never on/near a shape, so it
@@ -142,18 +146,33 @@ class ShapesScene extends Phaser.Scene {
     if (typeof params.ddaLevel        === 'number') this.setDifficulty(params.ddaLevel);
   }
 
-  // The agent-computed difficulty drives the visible level, the shape ladder
+  // The agent-computed difficulty drives the visible meter, the shape ladder
   // and the disguise tier — the whole game scales with the player's real level.
   private setDifficulty(d: number) {
+    const prevPct = Math.round(this.difficulty01 * 100);
     this.difficulty01 = Phaser.Math.Clamp(d, 0, 1);
+    const pct = Math.round(this.difficulty01 * 100);
+
+    if (this.levelText && pct !== prevPct) {
+      this.levelText.setText(`${pct}%`);
+      // live feedback: green ▲ when the agent raises the bar, amber ▼ on relief
+      const up = pct > prevPct;
+      this.levelText.setColor(up ? '#16a34a' : '#d97706');
+      this.time.delayedCall(650, () => this.levelText?.setColor('#2f86d6'));
+      if (this.trendTx) {
+        this.trendTx.setText(up ? '▲' : '▼').setColor(up ? '#16a34a' : '#d97706').setAlpha(1);
+        this.tweens.add({ targets: this.trendTx, alpha: 0, y: up ? 32 : 48, duration: 700,
+          onComplete: () => this.trendTx.setY(40) });
+      }
+    }
+
+    // Internal ladder level — unlocks shape variety & disguise; celebrate rises.
     const newLevel = levelFromD(this.difficulty01);
     if (newLevel > this.level) {
       this.level = newLevel;
-      this.levelText?.setText(String(this.level));
       this.showBigFeedback(this.labels.levelUp.replace('{n}', String(this.level)), '#2f86d6');
     } else if (newLevel < this.level) {
       this.level = newLevel;               // eased down by the agent — no fanfare
-      this.levelText?.setText(String(this.level));
     }
     this.updateLevelBar();
   }
@@ -204,13 +223,18 @@ class ShapesScene extends Phaser.Scene {
       fontSize: '26px', fontFamily: 'Arial Black', color: '#1c3a45',
     }).setOrigin(0.5).setDepth(10);
 
-    // Level
+    // Difficulty meter — a continuous gauge of the agent's live difficulty D,
+    // with a ▲/▼ flash on every change so the player FEELS the system adapting
+    // (a static "level 3" told them nothing).
     this.levelLabel = this.add.text(W / 2, 18, this.labels.level, { fontSize: '11px', color: '#5a7fa8', fontFamily: 'Arial' }).setOrigin(0.5).setDepth(10);
-    this.levelText = this.add.text(W / 2, 40, String(this.level), {
+    this.levelText = this.add.text(W / 2, 40, `${Math.round(this.difficulty01 * 100)}%`, {
       fontSize: '22px', fontFamily: 'Arial Black', color: '#2f86d6',
     }).setOrigin(0.5).setDepth(10);
+    this.trendTx = this.add.text(W / 2 + 46, 40, '', {
+      fontSize: '16px', fontFamily: 'Arial Black', color: '#16a34a',
+    }).setOrigin(0.5).setDepth(10).setAlpha(0);
 
-    // Level progress bar
+    // Meter fill — the whole 0..1 difficulty range
     const barW = 160;
     this.add.rectangle(W / 2, 62, barW, 8, 0xdbeafe).setDepth(10);
     this.levelBarFill = this.add.rectangle(W / 2 - barW / 2, 62, 0, 8, 0x2f86d6)
@@ -241,11 +265,13 @@ class ShapesScene extends Phaser.Scene {
   }
 
   private updateLevelBar() {
-    // Position within the current level band of the agent's difficulty D.
-    const barW   = 160;
-    const scaled = Phaser.Math.Clamp(this.difficulty01, 0, 1) * (MAX_LEVEL - 1);
-    const progress = Phaser.Math.Clamp(scaled - Math.floor(scaled + 1e-6), 0, 1);
-    this.tweens.add({ targets: this.levelBarFill, width: barW * progress, duration: 250 });
+    // The meter shows the agent's difficulty D across its full range.
+    const barW = 160;
+    this.tweens.add({
+      targets: this.levelBarFill,
+      width: barW * Phaser.Math.Clamp(this.difficulty01, 0, 1),
+      duration: 350, ease: 'Cubic.easeOut',
+    });
   }
 
   // ── Spawning ─────────────────────────────────────────────────────

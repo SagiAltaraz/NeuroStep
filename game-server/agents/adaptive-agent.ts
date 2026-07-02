@@ -429,13 +429,18 @@ function computeP(state: AdaptiveState, tuning: GameTuning): number | null {
     return clamp01(acc - fatiguePenalty(state.reactionWindow));
   }
 
-  // speed-acc: blend accuracy with speed-vs-baseline. Both already live on a
-  // 0..1 "success" scale, so the weighted mean stays interpretable.
+  // speed-acc: accuracy IS the success rate; speed-vs-baseline only PERTURBS it
+  // around neutral (0.5 = playing at your usual pace). Averaging them instead
+  // used to saturate P at the target for a perfect-accuracy player moving at
+  // their normal speed — P = (0.4·1.0 + 0.5·0.5)/0.9 ≈ 0.72 — parking the
+  // controller in its dead-zone forever despite flawless play. Anchoring on
+  // accuracy keeps the target band meaning what it says ("succeed ~72% of the
+  // time"), while faster/slower-than-usual play still nudges P up/down.
   const w     = tuning.weights!;
   const speed = speedScore(state);
   const P = speed === null
-    ? acc                                                   // no baseline yet → accuracy only
-    : (w.acc * acc + w.speed * speed) / (w.acc + w.speed);  // renormalised blend
+    ? acc                                    // no baseline yet → accuracy only
+    : acc + w.speed * (speed - 0.5);         // speed as a ± modifier around par
 
   return clamp01(P - fatiguePenalty(state.reactionWindow));
 }
