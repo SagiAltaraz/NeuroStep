@@ -168,6 +168,15 @@ const HIT_TYPES: Record<string, Set<string>> = {
   'find-letter':     new Set(['LETTER_HIT', 'ROUND_COMPLETE']),
 };
 
+// Coarse per-event classification, shared with the server's in-process session
+// tracker (the Kafka-independent snapshot fallback).
+export function classifyEvent(gameId: string, type: string): 'hit' | 'miss' | 'timeout' | 'neutral' {
+  if (HIT_TYPES[gameId]?.has(type)) return 'hit';
+  if (!SCORED_TYPES[gameId]?.has(type)) return 'neutral';
+  if (type === 'TIMEOUT' || (gameId === 'green-light' && type === 'MISS')) return 'timeout';
+  return 'miss';
+}
+
 // Events that count toward accuracy denominator (hit OR miss).
 const SCORED_TYPES: Record<string, Set<string>> = {
   'shapes-click':    new Set(['CIRCLE_HIT', 'DISTRACTOR_CLICK', 'TIMEOUT']),

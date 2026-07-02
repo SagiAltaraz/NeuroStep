@@ -7,6 +7,7 @@ import SessionResults from '../../components/ui/SessionResults';
 
 export default function ShapesClickPage() {
   const [showInstructions, setShowInstructions] = useState(true);
+  const [exiting, setExiting] = useState(false);
   const { sendEvent, adjustment, coachingMessage, endSession, sessionResult } =
     useGameSession('shapes-click');
 
@@ -14,11 +15,16 @@ export default function ShapesClickPage() {
     return <ShapesClickInstructions onStart={() => setShowInstructions(false)} />;
   }
 
+  // The in-game back button ends the session and shows the results overlay
+  // (the level-up moment). Any other exit — navigation, tab close — is
+  // finalized server-side on disconnect, so progress is never lost.
+  const handleExit = () => { setExiting(true); endSession(); };
+
   return (
     <>
-      <ShapesClick onAction={sendEvent} adjustment={adjustment ?? undefined} />
+      <ShapesClick onAction={sendEvent} adjustment={adjustment ?? undefined} onExit={handleExit} />
       <CoachingToast message={coachingMessage} />
-      <SessionResults result={sessionResult} onFinish={endSession} />
+      <SessionResults result={sessionResult} active={exiting} />
     </>
   );
 }

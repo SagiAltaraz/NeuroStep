@@ -22,8 +22,14 @@ import Avatar from '../journey/Avatar';
 import type { SessionResult } from '../../hooks/useGameSession';
 
 interface Props {
-  result:   SessionResult;
-  onFinish: () => void;
+  result:    SessionResult;
+  /** The exit flow has started (e.g. the in-game back button) — show the
+   *  spinner → summary → report flow. Sessions also finalize server-side on
+   *  ANY disconnect, so progress never depends on this overlay being shown. */
+  active?:   boolean;
+  /** Deprecated — sessions end on exit/disconnect now; kept so existing game
+   *  pages compile unchanged. */
+  onFinish?: () => void;
 }
 
 // Slightly longer than the hook's REPORT_TIMEOUT_MS (12s) so we only show the
@@ -32,36 +38,22 @@ const RESULT_FALLBACK_MS = 13_000;
 
 const fmtPct = (v: number | null) => (v === null ? '—' : `${Math.round(v * 100)}%`);
 
-export default function SessionResults({ result, onFinish }: Props) {
+export default function SessionResults({ result, active = false }: Props) {
   const { t } = useLang();
   const navigate = useNavigate();
 
-  const [finishing, setFinishing] = useState(false);
-  const [timedOut, setTimedOut]   = useState(false);
+  const [timedOut, setTimedOut] = useState(false);
 
-  // Fallback: if the user finished but no summary/report ever arrives (trivial
-  // sub-5-event session, or a stalled pipeline), stop spinning.
+  // Fallback: if the exit flow started but no summary/report ever arrives
+  // (trivial sub-5-event session, or a stalled pipeline), stop spinning.
   useEffect(() => {
-    if (!finishing || result.phase !== 'none') return;
+    if (!active || result.phase !== 'none') return;
     const id = setTimeout(() => setTimedOut(true), RESULT_FALLBACK_MS);
     return () => clearTimeout(id);
-  }, [finishing, result.phase]);
+  }, [active, result.phase]);
 
-  const ended = finishing || result.phase !== 'none';
-
-  if (!ended) {
-    return (
-      <button
-        type="button"
-        onClick={() => { setFinishing(true); onFinish(); }}
-        className="ns-btn-brand ns-display fixed bottom-6 left-1/2 z-40 -translate-x-1/2 rounded-full px-8 py-3
-                   text-base font-semibold text-white shadow-xl ring-1 ring-black/5 transition-transform
-                   hover:scale-105 focus-visible:outline-none focus-visible:ring-4 focus-visible:ring-sky-300"
-      >
-        {t('results.finish')}
-      </button>
-    );
-  }
+  const ended = active || result.phase !== 'none';
+  if (!ended) return null;
 
   const { phase, stats, report } = result;
   const leveledUp = (result.levelChanges ?? []).some((c) => c.delta > 0);

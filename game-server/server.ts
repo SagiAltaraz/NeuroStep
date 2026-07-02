@@ -12,8 +12,9 @@ import { TOPICS }                                           from './kafka/topics
 import { startAdjustmentsConsumer, getAdjustmentsForSession } from './kafka/adjustments-consumer.js';
 import { getSession, initSession, deleteSession }           from './sessions/session-store.js';
 import { processEvent, persistDifficulty, resumeDifficulty,
-         seedLevelFromProfile, applyWarmupSeed }            from './agents/adaptive-agent.js';
+         seedLevelFromProfile, applyWarmupSeed, classifyEvent } from './agents/adaptive-agent.js';
 import { startAnalyticsAgent, getSessionSnapshot }          from './agents/analytics-agent.js';
+import type { SessionSnapshot }                             from './agents/analytics-agent.js';
 import { generateSessionReport, deterministicCognitiveScore,
          computeDomainScores }                              from './agents/report-agent.js';
 import type { AdjustmentRecord }                            from './agents/report-agent.js';
@@ -45,6 +46,33 @@ function safeSend(ws: WebSocket, payload: unknown): void {
 wss.on('connection', (ws: WebSocket) => {
   // Per-connection adjustment log — used by report-agent at session end
   const adjustmentLog: AdjustmentRecord[] = [];
+  // In-process session tracker — the Kafka-INDEPENDENT snapshot source. The
+  // analytics agent (a Kafka consumer) is the primary; if Kafka is down or the
+  // consumer lags, this local tally still lets the report/profile/progression
+  // pipeline finalize the session. The real-time loop was already
+  // Kafka-independent; with this, session finalization is too.
+  const local = {
+    startedAt: 0, lastEventAt: 0,
+    hits: 0, misses: 0, timeouts: 0,
+    streak: 0, peakStreak: 0,
+    reactionTimes: [] as number[],
+  };
+  function localSnapshot(userId: string, gameId: string): SessionSnapshot | undefined {
+    if (!local.startedAt) return undefined;
+    const scored = local.hits + local.misses + local.timeouts;
+    const avg = local.reactionTimes.length
+      ? Math.round(local.reactionTimes.reduce((a, b) => a + b, 0) / local.reactionTimes.length)
+      : 0;
+    return {
+      userId, gameId,
+      durationMs:    Math.max(0, local.lastEventAt - local.startedAt),
+      hits: local.hits, misses: local.misses, timeouts: local.timeouts,
+      accuracy:      scored > 0 ? local.hits / scored : null,
+      avgReactionMs: avg,
+      peakStreak:    local.peakStreak,
+      reactionTimes: local.reactionTimes,
+    };
+  }
   // Guard so the post-session pipeline runs exactly once per connection —
   // whether triggered by an explicit 'end-session' (normal) or 'close' (abandon).
   let finalized = false;
@@ -65,9 +93,16 @@ wss.on('connection', (ws: WebSocket) => {
     // Trivial sessions don't earn a report (too little signal).
     if (session.adaptive.totalScoredEvents < 5) return;
 
-    const snapshot = getSessionSnapshot(session.sessionId);
-    if (!snapshot) return;
     const { sessionId, gameId, userId } = session;
+    // Primary: the analytics agent's Kafka-fed aggregate. Fallback: the
+    // in-process tally, so a Kafka outage never costs the player their
+    // report, profile update or level-up.
+    let snapshot = getSessionSnapshot(sessionId);
+    if (!snapshot) {
+      snapshot = localSnapshot(userId, gameId) ?? null;
+      if (snapshot) console.warn(`[Finalize] Kafka snapshot missing — using in-process fallback | session=${sessionId}`);
+    }
+    if (!snapshot) return;
 
     // Crash-recovery: if the in-memory adjustmentLog was wiped (e.g. server
     // restarted mid-session), fall back to the Kafka-buffered copy.
@@ -214,6 +249,24 @@ wss.on('connection', (ws: WebSocket) => {
       }
     }
 
+    // ── 1b. In-process tally (Kafka-independent snapshot source) ──
+    {
+      const now = Date.now();
+      if (!local.startedAt) local.startedAt = now;
+      local.lastEventAt = now;
+      const kind = classifyEvent(event.gameId, event.type);
+      if (kind === 'hit') {
+        local.hits++; local.streak++;
+        local.peakStreak = Math.max(local.peakStreak, local.streak);
+        const rt = event.reactionMs
+          ?? (typeof event.payload?.reactionMs === 'number' ? event.payload.reactionMs : undefined);
+        if (typeof rt === 'number') local.reactionTimes.push(rt);
+      } else if (kind === 'miss' || kind === 'timeout') {
+        if (kind === 'miss') local.misses++; else local.timeouts++;
+        local.streak = 0;
+      }
+    }
+
     // ── 2. Write to Kafka (fire-and-forget) ──────────────────────
     // Audit/analytics only — never block the real-time adaptive loop on the
     // Kafka produce. A slow or degraded broker must not add latency to
@@ -318,12 +371,14 @@ wss.on('connection', (ws: WebSocket) => {
   });
 
   ws.on('close', () => {
-    // Abandon path: browser closed / navigated away / dropped connection. If the
-    // session already finalized normally via 'end-session', this is a no-op.
-    // Otherwise persist report/baseline/alert/difficulty for caregivers — no
-    // gamification, no push. NOTE: finalizeSession runs synchronously up to its
-    // first await, so the snapshot/session are captured before deleteSession().
-    finalizeSession({ withGamification: false, push: false })
+    // ANY exit ends the session for real: back button, navigating home/games,
+    // or closing the tab. If it already finalized via 'end-session' this is a
+    // no-op; otherwise run the FULL pipeline — report, profile, progression,
+    // level-up — so the player's progress never depends on pressing a button.
+    // (push: false — the socket is gone; the journey map reflects it next load.)
+    // NOTE: finalizeSession runs synchronously up to its first await, so the
+    // snapshot/session are captured before deleteSession().
+    finalizeSession({ withGamification: true, push: false })
       .catch(err => console.error('[Finalize:abandon]', (err as Error).message));
     deleteSession(ws);
   });
