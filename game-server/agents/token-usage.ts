@@ -21,7 +21,7 @@
 import { FieldValue } from 'firebase-admin/firestore';
 import { getDb }      from '../firebase.js';
 
-export type LlmAgent = 'report' | 'coach' | 'coaching' | 'chat';
+export type LlmAgent = 'report' | 'coach' | 'coaching' | 'chat' | 'director';
 
 export interface ClaudeUsage {
   input_tokens:  number;

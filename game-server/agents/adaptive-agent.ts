@@ -25,7 +25,7 @@ import { mean, standardDeviation, linearRegression } from 'simple-statistics';
 import { getDb }                                      from '../firebase.js';
 import type { DifficultyParams, GameId }              from '../types/game.types.js';
 import { GAME_DOMAINS }                               from '../types/domains.js';
-import { CROSSGAME_TUNING }                           from './progression.config.js';
+import { CROSSGAME_TUNING, LIVEMODEL_TUNING }         from './progression.config.js';
 
 // ── Controller config ───────────────────────────────────────────────────────────
 
@@ -63,6 +63,11 @@ export interface AdaptiveState {
   // Outcome window for 'outcome' games (win=1, draw=0.5, loss=0, last 8)
   outcomeWindow:  number[];
 
+  // Full-session scored-event stream for the live player model (capped at
+  // LIVEMODEL_TUNING.MAX_EVENTS). Feeds computeLiveFeatures — impulsivity,
+  // hesitation, error recovery, fatigue onset — in live-model.ts.
+  featureEvents: { kind: 'hit' | 'miss' | 'timeout'; rt: number | null }[];
+
   // Cadence / throttle
   lastAdjustAt:      number;
   totalScoredEvents: number;
@@ -81,6 +86,7 @@ export function createAdaptiveState(sessionId: string, gameId: GameId, userId: s
     reactionWindow: [],
     accuracyWindow: [],
     outcomeWindow:  [],
+    featureEvents:  [],
     lastAdjustAt:      0,
     totalScoredEvents: 0,
     lastEvalCount:     0,
@@ -343,6 +349,12 @@ export async function processEvent(state: AdaptiveState, event: AdaptiveEvent): 
   // this lazy call is the fallback path when it didn't.
   await ensureProfileLoaded(state);
 
+  // Record one scored event into the live player-model stream (capped).
+  const recordFeature = (kind: 'hit' | 'miss' | 'timeout', rt: number | null) => {
+    if (state.featureEvents.length >= LIVEMODEL_TUNING.MAX_EVENTS) return;
+    state.featureEvents.push({ kind, rt });
+  };
+
   // ── Ingest the event per scoring mode ──────────────────────────
   if (tuning.pMode === 'outcome') {
     // Only completed games drive the controller; individual moves are ignored.
@@ -350,12 +362,18 @@ export async function processEvent(state: AdaptiveState, event: AdaptiveEvent): 
     else if (event.type === 'GAME_DRAW') state.outcomeWindow.push(0.5);
     else return { adjusted: false };
     if (state.outcomeWindow.length > (tuning.outcomeWindow ?? 8)) state.outcomeWindow.shift();
+    // Outcome games map to the feature stream coarsely: a loss is the "error".
+    recordFeature(event.type === 'GAME_WON' && event.winner === 'ai' ? 'miss' : 'hit', null);
     state.totalScoredEvents++;
   } else {
     if (!scoredTypes.has(event.type)) return { adjusted: false };
     state.totalScoredEvents++;
 
     const isHit = hitTypes.has(event.type);
+    recordFeature(
+      isHit ? 'hit' : classifyEvent(state.gameId, event.type) === 'timeout' ? 'timeout' : 'miss',
+      isHit && event.reactionMs && event.reactionMs > 0 && event.reactionMs < 10_000 ? event.reactionMs : null,
+    );
     state.accuracyWindow.push(isHit);
     if (state.accuracyWindow.length > ACCURACY_WINDOW) state.accuracyWindow.shift();
 

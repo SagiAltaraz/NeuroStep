@@ -6,6 +6,7 @@ config({ path: resolve(dirname(fileURLToPath(import.meta.url)), '../backend/.env
 
 import { WebSocketServer, WebSocket }                        from 'ws';
 import type { GameEvent, GameId }                           from './types/game.types.js';
+import { GAME_DOMAINS }                                     from './types/domains.js';
 import { connectProducer, disconnectProducer,
          sendToKafka, sendGameEvent }                       from './kafka/producer.js';
 import { TOPICS }                                           from './kafka/topics.js';
@@ -29,6 +30,9 @@ import { updateProgression }                                from './agents/progr
 import type { LevelChange, ProgressionResult }              from './agents/progression.js';
 import { isMilestone }                                      from './agents/milestone.js';
 import { startTokenWatcher }                                from './agents/token-watcher.js';
+import { flushLiveModel, currentFingerprint }               from './agents/live-model.js';
+import { updateTrainingPlan }                               from './agents/planner-agent.js';
+import { runDirector, loadDomainSnapshots }                 from './agents/director-agent.js';
 
 // ── WebSocket server ───────────────────────────────────────────────────────────
 
@@ -135,6 +139,14 @@ wss.on('connection', (ws: WebSocket) => {
     const cognitiveScore = deterministicCognitiveScore(snapshot, session.adaptive);
     const domainScores   = computeDomainScores(cognitiveScore, gameId);
 
+    // 2b. Final live-model flush — the session's behavioral fingerprint
+    //     (impulsivity, hesitation, recovery, fatigue, chosen path) lands in
+    //     users/{uid}/liveModel/{gameId} exactly as the session ended, and the
+    //     playstyle tags ride into the cognitive profile below.
+    flushLiveModel(session.adaptive, { force: true })
+      .catch(err => console.error('[LiveModel] final flush:', (err as Error).message));
+    const { tags: playstyleTags } = currentFingerprint(session.adaptive);
+
     // 3. Gamification — only on a normal game-over. Profile → progression →
     //    alerts run BEFORE the report so we know whether this session is a
     //    milestone worth a Claude-written narrative.
@@ -142,12 +154,31 @@ wss.on('connection', (ws: WebSocket) => {
     let milestone = false;
     if (opts.withGamification) {
       try {
-        const profileRes: ProfileUpdateResult[] = await updateCognitiveProfile(userId, gameId, domainScores);
+        const profileRes: ProfileUpdateResult[] = await updateCognitiveProfile(userId, gameId, domainScores, playstyleTags);
         progRes = await updateProgression(userId, profileRes);
         const alertFired = await checkAlerts(userId, gameId, snapshot)
           .catch(err => { console.error('[Alert]', (err as Error).message); return false; });
         const levelChanges: LevelChange[] = progRes.levelChanges;
         milestone = isMilestone({ gameId, profileUpdates: profileRes, levelChanges, alertTriggered: alertFired });
+
+        // 3b. Rebuild the training plan from the (now enriched) profile —
+        //     fire-and-forget so it never delays the results push.
+        updateTrainingPlan(userId)
+          .catch(err => console.error('[Planner]', (err as Error).message));
+
+        // 3c. Director — milestone sessions only (the LLM cadence lives with
+        //     the report narrative's). Advisory JSON + prompt snapshot; any
+        //     failure simply means "no advice this session".
+        if (milestone) {
+          loadDomainSnapshots(userId)
+            .then(domains => runDirector({
+              sessionId, userId, gameId,
+              adaptive: session.adaptive,
+              domains,
+              sessionsTotal: profileRes.find(p => p.domainId === GAME_DOMAINS[gameId].primary)?.sessionsCount,
+            }))
+            .catch(err => console.error('[Director]', (err as Error).message));
+        }
       } catch (err) {
         console.error('[Gamification]', (err as Error).message);
       }
@@ -306,6 +337,12 @@ wss.on('connection', (ws: WebSocket) => {
           events:   session.adaptive.totalScoredEvents,
         }));
       }
+
+      // Live player-model snapshot — throttled inside flushLiveModel (min 15s
+      // between writes) and fire-and-forget, so the real-time loop never waits
+      // on Firestore. This is the "prompt data" agents read mid-session.
+      flushLiveModel(session.adaptive)
+        .catch(err => console.error('[LiveModel]', (err as Error).message));
     }
 
     if (!result.adjusted || !result.params) return;

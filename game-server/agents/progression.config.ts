@@ -14,6 +14,11 @@ export const PROFILE_TUNING = {
   ALPHA_MAX:          0.5,    // cap on the boosted alpha
   TREND_THRESHOLD:    3,      // level delta over the recent window to call up/down
   TREND_WINDOW:       5,      // number of recent domain scores kept for trend
+  // ── Longitudinal health signals (player-model phase) ──────────────────────
+  PLATEAU_EPSILON:        1,    // level gain ≤ this counts as "no improvement"
+  DETERIORATION_DROP:     8,    // level points below bestLevel to consider decline
+  MIN_CONFIDENCE_TO_FLAG: 0.6,  // never flag deterioration on a shaky profile
+  TIMELINE_MAX_POINTS:    120,  // per-domain time-series cap (~2 years at 5/month)
 } as const;
 
 export const PROGRESSION_TUNING = {
@@ -47,6 +52,35 @@ export const COACHING_TUNING = {
 // difficulty from the cognitive-profile levels of the domains it trains, instead
 // of the cold-start default. The user's ability lives at the DOMAIN level, so a
 // strong working-memory profile should make a new memory game start non-trivial.
+// ── Live player model (behavioral fingerprint) ─────────────────────────────
+// The in-session feature extractor + deterministic path director. Firestore
+// gets a throttled snapshot (never one write per event) at users/{uid}/
+// liveModel/{gameId}; the numbers here shape both the features and the paths.
+export const LIVEMODEL_TUNING = {
+  FLUSH_MIN_INTERVAL_MS: 15_000, // min gap between Firestore snapshots
+  MAX_EVENTS:            300,    // per-session feature-event cap (memory bound)
+  SLOW_HIT_SIGMA:        1.0,    // hit slower than mean + σ·this counts as hesitant
+  MIN_RT_SAMPLES:        5,      // RT-derived features need at least this many hits
+  FATIGUE_WINDOW:        8,      // rolling regression window for fatigue onset
+  FATIGUE_SLOPE_MS:      12,     // ms/event slope that marks fatigue onset
+  // Deterministic path thresholds (chooseTrainingPath)
+  PATH_RECOVER_ACC:      0.45,   // below this accuracy → confidence-building mode
+  PATH_IMPULSIVE_RATE:   0.25,   // commission-error share → train inhibition
+  PATH_HESITANT_RATE:    0.30,   // hesitation share → gentle time pressure
+  PATH_MASTERY_ACC:      0.85,   // above this and stable → raise the load
+} as const;
+
+// ── Training plan (planner-agent) ───────────────────────────────────────────
+// Deterministic prescription rebuilt after every finalized session: which
+// abilities to focus, which games train them, and where to warm-start each.
+export const PLANNER_TUNING = {
+  MIN_CONFIDENCE:    0.4,        // ignore domains we barely know
+  FOCUS_COUNT:       2,          // abilities per plan
+  GAMES_MAX:         3,          // recommended games cap
+  SESSIONS_PER_WEEK: 3,          // weekly goal target
+  REVIEW_DAYS:       7,          // nextReviewAt horizon
+} as const;
+
 export const CROSSGAME_TUNING = {
   WARMUP_FACTOR:  0.85,  // damp the transferred level a touch (game-specific skill ≠ ability)
   MIN_CONFIDENCE: 0.4,   // ignore domains we are not yet confident about
