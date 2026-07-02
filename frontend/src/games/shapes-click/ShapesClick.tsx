@@ -39,8 +39,24 @@ const MAX_LEVEL    = 8;
 
 const CIRCLE_COLORS = [0xe11d48, 0x7c3aed, 0x0284c7, 0x059669, 0xd97706, 0xdb2777];
 
-type DistractorShape = 'square' | 'triangle' | 'diamond' | 'pentagon';
-const DISTRACTOR_SHAPES: DistractorShape[] = ['square', 'triangle', 'diamond', 'pentagon'];
+type DistractorShape =
+  | 'square' | 'triangle' | 'rectangle' | 'diamond'
+  | 'pentagon' | 'hexagon' | 'star' | 'octagon';
+
+// Shape variety unlocks GRADUALLY with the level — early levels see only
+// simple, clearly-not-a-circle shapes; the many-sided ones (hexagon, octagon —
+// which reads almost like a circle) are saved for the top levels, where they
+// force real shape discrimination. Count stays DDA-owned (see spawnCircle).
+const SHAPE_LADDER: { type: DistractorShape; minLevel: number }[] = [
+  { type: 'square',    minLevel: 1 },
+  { type: 'triangle',  minLevel: 1 },
+  { type: 'rectangle', minLevel: 2 },
+  { type: 'diamond',   minLevel: 3 },
+  { type: 'pentagon',  minLevel: 4 },
+  { type: 'hexagon',   minLevel: 5 },
+  { type: 'star',      minLevel: 6 },
+  { type: 'octagon',   minLevel: 7 },
+];
 
 // ─── Phaser Scene ─────────────────────────────────────────────────
 
@@ -211,9 +227,21 @@ class ShapesScene extends Phaser.Scene {
   }
 
   // ── Spawning ─────────────────────────────────────────────────────
+
+  // Control model — one owner per difficulty axis, so nothing double-dips:
+  //   • SPEED (circleLifeMs)  → the DDA agent, per-player, in real time.
+  //   • COUNT (distractorCount) → the DDA agent as well.
+  //   • PACE (wait between rounds) → derived from the DDA speed below, so the
+  //     rhythm tightens together with the player's calculated difficulty.
+  //   • VARIETY + DISGUISE (which shapes, colors) → the in-session level,
+  //     giving a visible sense of progression without fighting the DDA.
+  private nextSpawnDelay(): number {
+    return Phaser.Math.Clamp(Math.round(this.cfg.circleLifeMs * 0.33), 450, 1100);
+  }
+
   private scheduleNextSpawn(delay?: number) {
     this.waitDot.setAlpha(0.3);
-    this.time.delayedCall(delay ?? this.cfg.spawnIntervalMs, this.spawnCircle, [], this);
+    this.time.delayedCall(delay ?? this.nextSpawnDelay(), this.spawnCircle, [], this);
   }
 
   private spawnCircle() {
@@ -226,11 +254,20 @@ class ShapesScene extends Phaser.Scene {
 
     this.circleContainer = this.buildCircle(x, y);
 
+    // Variety by level: only shapes unlocked at the current level may appear,
+    // and at high levels one guaranteed "near-circle" confuser joins the round.
+    const unlocked = SHAPE_LADDER.filter(s => s.minLevel <= this.level).map(s => s.type);
+    const shapeTypes: DistractorShape[] = Array.from({ length: distractorCount },
+      () => Phaser.Utils.Array.GetRandom(unlocked) as DistractorShape);
+    if (this.level >= 5 && shapeTypes.length >= 2) {
+      shapeTypes[0] = unlocked[unlocked.length - 1];   // hardest unlocked shape
+    }
+
     const placed: { x: number; y: number }[] = [{ x, y }];
-    for (let i = 0; i < distractorCount; i++) {
+    for (const type of shapeTypes) {
       const pos = this.findFreePos(placed, W, H);
       placed.push(pos);
-      this.distractors.push(this.buildDistractor(pos.x, pos.y));
+      this.distractors.push(this.buildDistractor(pos.x, pos.y, type));
     }
 
     this.isCircleActive  = true;
@@ -240,7 +277,7 @@ class ShapesScene extends Phaser.Scene {
       delay: this.cfg.circleLifeMs, callback: this.onTimeout, callbackScope: this,
     });
 
-    this.fireAction('ROUND_START', { level: this.level, distractorCount });
+    this.fireAction('ROUND_START', { level: this.level, distractorCount, shapeTypes });
   }
 
   private findFreePos(placed: { x: number; y: number }[], W: number, H: number) {
@@ -276,18 +313,33 @@ class ShapesScene extends Phaser.Scene {
     });
   }
 
+  private regularPoly(sides: number, half: number): { x: number; y: number }[] {
+    return Array.from({ length: sides }, (_, i) => {
+      const a = (i * Math.PI * 2) / sides - Math.PI / 2;
+      return { x: Math.cos(a) * half, y: Math.sin(a) * half };
+    });
+  }
+
   private polyPoints(type: DistractorShape, half: number): { x: number; y: number }[] {
     switch (type) {
       case 'square':
         return [{ x: -half, y: -half }, { x: half, y: -half }, { x: half, y: half }, { x: -half, y: half }];
+      case 'rectangle': {
+        const w = half * 1.3, h = half * 0.72;
+        return [{ x: -w, y: -h }, { x: w, y: -h }, { x: w, y: h }, { x: -w, y: h }];
+      }
       case 'triangle':
         return [{ x: 0, y: -half }, { x: half, y: half }, { x: -half, y: half }];
       case 'diamond':
         return [{ x: 0, y: -half }, { x: half, y: 0 }, { x: 0, y: half }, { x: -half, y: 0 }];
-      case 'pentagon':
-        return Array.from({ length: 5 }, (_, i) => {
-          const a = (i * Math.PI * 2) / 5 - Math.PI / 2;
-          return { x: Math.cos(a) * half, y: Math.sin(a) * half };
+      case 'pentagon': return this.regularPoly(5, half);
+      case 'hexagon':  return this.regularPoly(6, half);
+      case 'octagon':  return this.regularPoly(8, half);   // reads almost like a circle
+      case 'star':
+        return Array.from({ length: 10 }, (_, i) => {
+          const a = (i * Math.PI) / 5 - Math.PI / 2;
+          const r = i % 2 === 0 ? half : half * 0.48;
+          return { x: Math.cos(a) * r, y: Math.sin(a) * r };
         });
     }
   }
@@ -321,10 +373,9 @@ class ShapesScene extends Phaser.Scene {
     return c;
   }
 
-  private buildDistractor(x: number, y: number): Phaser.GameObjects.Container {
+  private buildDistractor(x: number, y: number, type: DistractorShape): Phaser.GameObjects.Container {
     const c    = this.add.container(x, y).setDepth(6);
     const g    = this.add.graphics();
-    const type = Phaser.Utils.Array.GetRandom(DISTRACTOR_SHAPES) as DistractorShape;
     const tier = this.confusionTier();
 
     // Size grows with the tier until it matches the circle's visual weight.
