@@ -408,6 +408,12 @@ async function start() {
   );
 }
 
+// Resilience: a single bad event / missing credential / stray rejection must
+// never take down the real-time difficulty loop for every connected player.
+// Log loudly and keep serving.
+process.on('unhandledRejection', (err) => console.error('[GameServer] Unhandled rejection:', err));
+process.on('uncaughtException',  (err) => console.error('[GameServer] Uncaught exception:', err));
+
 process.on('SIGINT', async () => {
   await disconnectProducer();
   wss.close();

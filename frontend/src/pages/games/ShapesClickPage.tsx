@@ -8,7 +8,7 @@ import SessionResults from '../../components/ui/SessionResults';
 export default function ShapesClickPage() {
   const [showInstructions, setShowInstructions] = useState(true);
   const [exiting, setExiting] = useState(false);
-  const { sendEvent, adjustment, coachingMessage, endSession, sessionResult } =
+  const { sendEvent, adjustment, coachingMessage, endSession, sessionResult, isConnected } =
     useGameSession('shapes-click');
 
   if (showInstructions) {
@@ -23,6 +23,15 @@ export default function ShapesClickPage() {
   return (
     <>
       <ShapesClick onAction={sendEvent} adjustment={adjustment ?? undefined} onExit={handleExit} />
+      {!isConnected && (
+        <div
+          dir="rtl"
+          className="fixed bottom-4 right-4 z-40 rounded-full bg-amber-50 px-4 py-2 text-sm font-semibold text-amber-800 ring-1 ring-amber-200"
+          role="status"
+        >
+          ⚠️ מנוע ההתאמה מנותק — המשחק רץ ללא שינוי רמה בזמן אמת
+        </div>
+      )}
       <CoachingToast message={coachingMessage} />
       <SessionResults result={sessionResult} active={exiting} />
     </>
