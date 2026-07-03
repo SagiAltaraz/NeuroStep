@@ -50,6 +50,38 @@
   -webkit-user-drag: none;
   user-select: none;
 }
+
+/* transparent-video mascot (AvatarClip) — same footprint as the PNG. The two
+   buffered <video>s stack; AvatarClip cross-fades their opacity on clip swap. */
+.companion-video {
+  position: relative;
+  width: 132px;
+  height: 132px;
+}
+.companion-video video {
+  position: absolute;
+  inset: 0;
+  width: 100%;
+  height: 100%;
+  object-fit: contain;
+  transition: opacity 180ms ease;
+  pointer-events: none;
+}
+.companion--game .companion-video { width: 100px; height: 100px; }
+
+/* jetpack flight — a wider, livelier patrol of the right gutter. Overrides the
+   gentle cm-roam while flying; the landing glide back is driven inline from JS
+   so it stays in sync with the clip's descent. */
+.companion.companion--flying {
+  animation: cm-fly 18s ease-in-out infinite alternate;
+}
+@keyframes cm-fly {
+  0%   { transform: translate(0px, 0vh); }
+  25%  { transform: translate(-14px, -26vh); }
+  50%  { transform: translate(8px, -44vh); }
+  75%  { transform: translate(-10px, -18vh); }
+  100% { transform: translate(2px, -38vh); }
+}
 .companion-char:hover { animation-play-state: paused; }
 @keyframes cm-wobble {
   0%, 100% { transform: translateY(0) rotate(0deg); }
