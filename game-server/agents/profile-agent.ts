@@ -39,6 +39,12 @@ export interface ProfileState {
    sessionsCount: number;
    trend: Trend;
    lastDomainScores: number[];
+   // ── Longitudinal health signals (player-model phase) ────────────────────
+   volatility: number; // std-dev of the recent score window (0 = steady)
+   plateauCount: number; // consecutive sessions without real level gain
+   deteriorationFlag: boolean; // meaningfully below peak AND trending down
+   bestLevel: number; // peak level ever reached
+   bestAt: number; // timestamp of that peak (0 = unknown/legacy)
 }
 
 // Returned to the progression step so it knows which domains moved.
@@ -66,10 +72,11 @@ export function computeTrend(scores: number[], tuning = PROFILE_TUNING): Trend {
 // session. High volatility = unstable performance (a health signal on its own,
 // and a reason to trust single-session dips less).
 export function computeVolatility(scores: number[]): number {
-  if (scores.length < 3) return 0;
-  const m = scores.reduce((a, b) => a + b, 0) / scores.length;
-  const variance = scores.reduce((a, b) => a + (b - m) ** 2, 0) / scores.length;
-  return Math.round(Math.sqrt(variance) * 10) / 10;
+   if (scores.length < 3) return 0;
+   const m = scores.reduce((a, b) => a + b, 0) / scores.length;
+   const variance =
+      scores.reduce((a, b) => a + (b - m) ** 2, 0) / scores.length;
+   return Math.round(Math.sqrt(variance) * 10) / 10;
 }
 
 // Fold one new domain score into a domain's profile. `prev === null` = cold start.
@@ -79,20 +86,27 @@ export function computeProfileUpdate(
    prev: ProfileState | null,
    domainScore: number,
    weight: number,
-   tuning = PROFILE_TUNING
+   tuning = PROFILE_TUNING,
+   now: number = Date.now()
 ): ProfileState {
    // Cold start — first ever score for this domain seeds the EMA directly, so the
    // stored level reflects the player's ability. (The per-session "ease-in" lives
    // in the adaptive warm-up, which starts each session a touch BELOW this level
    // and ramps up to it — see RESUME_FACTOR in adaptive-agent.)
    if (prev === null) {
+      const level = Math.round(domainScore);
       return {
          _ema: domainScore,
-         level: Math.round(domainScore),
+         level,
          confidence: Math.min(1, 1 / tuning.WARMUP_SESSIONS),
          sessionsCount: 1,
          trend: 'stable',
          lastDomainScores: [domainScore],
+         volatility: 0,
+         plateauCount: 0,
+         deteriorationFlag: false,
+         bestLevel: level,
+         bestAt: now,
       };
    }
 
@@ -113,7 +127,39 @@ export function computeProfileUpdate(
    );
    const trend = computeTrend(lastDomainScores, tuning);
 
-   return { _ema, level, confidence, sessionsCount, trend, lastDomainScores };
+   // ── Longitudinal health signals ─────────────────────────────────────────
+   const volatility = computeVolatility(lastDomainScores);
+
+   // Plateau: no REAL gain this session (≤ epsilon). Any true climb resets it.
+   const plateauCount =
+      level > prev.level + tuning.PLATEAU_EPSILON ? 0 : prev.plateauCount + 1;
+
+   // Peak tracking — never decays; deterioration is judged against it.
+   const bestLevel = Math.max(prev.bestLevel, level);
+   const bestAt = level > prev.bestLevel ? now : prev.bestAt;
+
+   // Deterioration: meaningfully below the personal peak with NO sign of
+   // recovery (still falling, or stuck low — both are the sustained pattern a
+   // caregiver should watch), on a profile we actually trust. Clears the moment
+   // the trend turns up. Never a single-session verdict.
+   const deteriorationFlag =
+      confidence >= tuning.MIN_CONFIDENCE_TO_FLAG &&
+      bestLevel - level >= tuning.DETERIORATION_DROP &&
+      trend !== 'up';
+
+   return {
+      _ema,
+      level,
+      confidence,
+      sessionsCount,
+      trend,
+      lastDomainScores,
+      volatility,
+      plateauCount,
+      deteriorationFlag,
+      bestLevel,
+      bestAt,
+   };
 }
 
 // ── Firestore wrapper ────────────────────────────────────────────────────────
@@ -133,6 +179,12 @@ function readProfileState(d: Record<string, unknown>): ProfileState {
       lastDomainScores: Array.isArray(d.lastDomainScores)
          ? d.lastDomainScores.filter((x): x is number => typeof x === 'number')
          : [],
+      // v1 → v2 defaults: legacy docs seed the peak from their current level.
+      volatility: num(d.volatility, 0),
+      plateauCount: num(d.plateauCount, 0),
+      deteriorationFlag: d.deteriorationFlag === true,
+      bestLevel: num(d.bestLevel, level),
+      bestAt: num(d.bestAt, 0),
    };
 }
 
@@ -142,30 +194,41 @@ function readProfileState(d: Record<string, unknown>): ProfileState {
 // read-modify-write per touched domain per session (2-3 per session), cheap.
 
 async function appendTimelinePoint(
-  userId: string, domainId: ProblemId,
-  point: { t: number; level: number; score: number; confidence: number },
+   userId: string,
+   domainId: ProblemId,
+   point: { t: number; level: number; score: number; confidence: number }
 ): Promise<void> {
-  const ref = getDb().collection('users').doc(userId).collection('timeline').doc(domainId);
-  try {
-    const snap   = await ref.get();
-    const prev   = snap.exists ? (snap.data()?.points as unknown) : [];
-    const points = Array.isArray(prev) ? prev : [];
-    points.push(point);
-    await ref.set({
-      domainId,
-      points:    points.slice(-PROFILE_TUNING.TIMELINE_MAX_POINTS),
-      updatedAt: point.t,
-      v:         PROFILE_SCHEMA_VERSION,
-    });
-  } catch (err) {
-    console.error(`[Timeline] ${userId}/${domainId}:`, (err as Error).message);
-  }
+   const ref = getDb()
+      .collection('users')
+      .doc(userId)
+      .collection('timeline')
+      .doc(domainId);
+   try {
+      const snap = await ref.get();
+      const prev = snap.exists ? (snap.data()?.points as unknown) : [];
+      const points = Array.isArray(prev) ? prev : [];
+      points.push(point);
+      await ref.set({
+         domainId,
+         points: points.slice(-PROFILE_TUNING.TIMELINE_MAX_POINTS),
+         updatedAt: point.t,
+         v: PROFILE_SCHEMA_VERSION,
+      });
+   } catch (err) {
+      console.error(
+         `[Timeline] ${userId}/${domainId}:`,
+         (err as Error).message
+      );
+   }
 }
 
 export async function updateCognitiveProfile(
    userId: string,
    gameId: GameId,
-   domainScores: Record<ProblemId, number>
+   domainScores: Record<ProblemId, number>,
+   // Behavior tags observed THIS session (from the live player model) — persisted
+   // on every touched domain so the planner/Director can read style with ability.
+   playstyleTags: string[] = []
 ): Promise<ProfileUpdateResult[]> {
    if (userId === 'anonymous') return [];
 
@@ -192,7 +255,13 @@ export async function updateCognitiveProfile(
          const prev = snap.exists
             ? readProfileState(snap.data() as Record<string, unknown>)
             : null;
-         const next = computeProfileUpdate(prev, score, weight);
+         const next = computeProfileUpdate(
+            prev,
+            score,
+            weight,
+            PROFILE_TUNING,
+            now
+         );
 
          await ref.set(
             {
@@ -203,6 +272,13 @@ export async function updateCognitiveProfile(
                sessionsCount: next.sessionsCount,
                trend: next.trend,
                lastDomainScores: next.lastDomainScores,
+               // Longitudinal health signals (v2) — the improvement/decline machinery.
+               volatility: next.volatility,
+               plateauCount: next.plateauCount,
+               deteriorationFlag: next.deteriorationFlag,
+               bestLevel: next.bestLevel,
+               bestAt: next.bestAt,
+               playstyleTags,
                // sourceGames: which games have fed this domain, and where each left off.
                // The documented basis for cross-game transfer (D4) — a domain's level is
                // shared, but the games that built it are tracked here for explainability.
@@ -215,6 +291,15 @@ export async function updateCognitiveProfile(
             },
             { merge: true }
          );
+
+         // Timeline point — the long-term graph datum. Fire-and-forget; a failed
+         // point must never cost the player their profile update.
+         appendTimelinePoint(userId, domainId, {
+            t: now,
+            level: next.level,
+            score,
+            confidence: next.confidence,
+         }).catch(() => {});
 
          results.push({
             domainId,
