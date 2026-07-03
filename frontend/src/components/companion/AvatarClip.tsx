@@ -11,8 +11,14 @@
  * (celebrate → idle, jet-launch → jet-cruise, jet-land → open chat).
  * If the browser can't play either format, onFail lets the parent fall back
  * to the static PNG poses.
+ *
+ * NOTE on error handling: browsers fire an `error` event every time they SKIP
+ * an unsupported <source> (e.g. Chrome skipping the HEVC MOV on its way to the
+ * WebM). Those are benign — the element-level `video.error` stays null. Only a
+ * non-null MediaError means the whole buffer truly failed; that is the only
+ * signal we count toward the PNG fallback, and any successful load resets it.
  */
-import { useEffect, useRef, useState } from 'react';
+import { useCallback, useEffect, useRef, useState } from 'react';
 
 export type ClipName =
    | 'idle'
@@ -43,42 +49,62 @@ interface Props {
 }
 
 export default function AvatarClip({ clip, className, onEnded, onFail }: Props) {
-   // Two buffers; `active` is the visible one, the other preloads the next clip.
+   // Two buffers; `active` is the visible one, the other stages the next clip.
    const [slots, setSlots] = useState<(ClipName | null)[]>([clip, null]);
    const [active, setActive] = useState(0);
    const vidA = useRef<HTMLVideoElement>(null);
    const vidB = useRef<HTMLVideoElement>(null);
-   const errors = useRef(0);
-
+   const realFailures = useRef(0);
    const refs = [vidA, vidB];
 
-   // A new clip was requested → stage it in the hidden buffer.
+   const swapTo = useCallback(
+      (idx: number) => {
+         const vid = refs[idx === 0 ? 0 : 1].current;
+         if (!vid) return;
+         try { vid.currentTime = 0; } catch { /* not seekable yet */ }
+         vid.play().catch(() => {});
+         setActive(idx);
+         const old = refs[idx === 0 ? 1 : 0].current;
+         setTimeout(() => old?.pause(), FADE_MS + 60);
+      },
+      // refs are stable
+      // eslint-disable-next-line react-hooks/exhaustive-deps
+      [],
+   );
+
+   // A new clip was requested → stage it in the hidden buffer, or — if that
+   // buffer already holds this clip from an earlier cycle (same key, so no
+   // remount and no fresh loadeddata event) — swap to it right away.
    useEffect(() => {
       if (slots[active] === clip) return;
       const hidden = 1 - active;
+      if (slots[hidden] === clip) {
+         const vid = refs[hidden].current;
+         if (vid && vid.readyState >= 2) swapTo(hidden);
+         else vid?.load(); // reload → loadeddata → handleReady swaps
+         return;
+      }
       setSlots((s) => {
          const next = [...s];
          next[hidden] = clip;
          return next;
       });
-      // the swap happens in handleReady once the hidden video can play
+      // eslint-disable-next-line react-hooks/exhaustive-deps
    }, [clip, active, slots]);
 
    const handleReady = (idx: number) => {
-      // Swap only when the buffer that just became ready holds the requested clip.
+      realFailures.current = 0; // a working load proves video support
       if (idx === active || slots[idx] !== clip) return;
-      const vid = refs[idx].current;
-      vid?.play().catch(() => {});
-      setActive(idx);
-      // pause the old buffer after the fade completes (saves CPU)
-      const old = refs[1 - idx].current;
-      setTimeout(() => old?.pause(), FADE_MS + 60);
+      swapTo(idx);
    };
 
-   const handleError = () => {
-      // Both sources of a buffer failed → count; two dead buffers = no video support.
-      errors.current += 1;
-      if (errors.current >= 2) onFail?.();
+   const handleError = (e: React.SyntheticEvent<HTMLVideoElement>) => {
+      const v = e.currentTarget;
+      // Benign source-skip (e.g. Chrome passing over the HEVC MOV): the element
+      // keeps loading and video.error stays null — ignore it.
+      if (!v.error) return;
+      realFailures.current += 1;
+      if (realFailures.current >= 2) onFail?.();
    };
 
    return (
