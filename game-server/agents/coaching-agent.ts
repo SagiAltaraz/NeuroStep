@@ -48,12 +48,18 @@ const GAME_NAMES: Record<GameId, string> = {
 // server can serve fallbacks directly for the (many) adjustments that don't
 // warrant the one Claude call we allow per session (B2).
 export function coachingFallback(direction: 'harder' | 'easier', sessionId: string, reason: string): string {
-  // Atomic increment — fire-and-forget, never awaited (toast latency must stay low).
-  getDb().collection('meta').doc('coachingFallbackUsage').set({
-    total:           FieldValue.increment(1),
-    [`by_${reason}`]: FieldValue.increment(1),
-    lastUsedAt:      Date.now(),
-  }, { merge: true }).catch(() => {});
+  // Atomic increment — fire-and-forget, never awaited (toast latency must stay
+  // low). The try/catch matters: getDb() itself throws SYNCHRONOUSLY when
+  // Firestore credentials are missing, and an uncaught throw here crashed the
+  // whole game-server from inside the ws message handler. A usage counter must
+  // never be able to take down the real-time loop.
+  try {
+    getDb().collection('meta').doc('coachingFallbackUsage').set({
+      total:           FieldValue.increment(1),
+      [`by_${reason}`]: FieldValue.increment(1),
+      lastUsedAt:      Date.now(),
+    }, { merge: true }).catch(() => {});
+  } catch { /* no Firestore → skip telemetry, still serve the message */ }
 
   const message = pickFallback(direction, sessionId);
   console.log(`[Coaching] (fallback:${reason}) "${message}"`);

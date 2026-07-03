@@ -200,9 +200,19 @@ export function computeDomainScores(cognitiveScore: number, gameId: GameId): Rec
 // back into accuracy so the score still spans the full 0..100 range.
 export function deterministicCognitiveScore(
   snapshot: SessionSnapshot,
-  adaptive?: Pick<AdaptiveState, 'emaReactionMs' | 'baselineMean' | 'baselineStdDev' | 'reactionWindow'>,
+  adaptive?: Pick<AdaptiveState, 'emaReactionMs' | 'baselineMean' | 'baselineStdDev' | 'reactionWindow' | 'outcomeWindow'>,
 ): number {
-  if (snapshot.accuracy === null) return 50;
+  if (snapshot.accuracy === null) {
+    // Outcome games (tic-tac-toe): score from the win/draw/loss window
+    // (win=1, draw=0.5, loss=0) instead of a flat 50, so strategic play is
+    // actually measured. Falls back to 50 only when there is no outcome data.
+    const outcomes = adaptive?.outcomeWindow ?? [];
+    if (outcomes.length > 0) {
+      const mean = outcomes.reduce((a, b) => a + b, 0) / outcomes.length;
+      return Math.max(0, Math.min(100, Math.round(mean * 100)));
+    }
+    return 50;
+  }
 
   const streakComponent = Math.min(snapshot.peakStreak, 5) / 5 * 15; // 0..15
   const speed   = adaptive ? speedVsBaseline(adaptive.emaReactionMs, adaptive.baselineMean, adaptive.baselineStdDev) : null;

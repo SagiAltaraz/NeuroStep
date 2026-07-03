@@ -27,7 +27,9 @@ export type Trend = 'up' | 'stable' | 'down';
 
 // Schema version for users/{uid}/cognitiveProfile/{domainId}. Bumped when the
 // doc shape changes so a future migration can detect older docs (D4).
-export const PROFILE_SCHEMA_VERSION = 1;
+// v2: player-model phase — volatility, plateauCount, deteriorationFlag,
+//     bestLevel/bestAt, playstyleTags, plus the per-domain timeline rollup.
+export const PROFILE_SCHEMA_VERSION = 2;
 
 // The persisted/derived state of one domain (the numeric core, no metadata).
 export interface ProfileState {
@@ -60,8 +62,19 @@ export function computeTrend(scores: number[], tuning = PROFILE_TUNING): Trend {
    return 'stable';
 }
 
+// Std-dev of the recent score window — how NOISY this ability is session to
+// session. High volatility = unstable performance (a health signal on its own,
+// and a reason to trust single-session dips less).
+export function computeVolatility(scores: number[]): number {
+  if (scores.length < 3) return 0;
+  const m = scores.reduce((a, b) => a + b, 0) / scores.length;
+  const variance = scores.reduce((a, b) => a + (b - m) ** 2, 0) / scores.length;
+  return Math.round(Math.sqrt(variance) * 10) / 10;
+}
+
 // Fold one new domain score into a domain's profile. `prev === null` = cold start.
 // `weight` is 1.0 for the game's primary domain, 0.5 for secondary domains.
+// `now` is injectable so tests are deterministic.
 export function computeProfileUpdate(
    prev: ProfileState | null,
    domainScore: number,
@@ -121,6 +134,32 @@ function readProfileState(d: Record<string, unknown>): ProfileState {
          ? d.lastDomainScores.filter((x): x is number => typeof x === 'number')
          : [],
    };
+}
+
+// ── Timeline rollup ──────────────────────────────────────────────────────────
+// One doc per domain holding a capped array of {t, level, score, confidence}
+// points — the series behind the long-term improvement/decline graph. A single
+// read-modify-write per touched domain per session (2-3 per session), cheap.
+
+async function appendTimelinePoint(
+  userId: string, domainId: ProblemId,
+  point: { t: number; level: number; score: number; confidence: number },
+): Promise<void> {
+  const ref = getDb().collection('users').doc(userId).collection('timeline').doc(domainId);
+  try {
+    const snap   = await ref.get();
+    const prev   = snap.exists ? (snap.data()?.points as unknown) : [];
+    const points = Array.isArray(prev) ? prev : [];
+    points.push(point);
+    await ref.set({
+      domainId,
+      points:    points.slice(-PROFILE_TUNING.TIMELINE_MAX_POINTS),
+      updatedAt: point.t,
+      v:         PROFILE_SCHEMA_VERSION,
+    });
+  } catch (err) {
+    console.error(`[Timeline] ${userId}/${domainId}:`, (err as Error).message);
+  }
 }
 
 export async function updateCognitiveProfile(

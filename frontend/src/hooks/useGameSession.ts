@@ -163,7 +163,10 @@ export function useGameSession(gameId: GameId) {
           wsRef.current?.close();   // session finalized server-side; release it
         } else if (msg.type === 'adjustment' && msg.params) {
           console.log(`[${gameId}] Adjustment (${msg.reason}):`, msg.params);
-          setAdjustment(msg.params);
+          // ddaLevel rides along with the params so games can drive their
+          // visible level/variety from the agent-computed difficulty D (0..1)
+          // — including the personalised resume/warm-up sent before play starts.
+          setAdjustment(typeof msg.level === 'number' ? { ...msg.params, ddaLevel: msg.level } : msg.params);
           adjustCount.current += 1;
           setLastAdjustment({
             reason:    msg.reason ?? '',
@@ -180,6 +183,12 @@ export function useGameSession(gameId: GameId) {
             accuracy: msg.accuracy ?? 0,
             events:   msg.events ?? 0,
           });
+          // Keep the game's difficulty view live even inside the controller's
+          // dead-zone (telemetry fires on every evaluation, adjustments don't).
+          if (typeof msg.D === 'number') {
+            const d = msg.D;
+            setAdjustment(prev => ({ ...(prev ?? {}), ddaLevel: d }));
+          }
         } else if (msg.type === 'coaching' && msg.message) {
           setCoachingMessage(msg.message);
           // Auto-clear after 4 seconds so it doesn't linger
