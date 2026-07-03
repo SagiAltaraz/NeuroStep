@@ -46,7 +46,9 @@ const uniqueById = <T extends { id: string }>(items: T[]) => {
    });
 };
 
-const toRegionSummaries = (progression: ProgressionData): ProgressionRegionSummary[] =>
+const toRegionSummaries = (
+   progression: ProgressionData
+): ProgressionRegionSummary[] =>
    Object.entries(progression.regions ?? {})
       .map(([id, region]) => ({
          id,
@@ -75,7 +77,9 @@ const summarizeProgression = (progression: ProgressionData) => {
 
    const uniqueRegions = uniqueById(sortedRegions);
    const strongest = uniqueRegions.slice(0, 3);
-   const needsPractice = [...uniqueRegions].sort((a, b) => a.node - b.node).slice(0, 2);
+   const needsPractice = [...uniqueRegions]
+      .sort((a, b) => a.node - b.node)
+      .slice(0, 2);
    const improved = uniqueRegions.filter((region) => region.lastDelta > 0);
    const declined = uniqueRegions.filter((region) => region.lastDelta < 0);
 
@@ -93,7 +97,11 @@ const summarizeProgression = (progression: ProgressionData) => {
    ];
 
    if (improved.length > 0) {
-      parts.push('', 'עלייה אחרונה:', ...improved.map((region) => `• ${region.label}`));
+      parts.push(
+         '',
+         'עלייה אחרונה:',
+         ...improved.map((region) => `• ${region.label}`)
+      );
    }
 
    if (declined.length > 0) {
@@ -105,7 +113,10 @@ const summarizeProgression = (progression: ProgressionData) => {
       );
    }
 
-   const recommendedDomain = needsPractice[0]?.label ?? strongest[0]?.label ?? 'התחום הקוגניטיבי המרכזי';
+   const recommendedDomain =
+      needsPractice[0]?.label ??
+      strongest[0]?.label ??
+      'התחום הקוגניטיבי המרכזי';
 
    parts.push(
       '',
@@ -132,7 +143,8 @@ export const progressionChatAgent = {
          ].join('\n');
       }
 
-      const progression = await progressionRepository.getUserProgression(userId);
+      const progression =
+         await progressionRepository.getUserProgression(userId);
       return summarizeProgression(progression);
    },
 };
