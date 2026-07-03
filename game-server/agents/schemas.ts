@@ -81,3 +81,45 @@ export const CoachingMessageSchema = z
     message: `Must not end with: ${FORBIDDEN_END_CHARS.join(' ')}`,
   });
 export type CoachingMessage = z.infer<typeof CoachingMessageSchema>;
+
+// ── Director Agent: advisory training guidance (player-model phase) ───────────
+// The Director reads the structured player model and returns ADVISORY JSON —
+// the deterministic controller clamps anything it suggests, and this schema
+// fails closed before any Firestore write. userMessageHe inherits the same
+// content safety rules as the coaching toast (no difficulty/system talk).
+
+const PROBLEM_ID = z.enum([
+  'working-memory', 'selective-attention', 'divided-attention', 'processing-speed',
+  'reaction-time', 'response-inhibition', 'strategic-thinking', 'visual-spatial',
+]);
+
+const GAME_ID = z.enum([
+  'shapes-click', 'color-trains', 'tictactoe', 'memory',
+  'green-light', 'spot-difference', 'where-was-it', 'find-letter',
+]);
+
+export const DirectorOutputSchema = z.object({
+  domainAssessment: z.array(z.object({
+    domainId:         PROBLEM_ID,
+    state:            z.enum(['improving', 'stable', 'plateaued', 'declining']),
+    recommendedDelta: z.number().min(-2).max(2),
+  })).min(1).max(8),
+  difficultyPath: z.object({
+    direction:  z.enum(['harder', 'easier', 'hold']),
+    chosenPath: z.enum(['speed', 'distractors', 'memory-load', 'hold', 'recover']),
+    rationale:  z.string().min(1).max(200),
+  }),
+  crossGame: z.object({
+    nextGame: GAME_ID,
+    reason:   z.string().min(1).max(200),
+  }),
+  trainingPlan: z.object({
+    focusDomains: z.array(PROBLEM_ID).min(1).max(3),
+    weeklyGoal:   z.string().min(1).max(120),
+  }),
+  userMessageHe: z.string().min(1).max(80)
+    .refine(s => !FORBIDDEN_WORDS.some(w => s.includes(w)), {
+      message: `Must not contain any of: ${FORBIDDEN_WORDS.join(', ')}`,
+    }),
+});
+export type DirectorOutput = z.infer<typeof DirectorOutputSchema>;

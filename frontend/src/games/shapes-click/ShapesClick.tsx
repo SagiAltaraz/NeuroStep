@@ -25,22 +25,45 @@ interface GameConfig {
   distractorCount: number;
 }
 
+// Defaults mirror the server's cold-start difficulty (D = 0.40 on the anchor
+// maps), so the first seconds — before the DDA's first message lands — already
+// look and feel like the real game (shapes on screen, real pace).
 const DEFAULT_CONFIG: GameConfig = {
   canvasWidth:     920,
   canvasHeight:    560,
-  circleLifeMs:    3000,
-  spawnIntervalMs: 1000,
-  distractorCount: 0,
+  circleLifeMs:    2400,
+  spawnIntervalMs: 800,
+  distractorCount: 2,
 };
 
-// Level thresholds — every N consecutive hits raises level
-const LEVEL_UP_AT  = 5;   // hits per level
-const MAX_LEVEL    = 8;
+// The visible level is NOT a local hit counter — it is derived from the DDA
+// agent's difficulty D (0..1), which the game-server computes per player in
+// real time from their performance, history and personal warm-up, and streams
+// here via the adjustment/telemetry messages (params.ddaLevel).
+const MAX_LEVEL = 8;
+const levelFromD = (d: number) =>
+  1 + Math.min(MAX_LEVEL - 1, Math.floor(Phaser.Math.Clamp(d, 0, 1) * (MAX_LEVEL - 1) + 1e-6));
 
 const CIRCLE_COLORS = [0xe11d48, 0x7c3aed, 0x0284c7, 0x059669, 0xd97706, 0xdb2777];
 
-type DistractorShape = 'square' | 'triangle' | 'diamond' | 'pentagon';
-const DISTRACTOR_SHAPES: DistractorShape[] = ['square', 'triangle', 'diamond', 'pentagon'];
+type DistractorShape =
+  | 'square' | 'triangle' | 'rectangle' | 'diamond'
+  | 'pentagon' | 'hexagon' | 'star' | 'octagon';
+
+// Shape variety unlocks GRADUALLY with the level — early levels see only
+// simple, clearly-not-a-circle shapes; the many-sided ones (hexagon, octagon —
+// which reads almost like a circle) are saved for the top levels, where they
+// force real shape discrimination. Count stays DDA-owned (see spawnCircle).
+const SHAPE_LADDER: { type: DistractorShape; minLevel: number }[] = [
+  { type: 'square',    minLevel: 1 },
+  { type: 'triangle',  minLevel: 1 },
+  { type: 'rectangle', minLevel: 2 },
+  { type: 'diamond',   minLevel: 3 },
+  { type: 'pentagon',  minLevel: 4 },
+  { type: 'hexagon',   minLevel: 5 },
+  { type: 'star',      minLevel: 6 },
+  { type: 'octagon',   minLevel: 7 },
+];
 
 // ─── Phaser Scene ─────────────────────────────────────────────────
 
@@ -60,16 +83,20 @@ class ShapesScene extends Phaser.Scene {
   // Stats
   private score  = 0;
   private streak = 0;
-  private level  = 1;
-  private totalHits = 0;           // lifetime hits this session
+  private difficulty01 = 0.4;      // mirrors the server's D (cold-start 0.40)
+  private level  = levelFromD(0.4);
 
   // UI
   private scoreText!:  Phaser.GameObjects.Text;
   private streakText!: Phaser.GameObjects.Text;
   private levelText!:  Phaser.GameObjects.Text;
+  private trendTx!:    Phaser.GameObjects.Text;
   private feedbackTx!: Phaser.GameObjects.Text;
   private levelBarFill!: Phaser.GameObjects.Rectangle;
-  private countdownRing!: Phaser.GameObjects.Graphics;
+  // Round timer lives at the TOP of the screen (never on/near a shape, so it
+  // can't reveal which one is the target).
+  private timerBarFill!: Phaser.GameObjects.Rectangle;
+  private lastCircleColor = 0x2f86d6;   // for the hit particle burst
   private waitDot!:    Phaser.GameObjects.Text;
   private bgStars!:    Phaser.GameObjects.Graphics;
 
@@ -108,7 +135,6 @@ class ShapesScene extends Phaser.Scene {
   create() {
     this.createBackground();
     this.createUI();
-    this.countdownRing = this.add.graphics().setDepth(7);
     this.onReady?.(this);
     this.scheduleNextSpawn(800);
   }
@@ -117,6 +143,38 @@ class ShapesScene extends Phaser.Scene {
   applyParams(params: GameAdjustment) {
     if (typeof params.circleLifeMs    === 'number') this.cfg.circleLifeMs    = Math.max(500,  params.circleLifeMs);
     if (typeof params.distractorCount === 'number') this.cfg.distractorCount = Math.max(0, Math.round(params.distractorCount));
+    if (typeof params.ddaLevel        === 'number') this.setDifficulty(params.ddaLevel);
+  }
+
+  // The agent-computed difficulty drives the visible meter, the shape ladder
+  // and the disguise tier — the whole game scales with the player's real level.
+  private setDifficulty(d: number) {
+    const prevPct = Math.round(this.difficulty01 * 100);
+    this.difficulty01 = Phaser.Math.Clamp(d, 0, 1);
+    const pct = Math.round(this.difficulty01 * 100);
+
+    if (this.levelText && pct !== prevPct) {
+      this.levelText.setText(`${pct}%`);
+      // live feedback: green ▲ when the agent raises the bar, amber ▼ on relief
+      const up = pct > prevPct;
+      this.levelText.setColor(up ? '#16a34a' : '#d97706');
+      this.time.delayedCall(650, () => this.levelText?.setColor('#2f86d6'));
+      if (this.trendTx) {
+        this.trendTx.setText(up ? '▲' : '▼').setColor(up ? '#16a34a' : '#d97706').setAlpha(1);
+        this.tweens.add({ targets: this.trendTx, alpha: 0, y: up ? 32 : 48, duration: 700,
+          onComplete: () => this.trendTx.setY(40) });
+      }
+    }
+
+    // Internal ladder level — unlocks shape variety & disguise; celebrate rises.
+    const newLevel = levelFromD(this.difficulty01);
+    if (newLevel > this.level) {
+      this.level = newLevel;
+      this.showBigFeedback(this.labels.levelUp.replace('{n}', String(this.level)), '#2f86d6');
+    } else if (newLevel < this.level) {
+      this.level = newLevel;               // eased down by the agent — no fanfare
+    }
+    this.updateLevelBar();
   }
 
   // ── Background ──────────────────────────────────────────────────
@@ -165,18 +223,29 @@ class ShapesScene extends Phaser.Scene {
       fontSize: '26px', fontFamily: 'Arial Black', color: '#1c3a45',
     }).setOrigin(0.5).setDepth(10);
 
-    // Level
+    // Difficulty meter — a continuous gauge of the agent's live difficulty D,
+    // with a ▲/▼ flash on every change so the player FEELS the system adapting
+    // (a static "level 3" told them nothing).
     this.levelLabel = this.add.text(W / 2, 18, this.labels.level, { fontSize: '11px', color: '#5a7fa8', fontFamily: 'Arial' }).setOrigin(0.5).setDepth(10);
-    this.levelText = this.add.text(W / 2, 40, '1', {
+    this.levelText = this.add.text(W / 2, 40, `${Math.round(this.difficulty01 * 100)}%`, {
       fontSize: '22px', fontFamily: 'Arial Black', color: '#2f86d6',
     }).setOrigin(0.5).setDepth(10);
+    this.trendTx = this.add.text(W / 2 + 46, 40, '', {
+      fontSize: '16px', fontFamily: 'Arial Black', color: '#16a34a',
+    }).setOrigin(0.5).setDepth(10).setAlpha(0);
 
-    // Level progress bar
+    // Meter fill — the whole 0..1 difficulty range
     const barW = 160;
     this.add.rectangle(W / 2, 62, barW, 8, 0xdbeafe).setDepth(10);
     this.levelBarFill = this.add.rectangle(W / 2 - barW / 2, 62, 0, 8, 0x2f86d6)
       .setOrigin(0, 0.5).setDepth(10);
     this.updateLevelBar();
+
+    // Round timer — a full-width drain bar at the TOP, far from the play area,
+    // so nothing near the shapes hints which one is the target.
+    this.add.rectangle(W / 2, 84, W - 32, 6, 0xdbeafe).setDepth(10);
+    this.timerBarFill = this.add.rectangle(16, 84, W - 32, 6, 0x16a34a)
+      .setOrigin(0, 0.5).setDepth(10).setVisible(false);
 
     // Instruction
     this.instructionLabel = this.add.text(W / 2, H - 18, this.labels.instruction, {
@@ -190,22 +259,37 @@ class ShapesScene extends Phaser.Scene {
 
     // Waiting dot
     this.waitDot = this.add.text(W / 2, H / 2, '◉', {
-      fontSize: '30px', fontFamily: 'Arial', color: '#4338ca',
+      fontSize: '30px', fontFamily: 'Arial', color: '#2f86d6',
     }).setOrigin(0.5).setAlpha(0).setDepth(3);
     this.tweens.add({ targets: this.waitDot, alpha: 0.6, duration: 700, yoyo: true, repeat: -1, ease: 'Sine.easeInOut' });
   }
 
   private updateLevelBar() {
-    const barW   = 160;
-    const hitsInLevel = this.totalHits % LEVEL_UP_AT;
-    const progress    = hitsInLevel / LEVEL_UP_AT;
-    this.tweens.add({ targets: this.levelBarFill, width: barW * progress, duration: 250 });
+    // The meter shows the agent's difficulty D across its full range.
+    const barW = 160;
+    this.tweens.add({
+      targets: this.levelBarFill,
+      width: barW * Phaser.Math.Clamp(this.difficulty01, 0, 1),
+      duration: 350, ease: 'Cubic.easeOut',
+    });
   }
 
   // ── Spawning ─────────────────────────────────────────────────────
+
+  // Control model — one owner per difficulty axis, so nothing double-dips:
+  //   • SPEED (circleLifeMs)  → the DDA agent, per-player, in real time.
+  //   • COUNT (distractorCount) → the DDA agent as well.
+  //   • PACE (wait between rounds) → derived from the DDA speed below, so the
+  //     rhythm tightens together with the player's calculated difficulty.
+  //   • VARIETY + DISGUISE (which shapes, colors) → the in-session level,
+  //     giving a visible sense of progression without fighting the DDA.
+  private nextSpawnDelay(): number {
+    return Phaser.Math.Clamp(Math.round(this.cfg.circleLifeMs * 0.33), 450, 1100);
+  }
+
   private scheduleNextSpawn(delay?: number) {
     this.waitDot.setAlpha(0.3);
-    this.time.delayedCall(delay ?? this.cfg.spawnIntervalMs, this.spawnCircle, [], this);
+    this.time.delayedCall(delay ?? this.nextSpawnDelay(), this.spawnCircle, [], this);
   }
 
   private spawnCircle() {
@@ -218,11 +302,20 @@ class ShapesScene extends Phaser.Scene {
 
     this.circleContainer = this.buildCircle(x, y);
 
+    // Variety by level: only shapes unlocked at the current level may appear,
+    // and at high levels one guaranteed "near-circle" confuser joins the round.
+    const unlocked = SHAPE_LADDER.filter(s => s.minLevel <= this.level).map(s => s.type);
+    const shapeTypes: DistractorShape[] = Array.from({ length: distractorCount },
+      () => Phaser.Utils.Array.GetRandom(unlocked) as DistractorShape);
+    if (this.level >= 5 && shapeTypes.length >= 2) {
+      shapeTypes[0] = unlocked[unlocked.length - 1];   // hardest unlocked shape
+    }
+
     const placed: { x: number; y: number }[] = [{ x, y }];
-    for (let i = 0; i < distractorCount; i++) {
+    for (const type of shapeTypes) {
       const pos = this.findFreePos(placed, W, H);
       placed.push(pos);
-      this.distractors.push(this.buildDistractor(pos.x, pos.y));
+      this.distractors.push(this.buildDistractor(pos.x, pos.y, type));
     }
 
     this.isCircleActive  = true;
@@ -232,7 +325,7 @@ class ShapesScene extends Phaser.Scene {
       delay: this.cfg.circleLifeMs, callback: this.onTimeout, callbackScope: this,
     });
 
-    this.fireAction('ROUND_START', { level: this.level, distractorCount });
+    this.fireAction('ROUND_START', { level: this.level, distractorCount, shapeTypes });
   }
 
   private findFreePos(placed: { x: number; y: number }[], W: number, H: number) {
@@ -245,11 +338,66 @@ class ShapesScene extends Phaser.Scene {
   }
 
   // ── Shape creation ───────────────────────────────────────────────
+
+  // Confusion tier — as the level climbs, color (and then styling/size) stop
+  // being cues, so ONLY the shape identifies the target:
+  //   0 (levels 1-2): distractors are plain gray — easy.
+  //   1 (levels 3-4): distractors wear the SAME color palette as the circles.
+  //   2 (levels 5+):  distractors get the full circle treatment (glow + ring +
+  //                   shine + same size) — pure shape discrimination.
+  private confusionTier(): 0 | 1 | 2 {
+    if (this.level >= 5) return 2;
+    if (this.level >= 3) return 1;
+    return 0;
+  }
+
+  // Identical idle motion for EVERY shape — motion must never be a cue either.
+  private addIdleFloat(c: Phaser.GameObjects.Container, y: number) {
+    this.tweens.add({
+      targets: c, y: y - 6,
+      duration: Phaser.Math.Between(1300, 1800),
+      yoyo: true, repeat: -1, ease: 'Sine.easeInOut',
+      delay: Phaser.Math.Between(0, 400),
+    });
+  }
+
+  private regularPoly(sides: number, half: number): { x: number; y: number }[] {
+    return Array.from({ length: sides }, (_, i) => {
+      const a = (i * Math.PI * 2) / sides - Math.PI / 2;
+      return { x: Math.cos(a) * half, y: Math.sin(a) * half };
+    });
+  }
+
+  private polyPoints(type: DistractorShape, half: number): { x: number; y: number }[] {
+    switch (type) {
+      case 'square':
+        return [{ x: -half, y: -half }, { x: half, y: -half }, { x: half, y: half }, { x: -half, y: half }];
+      case 'rectangle': {
+        const w = half * 1.3, h = half * 0.72;
+        return [{ x: -w, y: -h }, { x: w, y: -h }, { x: w, y: h }, { x: -w, y: h }];
+      }
+      case 'triangle':
+        return [{ x: 0, y: -half }, { x: half, y: half }, { x: -half, y: half }];
+      case 'diamond':
+        return [{ x: 0, y: -half }, { x: half, y: 0 }, { x: 0, y: half }, { x: -half, y: 0 }];
+      case 'pentagon': return this.regularPoly(5, half);
+      case 'hexagon':  return this.regularPoly(6, half);
+      case 'octagon':  return this.regularPoly(8, half);   // reads almost like a circle
+      case 'star':
+        return Array.from({ length: 10 }, (_, i) => {
+          const a = (i * Math.PI) / 5 - Math.PI / 2;
+          const r = i % 2 === 0 ? half : half * 0.48;
+          return { x: Math.cos(a) * r, y: Math.sin(a) * r };
+        });
+    }
+  }
+
   private buildCircle(x: number, y: number): Phaser.GameObjects.Container {
     const c = this.add.container(x, y).setDepth(6);
     const g = this.add.graphics();
     const r = 36;
     const color = Phaser.Utils.Array.GetRandom(CIRCLE_COLORS) as number;
+    this.lastCircleColor = color;
 
     // Outer glow
     g.fillStyle(color, 0.15); g.fillCircle(0, 0, r + 16);
@@ -264,43 +412,46 @@ class ShapesScene extends Phaser.Scene {
     c.setSize((r + 16) * 2, (r + 16) * 2);
     c.setInteractive({ useHandCursor: true });
     c.setScale(0);
-    this.tweens.add({ targets: c, scaleX: 1, scaleY: 1, duration: 200, ease: 'Back.easeOut' });
+    this.tweens.add({
+      targets: c, scaleX: 1, scaleY: 1,
+      duration: 260, ease: 'Back.easeOut',
+      onComplete: () => this.addIdleFloat(c, y),
+    });
     c.on('pointerdown', () => this.onCircleClick());
     return c;
   }
 
-  private buildDistractor(x: number, y: number): Phaser.GameObjects.Container {
+  private buildDistractor(x: number, y: number, type: DistractorShape): Phaser.GameObjects.Container {
     const c    = this.add.container(x, y).setDepth(6);
     const g    = this.add.graphics();
-    const type = Phaser.Utils.Array.GetRandom(DISTRACTOR_SHAPES) as DistractorShape;
-    const s    = 32, s2 = s / 2;
+    const tier = this.confusionTier();
 
-    g.fillStyle(0x64748b); g.lineStyle(2, 0x94a3b8);
-    switch (type) {
-      case 'square':
-        g.fillRect(-s2, -s2, s, s); g.strokeRect(-s2, -s2, s, s); break;
-      case 'triangle': {
-        const pts = [{ x: 0, y: -s2 }, { x: s2, y: s2 }, { x: -s2, y: s2 }];
-        g.fillPoints(pts, true); g.strokePoints(pts, true); break;
-      }
-      case 'diamond': {
-        const pts = [{ x: 0, y: -s2 }, { x: s2, y: 0 }, { x: 0, y: s2 }, { x: -s2, y: 0 }];
-        g.fillPoints(pts, true); g.strokePoints(pts, true); break;
-      }
-      case 'pentagon': {
-        const pts = Array.from({ length: 5 }, (_, i) => {
-          const a = (i * Math.PI * 2) / 5 - Math.PI / 2;
-          return { x: Math.cos(a) * s2, y: Math.sin(a) * s2 };
-        });
-        g.fillPoints(pts, true); g.strokePoints(pts, true); break;
-      }
+    // Size grows with the tier until it matches the circle's visual weight.
+    const half  = tier === 2 ? 34 : tier === 1 ? 30 : 16;
+    const color = tier === 0 ? 0x64748b : (Phaser.Utils.Array.GetRandom(CIRCLE_COLORS) as number);
+    const main  = this.polyPoints(type, half);
+
+    if (tier === 2) {
+      // Full circle treatment — glow + ring + shine — only the geometry differs.
+      g.fillStyle(color, 0.15); g.fillPoints(this.polyPoints(type, half * 1.45), true);
+      g.lineStyle(3, color, 0.6); g.strokePoints(this.polyPoints(type, half * 1.2), true, true);
+      g.fillStyle(color); g.fillPoints(main, true);
+      g.fillStyle(0xffffff, 0.28); g.fillCircle(-half * 0.3, -half * 0.32, half * 0.3);
+    } else {
+      g.fillStyle(color); g.lineStyle(2, tier === 1 ? color : 0x94a3b8, tier === 1 ? 0.6 : 1);
+      g.fillPoints(main, true); g.strokePoints(main, true, true);
+      if (tier === 1) { g.fillStyle(0xffffff, 0.22); g.fillCircle(-half * 0.3, -half * 0.32, half * 0.28); }
     }
 
     c.add(g);
-    c.setSize(s + 20, s + 20);
+    c.setSize(half * 2 + 20, half * 2 + 20);
     c.setInteractive({ useHandCursor: true });
     c.setScale(0);
-    this.tweens.add({ targets: c, scaleX: 1, scaleY: 1, duration: 180, ease: 'Back.easeOut', delay: 60 });
+    this.tweens.add({
+      targets: c, scaleX: 1, scaleY: 1,
+      duration: 240, ease: 'Back.easeOut', delay: Phaser.Math.Between(30, 120),
+      onComplete: () => this.addIdleFloat(c, y),
+    });
     c.on('pointerdown', () => this.onDistractorClick(c));
     return c;
   }
@@ -313,20 +464,14 @@ class ShapesScene extends Phaser.Scene {
 
     this.score++;
     this.streak++;
-    this.totalHits++;
     this.scoreText.setText(String(this.score));
     this.streakText.setText(String(this.streak));
 
-    // Level up?
-    const newLevel = Math.min(MAX_LEVEL, Math.floor(this.totalHits / LEVEL_UP_AT) + 1);
-    if (newLevel > this.level) {
-      this.level = newLevel;
-      this.levelText.setText(String(this.level));
-      this.showBigFeedback(this.labels.levelUp.replace('{n}', String(this.level)), '#a5b4fc');
-    } else {
-      this.showFeedback('✓', '#4ade80');
-    }
-    this.updateLevelBar();
+    // Hit juice — a burst in the circle's color + a floating "+1" at the spot.
+    // Levelling is owned by the DDA agent (setDifficulty), not by hit counting.
+    this.burstAt(this.circlePos.x, this.circlePos.y, this.lastCircleColor);
+    this.floatScore(this.circlePos.x, this.circlePos.y);
+    this.showFeedback('✓', '#16a34a');
 
     this.fireAction('CIRCLE_HIT', { reactionMs, streak: this.streak, level: this.level });
     this.scheduleNextSpawn();
@@ -337,7 +482,8 @@ class ShapesScene extends Phaser.Scene {
     this.streak = 0;
     this.streakText.setText('0');
     this.tweens.add({ targets: container, x: container.x + 10, yoyo: true, repeat: 3, duration: 45 });
-    this.showFeedback('✗', '#f87171');
+    this.cameras.main.shake(120, 0.004);
+    this.showFeedback('✗', '#e5484d');
     this.fireAction('DISTRACTOR_CLICK', { reactionMs: Date.now() - this.circleStartTime, level: this.level });
   }
 
@@ -346,7 +492,7 @@ class ShapesScene extends Phaser.Scene {
     this.streak = 0;
     this.streakText.setText('0');
     this.clearRound();
-    this.showFeedback('⏱', '#fb923c');
+    this.showFeedback('⏱', '#d97706');
     this.fireAction('TIMEOUT', { level: this.level });
     this.scheduleNextSpawn();
   }
@@ -355,9 +501,32 @@ class ShapesScene extends Phaser.Scene {
     this.isCircleActive = false;
     this.lifeTimer?.destroy();
     this.lifeTimer = null;
-    this.countdownRing.clear();
+    this.timerBarFill.setVisible(false);
     this.circleContainer?.destroy(); this.circleContainer = null;
     this.distractors.forEach(d => d.destroy()); this.distractors = [];
+  }
+
+  // ── Hit juice ─────────────────────────────────────────────────────
+  private burstAt(x: number, y: number, color: number) {
+    for (let i = 0; i < 10; i++) {
+      const a = (i / 10) * Math.PI * 2 + Math.random() * 0.5;
+      const dist = Phaser.Math.Between(38, 70);
+      const p = this.add.graphics().setDepth(15);
+      p.fillStyle(color, 0.9); p.fillCircle(0, 0, Phaser.Math.Between(3, 5));
+      p.setPosition(x, y);
+      this.tweens.add({
+        targets: p, x: x + Math.cos(a) * dist, y: y + Math.sin(a) * dist,
+        alpha: 0, scale: 0.4, duration: Phaser.Math.Between(320, 480),
+        ease: 'Cubic.easeOut', onComplete: () => p.destroy(),
+      });
+    }
+  }
+
+  private floatScore(x: number, y: number) {
+    const t = this.add.text(x, y - 30, '+1', {
+      fontSize: '26px', fontFamily: 'Arial Black', color: '#16a34a',
+    }).setOrigin(0.5).setDepth(15);
+    this.tweens.add({ targets: t, y: y - 70, alpha: 0, duration: 650, ease: 'Cubic.easeOut', onComplete: () => t.destroy() });
   }
 
   private showFeedback(text: string, color: string) {
@@ -377,24 +546,18 @@ class ShapesScene extends Phaser.Scene {
       onComplete: () => t.destroy() });
   }
 
-  // ── Update — countdown ring ──────────────────────────────────────
+  // ── Update — top timer bar ───────────────────────────────────────
+  // The countdown lives ONLY in the top bar. No ring around the target, no
+  // urgency wobble on it — nothing in the play area may hint at the answer.
   update() {
-    if (!this.isCircleActive) return;
+    if (!this.isCircleActive) { this.timerBarFill.setVisible(false); return; }
     const progress = Math.max(0, 1 - (Date.now() - this.circleStartTime) / this.cfg.circleLifeMs);
-    const color    = progress > 0.5 ? 0x4ade80 : progress > 0.25 ? 0xfbbf24 : 0xf87171;
+    const color    = progress > 0.5 ? 0x16a34a : progress > 0.25 ? 0xd97706 : 0xe5484d;
 
-    this.countdownRing.clear();
-    this.countdownRing.lineStyle(5, color, 0.9);
-    this.countdownRing.beginPath();
-    this.countdownRing.arc(
-      this.circlePos.x, this.circlePos.y, 54,
-      -Math.PI / 2, -Math.PI / 2 + progress * Math.PI * 2, false,
-    );
-    this.countdownRing.strokePath();
-
-    if (progress < 0.25 && this.circleContainer) {
-      this.circleContainer.setScale(1 + 0.07 * Math.sin(Date.now() * 0.018));
-    }
+    this.timerBarFill.setVisible(true).setFillStyle(color);
+    this.timerBarFill.scaleX = progress;
+    // urgency pulse on the BAR (not on any shape)
+    this.timerBarFill.alpha = progress < 0.25 ? 0.55 + 0.45 * Math.abs(Math.sin(Date.now() * 0.012)) : 1;
   }
 
   private fireAction(type: GameAction['type'], payload: Record<string, unknown>) {
@@ -408,9 +571,12 @@ interface ShapesClickProps {
   config?:     Partial<GameConfig>;
   onAction?:   (action: GameAction) => void;
   adjustment?: GameAdjustment;
+  /** Back-button handler — ends the session (results overlay) instead of a
+   *  bare navigation. Falls back to plain navigation when not provided. */
+  onExit?:     () => void;
 }
 
-export default function ShapesClick({ config, onAction, adjustment }: ShapesClickProps) {
+export default function ShapesClick({ config, onAction, adjustment, onExit }: ShapesClickProps) {
   const navigate     = useNavigate();
   const containerRef = useRef<HTMLDivElement>(null);
   const gameRef      = useRef<Phaser.Game | null>(null);
@@ -462,7 +628,7 @@ export default function ShapesClick({ config, onAction, adjustment }: ShapesClic
     <div className="shapes-click-game">
       <div className="game-back-row" dir="rtl">
         <button
-          onClick={() => navigate('/games')}
+          onClick={() => (onExit ? onExit() : navigate('/games'))}
           className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-full text-sm font-medium text-blue-600 bg-blue-50 hover:bg-blue-100 border border-blue-100 transition-colors duration-200"
         >
           <ChevronRight size={14} />

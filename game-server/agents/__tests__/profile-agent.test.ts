@@ -45,6 +45,7 @@ describe('computeProfileUpdate — primary vs secondary', () => {
   it('primary domain moves faster than secondary from the same prev state', () => {
     const prev: ProfileState = {
       _ema: 50, level: 50, confidence: 1, sessionsCount: 10, trend: 'stable', lastDomainScores: [50, 50, 50],
+      volatility: 0, plateauCount: 0, deteriorationFlag: false, bestLevel: 50, bestAt: 0,
     };
     const asPrimary   = computeProfileUpdate(prev, 90, PRIMARY);
     const asSecondary = computeProfileUpdate(prev, 90, SECONDARY);

@@ -25,7 +25,7 @@ import { mean, standardDeviation, linearRegression } from 'simple-statistics';
 import { getDb }                                      from '../firebase.js';
 import type { DifficultyParams, GameId }              from '../types/game.types.js';
 import { GAME_DOMAINS }                               from '../types/domains.js';
-import { CROSSGAME_TUNING }                           from './progression.config.js';
+import { CROSSGAME_TUNING, LIVEMODEL_TUNING }         from './progression.config.js';
 
 // ── Controller config ───────────────────────────────────────────────────────────
 
@@ -63,6 +63,11 @@ export interface AdaptiveState {
   // Outcome window for 'outcome' games (win=1, draw=0.5, loss=0, last 8)
   outcomeWindow:  number[];
 
+  // Full-session scored-event stream for the live player model (capped at
+  // LIVEMODEL_TUNING.MAX_EVENTS). Feeds computeLiveFeatures — impulsivity,
+  // hesitation, error recovery, fatigue onset — in live-model.ts.
+  featureEvents: { kind: 'hit' | 'miss' | 'timeout'; rt: number | null }[];
+
   // Cadence / throttle
   lastAdjustAt:      number;
   totalScoredEvents: number;
@@ -81,6 +86,7 @@ export function createAdaptiveState(sessionId: string, gameId: GameId, userId: s
     reactionWindow: [],
     accuracyWindow: [],
     outcomeWindow:  [],
+    featureEvents:  [],
     lastAdjustAt:      0,
     totalScoredEvents: 0,
     lastEvalCount:     0,
@@ -167,6 +173,15 @@ const HIT_TYPES: Record<string, Set<string>> = {
   'where-was-it':    new Set(['SEQUENCE_COMPLETE']),
   'find-letter':     new Set(['LETTER_HIT', 'ROUND_COMPLETE']),
 };
+
+// Coarse per-event classification, shared with the server's in-process session
+// tracker (the Kafka-independent snapshot fallback).
+export function classifyEvent(gameId: string, type: string): 'hit' | 'miss' | 'timeout' | 'neutral' {
+  if (HIT_TYPES[gameId]?.has(type)) return 'hit';
+  if (!SCORED_TYPES[gameId]?.has(type)) return 'neutral';
+  if (type === 'TIMEOUT' || (gameId === 'green-light' && type === 'MISS')) return 'timeout';
+  return 'miss';
+}
 
 // Events that count toward accuracy denominator (hit OR miss).
 const SCORED_TYPES: Record<string, Set<string>> = {
@@ -334,6 +349,12 @@ export async function processEvent(state: AdaptiveState, event: AdaptiveEvent): 
   // this lazy call is the fallback path when it didn't.
   await ensureProfileLoaded(state);
 
+  // Record one scored event into the live player-model stream (capped).
+  const recordFeature = (kind: 'hit' | 'miss' | 'timeout', rt: number | null) => {
+    if (state.featureEvents.length >= LIVEMODEL_TUNING.MAX_EVENTS) return;
+    state.featureEvents.push({ kind, rt });
+  };
+
   // ── Ingest the event per scoring mode ──────────────────────────
   if (tuning.pMode === 'outcome') {
     // Only completed games drive the controller; individual moves are ignored.
@@ -341,12 +362,18 @@ export async function processEvent(state: AdaptiveState, event: AdaptiveEvent): 
     else if (event.type === 'GAME_DRAW') state.outcomeWindow.push(0.5);
     else return { adjusted: false };
     if (state.outcomeWindow.length > (tuning.outcomeWindow ?? 8)) state.outcomeWindow.shift();
+    // Outcome games map to the feature stream coarsely: a loss is the "error".
+    recordFeature(event.type === 'GAME_WON' && event.winner === 'ai' ? 'miss' : 'hit', null);
     state.totalScoredEvents++;
   } else {
     if (!scoredTypes.has(event.type)) return { adjusted: false };
     state.totalScoredEvents++;
 
     const isHit = hitTypes.has(event.type);
+    recordFeature(
+      isHit ? 'hit' : classifyEvent(state.gameId, event.type) === 'timeout' ? 'timeout' : 'miss',
+      isHit && event.reactionMs && event.reactionMs > 0 && event.reactionMs < 10_000 ? event.reactionMs : null,
+    );
     state.accuracyWindow.push(isHit);
     if (state.accuracyWindow.length > ACCURACY_WINDOW) state.accuracyWindow.shift();
 
@@ -420,13 +447,18 @@ function computeP(state: AdaptiveState, tuning: GameTuning): number | null {
     return clamp01(acc - fatiguePenalty(state.reactionWindow));
   }
 
-  // speed-acc: blend accuracy with speed-vs-baseline. Both already live on a
-  // 0..1 "success" scale, so the weighted mean stays interpretable.
+  // speed-acc: accuracy IS the success rate; speed-vs-baseline only PERTURBS it
+  // around neutral (0.5 = playing at your usual pace). Averaging them instead
+  // used to saturate P at the target for a perfect-accuracy player moving at
+  // their normal speed — P = (0.4·1.0 + 0.5·0.5)/0.9 ≈ 0.72 — parking the
+  // controller in its dead-zone forever despite flawless play. Anchoring on
+  // accuracy keeps the target band meaning what it says ("succeed ~72% of the
+  // time"), while faster/slower-than-usual play still nudges P up/down.
   const w     = tuning.weights!;
   const speed = speedScore(state);
   const P = speed === null
-    ? acc                                                   // no baseline yet → accuracy only
-    : (w.acc * acc + w.speed * speed) / (w.acc + w.speed);  // renormalised blend
+    ? acc                                    // no baseline yet → accuracy only
+    : acc + w.speed * (speed - 0.5);         // speed as a ± modifier around par
 
   return clamp01(P - fatiguePenalty(state.reactionWindow));
 }

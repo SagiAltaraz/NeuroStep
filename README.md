@@ -24,6 +24,7 @@ family, and clinicians.
 - [The agent system](#the-agent-system)
 - [LLM strategy — deterministic first, Claude for narrative](#llm-strategy--deterministic-first-claude-for-narrative)
 - [Cross-game transfer (warm-up)](#cross-game-transfer-warm-up)
+- [The player model — behavioral fingerprint, plan & Director](#the-player-model--behavioral-fingerprint-plan--director)
 - [Data model (Firestore, domain-centric)](#data-model-firestore-domain-centric)
 - [WebSocket protocol](#websocket-protocol)
 - [HTTP API](#http-api)
@@ -44,6 +45,12 @@ family, and clinicians.
   succeeding ~72% of the time, nudging the game harder/easier without ping-pong.
 - **A cognitive profile per domain** (not per game) — ability is shared across
   every game that trains the same faculty.
+- **A live player model** — a behavioral fingerprint (impulsivity, hesitation,
+  error recovery, fatigue onset) computed *during* play, feeding a deterministic
+  training-path director and a personalised weekly training plan.
+- **Improvement & deterioration tracking** — per-ability volatility, plateau
+  detection, a conservative deterioration flag, and a longitudinal timeline that
+  draws the months-long trend graph.
 - **A gamified journey map** — eight "regions", each with 10 nodes the player
   climbs; promotions are eager, demotions are deliberately reluctant.
 - **Caregiver-facing reports** — a per-session report, a longitudinal coach
@@ -126,17 +133,20 @@ Every game action is one WebSocket message. For each one the game server:
 
 ## The agent system
 
-Ten focused agents live in [`game-server/agents/`](game-server/agents/). They
-split cleanly into **real-time** (hot path) and **post-session** (async).
+Thirteen focused agents live in [`game-server/agents/`](game-server/agents/).
+They split cleanly into **real-time** (hot path) and **post-session** (async).
 
 | Agent | When | Claude? | What it produces |
 |---|---|---|---|
 | [`adaptive-agent`](game-server/agents/adaptive-agent.ts) | every event | ❌ | live difficulty `D`, params, telemetry, cross-game warm-up seed |
+| [`live-model`](game-server/agents/live-model.ts) | every evaluation (throttled) | ❌ | behavioral fingerprint + chosen training path → `liveModel/*` |
 | [`analytics-agent`](game-server/agents/analytics-agent.ts) | Kafka stream | ❌ | session summaries → `sessions/*`, `users/*/stats/*` |
 | [`coaching-agent`](game-server/agents/coaching-agent.ts) | on adjustment | ⚠️ gated | one-line Hebrew encouragement toast |
 | [`report-agent`](game-server/agents/report-agent.ts) | session end | ⚠️ milestone | deterministic `cognitiveScore` + Hebrew narrative |
-| [`profile-agent`](game-server/agents/profile-agent.ts) | session end | ❌ | per-domain EMA, confidence, trend → `cognitiveProfile/*` |
+| [`profile-agent`](game-server/agents/profile-agent.ts) | session end | ❌ | per-domain EMA, confidence, trend, volatility, plateau, deterioration flag → `cognitiveProfile/*` + `timeline/*` |
 | [`progression`](game-server/agents/progression.ts) | session end | ❌ | journey-map regions/nodes, rank → `progression/current` |
+| [`planner-agent`](game-server/agents/planner-agent.ts) | session end | ❌ | personalised training plan (focus domains, games, warm-starts) → `trainingPlan/current` |
+| [`director-agent`](game-server/agents/director-agent.ts) | milestone sessions | ⚠️ advisory | validated training guidance → `directorAdvice/*` + `promptSnapshots/*` |
 | [`alert-agent`](game-server/agents/alert-agent.ts) | session end | ❌ | decline detection → `alerts/*`, admin badge |
 | [`baseline-agent`](game-server/agents/baseline-agent.ts) | session end | ❌ | Welford reaction-time baseline → `stats/*` |
 | [`coach-agent`](game-server/agents/coach-agent.ts) | every 5 sessions | ⚠️ narrative | longitudinal coach report → `coachReports/*` |
@@ -186,10 +196,14 @@ when it earns the tokens.**
 - **Coach verdict is deterministic.** `overallProgress`
   (`improving`/`stable`/`needs_attention`) comes from the score trend; Claude only
   writes the surrounding text, with a template fallback if it's unavailable.
+- **Director advice is advisory and milestone-gated.** The Director reads the
+  structured player model (never prose), returns strict JSON validated by Zod
+  (including the same Hebrew content-safety rules as the coaching toast), and
+  the deterministic controller clamps anything it suggests.
 - **Everything fails closed.** No API key, a timeout, malformed JSON, or a schema
   miss all fall back to deterministic output — the pipeline never stalls.
 - **Tokens are tracked per agent.** Usage is written to `meta/tokenUsage` with a
-  `byAgent.{report|coach|coaching|chat}` split, surfaced at
+  `byAgent.{report|coach|coaching|chat|director}` split, surfaced at
   `GET /api/admin/token-usage`, and watched against a daily cap by `token-watcher`.
 
 Cadence and gating live in one place — [`progression.config.ts`](game-server/agents/progression.config.ts)
@@ -219,6 +233,50 @@ time baselines stay per-game. Tunables: `CROSSGAME_TUNING` in
 
 ---
 
+## The player model — behavioral fingerprint, plan & Director
+
+Beyond *how well* the player scores, the system models *how they play* — and
+prescribes what to train next. Full design + SQL schema map:
+[`docs/cognitive-player-model.md`](docs/cognitive-player-model.md).
+
+**During play** ([`live-model.ts`](game-server/agents/live-model.ts)) — every
+scored event feeds an in-memory stream; a throttled snapshot (≥ 15 s apart,
+never per-event) lands in `users/{uid}/liveModel/{gameId}`:
+
+| Feature | Meaning |
+|---|---|
+| `impulsivityRate` | commission errors — acted too fast / wrongly |
+| `hesitationRate` | omissions + hits far slower than the session's own pace |
+| `errorRecovery` | P(hit immediately after an error) — resilience |
+| `speedAccuracyBias` | −1 caution … +1 recklessness (vs personal baseline) |
+| `fatigueOnsetIdx` | where in the session reaction times started climbing |
+| `chosenPath` | deterministic director verdict: `speed` · `distractors` · `memory-load` · `hold` · `recover` |
+
+The path director trains the *cause*, not the symptom — an impulsive player gets
+distractors (inhibition work), not more speed; a collapsing player gets
+`recover` before anything else. Playstyle tags (`impulsive`, `hesitant`,
+`cautious`, `fatigues-fast`, `consistent`, `resilient`) are derived, never asked
+from an LLM.
+
+**After each session:**
+
+- [`profile-agent`](game-server/agents/profile-agent.ts) (v2) adds longitudinal
+  health signals per domain — `volatility`, `plateauCount`, `bestLevel`, and a
+  conservative `deteriorationFlag` (confident profile + meaningfully below peak
+  + no recovery in sight) — and appends a point to `timeline/{domainId}`, the
+  series behind the months-long improvement/decline graph.
+- [`planner-agent`](game-server/agents/planner-agent.ts) rebuilds
+  `trainingPlan/current`: focus domains ranked **deteriorating → declining →
+  weakest** (confidence-gated), the games that train them, and a warm-start
+  difficulty per game from the same cross-game blend the live controller uses.
+- [`director-agent`](game-server/agents/director-agent.ts) — milestone sessions
+  only — renders the structured model into a prompt **on demand**, gets advisory
+  JSON back (Zod-validated, fails closed), and stores the exact rendered prompt
+  in `promptSnapshots/*` for observability. Advisory only: the deterministic
+  controller clamps every move.
+
+---
+
 ## Data model (Firestore, domain-centric)
 
 Firestore is the **only** database. The cognitive profile is the source of truth
@@ -227,10 +285,19 @@ about ability; per-game `stats` is a thin cache (reaction-time baseline + resume
 ```
 users/{userId}
  ├─ cognitiveProfile/{domainId}   ← source of truth: level 0–100, ema, confidence,
- │                                   trend, sessionsCount, sourceGames{}, v
+ │                                   trend, volatility, plateauCount, bestLevel,
+ │                                   deteriorationFlag, playstyleTags, sourceGames{}, v
+ ├─ timeline/{domainId}           ← per-ability time series (capped points[]) —
+ │                                   the improvement/decline graph
+ ├─ liveModel/{gameId}            ← live behavioral fingerprint + chosenPath
+ │                                   (refreshed during play, throttled)
+ ├─ trainingPlan/current          ← focus domains, recommended games,
+ │                                   per-game warm-start difficulty, weekly goal
  ├─ progression/current           ← journey map: overallLevel, rank, regions{8}, v
  ├─ stats/{gameId}                ← cache: RT baseline (Welford) + resume difficulty
  ├─ reports/{sessionId}           ← per-session report index (cognitiveScore, …)
+ ├─ directorAdvice/{sessionId}    ← validated Director guidance (milestones only)
+ ├─ promptSnapshots/{sessionId}   ← the exact rendered LLM prompt (observability)
  ├─ coachReports/{docId}          ← longitudinal coach reports
  └─ alerts/{docId}                ← decline alerts
 
@@ -240,9 +307,12 @@ meta/coachingFallbackUsage        ← fallback-bank usage counters
 admin/*                           ← pending alerts, token alerts
 ```
 
-`schemaVersion` (`v: 1`) is stamped on `cognitiveProfile`, `progression`, and
-`reports` so future migrations can detect older docs. The model is
-backward-compatible — a fresh user simply cold-starts.
+A schema version (`v`) is stamped on every mutable doc (`cognitiveProfile` is at
+`v: 2` since the player-model phase; `progression`, `reports`, `liveModel`,
+`trainingPlan` at `v: 1`) so future migrations can detect older docs. The model
+is backward-compatible — a fresh user simply cold-starts, and legacy v1 profile
+docs are read with safe defaults. A presentational **SQL map of the full
+schema** lives in [`docs/schema.sql`](docs/schema.sql).
 
 ---
 
@@ -341,15 +411,15 @@ docker compose up --build
 
 ```bash
 cd game-server
-npm test                              # vitest — pure agent logic (scoring, profile,
-                                      #   progression, milestone, cross-game seed, …)
+npm test                              # vitest — 92 tests over the pure agent logic
 npx tsc --noEmit                      # type-check
 npx tsx agents/adaptive-agent.sim.ts  # adaptive controller simulation (convergence)
 ```
 
-The pure cores (scoring, profile EMA, progression, milestone detection, cross-game
-seeding, fallback-bank compliance) are unit-tested; agents only add Firestore I/O
-around them.
+The pure cores (scoring, profile EMA + health signals, progression, milestone
+detection, cross-game seeding, live-model features, training-path director,
+planner ranking, Director schema, fallback-bank compliance) are unit-tested;
+agents only add Firestore I/O around them.
 
 ---
 
