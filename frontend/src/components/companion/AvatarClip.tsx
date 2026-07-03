@@ -12,13 +12,20 @@
  * If the browser can't play either format, onFail lets the parent fall back
  * to the static PNG poses.
  *
- * NOTE on error handling: browsers fire an `error` event every time they SKIP
- * an unsupported <source> (e.g. Chrome skipping the HEVC MOV on its way to the
- * WebM). Those are benign — the element-level `video.error` stays null. Only a
- * non-null MediaError means the whole buffer truly failed; that is the only
- * signal we count toward the PNG fallback, and any successful load resets it.
+ * Format selection is done ONCE per session by browser, not via a <source>
+ * list: Safari (the only engine with HEVC+alpha but no VP9+alpha) gets the
+ * .mp4, everything else gets the .webm. A <source> list is ambiguous here —
+ * Chrome on Macs with hardware HEVC will happily pick the mp4 and render the
+ * alpha as black, and Safari can pick the webm with the same result.
  */
 import { useCallback, useEffect, useRef, useState } from 'react';
+
+// Safari (macOS + iOS) reports vendor "Apple Computer, Inc."; Chrome/Edge/
+// Firefox do not. This is the discriminator for the alpha-capable format.
+const IS_SAFARI =
+   typeof navigator !== 'undefined' && /apple/i.test(navigator.vendor ?? '');
+const clipSrc = (name: ClipName) =>
+   `/companion/anim/${name}.${IS_SAFARI ? 'mp4' : 'webm'}`;
 
 export type ClipName =
    | 'idle'
@@ -39,7 +46,9 @@ const LOOPING: Record<ClipName, boolean> = {
    'jet-land': false,
 };
 
-const FADE_MS = 180;
+// Long enough to melt the small pose differences between generated clips,
+// short enough to feel responsive. Must match the CSS opacity transition.
+const FADE_MS = 320;
 
 interface Props {
    clip: ClipName;
@@ -99,10 +108,9 @@ export default function AvatarClip({ clip, className, onEnded, onFail }: Props) 
    };
 
    const handleError = (e: React.SyntheticEvent<HTMLVideoElement>) => {
-      const v = e.currentTarget;
-      // Benign source-skip (e.g. Chrome passing over the HEVC MOV): the element
-      // keeps loading and video.error stays null — ignore it.
-      if (!v.error) return;
+      // Only element-level failures matter (video.error set). Anything else —
+      // e.g. transient events while a buffer is re-staged — is benign.
+      if (!e.currentTarget.error) return;
       realFailures.current += 1;
       if (realFailures.current >= 2) onFail?.();
    };
@@ -118,6 +126,7 @@ export default function AvatarClip({ clip, className, onEnded, onFail }: Props) 
                   muted
                   playsInline
                   preload="auto"
+                  src={name ? clipSrc(name) : undefined}
                   loop={name ? LOOPING[name] : false}
                   autoPlay={i === active}
                   style={{ opacity: i === active ? 1 : 0 }}
@@ -125,16 +134,7 @@ export default function AvatarClip({ clip, className, onEnded, onFail }: Props) 
                   onEnded={() => name && !LOOPING[name] && onEnded?.(name)}
                   onError={handleError}
                   aria-hidden={i !== active}
-               >
-                  {name && (
-                     <>
-                        {/* Safari picks the HEVC+alpha MOV; Chrome/Firefox skip
-                            quicktime and take the VP9+alpha WebM. */}
-                        <source src={`/companion/anim/${name}.mov`} type="video/quicktime" />
-                        <source src={`/companion/anim/${name}.webm`} type="video/webm" />
-                     </>
-                  )}
-               </video>
+               />
             );
          })}
       </div>

@@ -47,7 +47,7 @@ const POSE_CLIP: Record<Pose, ClipName> = {
 //   click / re-engage while flying → land → chat opens.
 type Flight = 'launch' | 'cruise' | 'land' | null;
 const FLIGHT_DELAY_MS = 5000;   // how long after going quiet the jetpack comes out
-const LAND_SYNC_MS = 1800;      // element glide-back duration, matches the clip's descent
+const GLIDE_HOME_MS = 1500;     // drift back to the anchor during the quiet gap
 
 type Ctx = 'home' | 'journey' | 'games' | 'game' | 'other';
 interface Reply { label: string; gameId: string }
@@ -156,40 +156,48 @@ export default function CompanionAvatar() {
     return () => clearTimeout(t);
   }, [ctx, data]);
 
-  // Quiet (chat closed or dismissed) → after a short beat the jetpack comes out
-  // and the mascot starts roaming the gutter. Clicking it mid-flight lands it.
+  // Quiet (chat closed or dismissed) → glide back to the anchor if the mascot
+  // is still parked where it last landed, then after a short beat the jetpack
+  // comes out and it starts roaming the gutter. Clicking it mid-flight lands it.
   useEffect(() => {
     if (open || flight || !videoOk || reducedMotion) return;
-    const t = setTimeout(() => setFlight('launch'), FLIGHT_DELAY_MS);
+    const el = rootRef.current;
+    if (el && el.style.transform) {
+      // drift home during the quiet gap — done well before the launch fires
+      el.style.transition = `transform ${GLIDE_HOME_MS}ms ease-in-out`;
+      el.style.transform = 'translate(0px, 0px)';
+    }
+    // ONE timer owns both the inline cleanup and the launch, so a cancelled
+    // effect can never leave a stale inline `animation: none` behind (which
+    // would silently disable the roam and pin the mascot to its anchor).
+    const t = setTimeout(() => {
+      if (el) {
+        el.style.transition = '';
+        el.style.transform = '';
+        el.style.animation = '';
+      }
+      setFlight('launch');
+    }, FLIGHT_DELAY_MS);
     return () => clearTimeout(t);
   }, [open, flight, videoOk, reducedMotion]);
 
-  // Landing: freeze the CSS roam wherever the mascot currently is, then glide
-  // the element back to its anchor in sync with the clip's on-screen descent.
+  // Landing: freeze the CSS roam wherever the mascot currently is — it lands
+  // ON THE SPOT the user clicked it, and stays there for the conversation.
+  // (The glide back to the anchor happens later, in the quiet gap above.)
   useEffect(() => {
     if (flight !== 'land' || !rootRef.current) return;
     const el = rootRef.current;
     const frozen = getComputedStyle(el).transform;
     el.style.animation = 'none';
-    el.style.transform = frozen === 'none' ? '' : frozen;
-    // next frame: transition the transform back to the anchor position
-    requestAnimationFrame(() => {
-      el.style.transition = `transform ${LAND_SYNC_MS}ms cubic-bezier(0.3, 0.7, 0.3, 1)`;
-      el.style.transform = 'translate(0px, 0px)';
-    });
+    el.style.transform = frozen === 'none' ? 'translate(0px, 0px)' : frozen;
   }, [flight]);
 
-  // One-shot clips chain here: launch → cruise loop; land → back on the ground
+  // One-shot clips chain here: launch → cruise loop; land → grounded in place
   // (and open the chat if the landing was user-initiated); celebrate → idle.
   const handleClipEnd = (clip: ClipName) => {
     if (clip === 'jet-launch') setFlight('cruise');
     else if (clip === 'jet-land') {
       setFlight(null);
-      if (rootRef.current) {
-        rootRef.current.style.transform = '';
-        rootRef.current.style.transition = '';
-        rootRef.current.style.animation = '';
-      }
       if (openAfterLand.current) {
         openAfterLand.current = false;
         setIdx(0);

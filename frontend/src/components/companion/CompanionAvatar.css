@@ -64,7 +64,7 @@
   width: 100%;
   height: 100%;
   object-fit: contain;
-  transition: opacity 180ms ease;
+  transition: opacity 320ms ease; /* keep in sync with FADE_MS in AvatarClip */
   pointer-events: none;
 }
 .companion--game .companion-video { width: 100px; height: 100px; }
