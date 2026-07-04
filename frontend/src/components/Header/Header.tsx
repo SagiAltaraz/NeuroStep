@@ -3,6 +3,7 @@ import { Link } from 'react-router-dom';
 import { Globe, LogOut } from 'lucide-react';
 import { useAuth } from '../../context/AuthContext';
 import { useLang } from '../../context/LanguageContext';
+import { isAdminPanelEnabled } from '../../config/features';
 import Logo from '../Logo';
 import './Header.css';
 
@@ -34,7 +35,7 @@ const Header: React.FC = () => {
                            <Link to="/journey">{t('header.journey')}</Link>
                         </li>
 
-                        {isAdmin && (
+                        {isAdminPanelEnabled && isAdmin && (
                            <li>
                               <Link to="/admin" className="admin-link">
                                  {t('header.admin')}

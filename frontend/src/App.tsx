@@ -1,4 +1,5 @@
 import './App.css';
+import { lazy, Suspense, type ComponentType } from 'react';
 import { Routes, Route } from 'react-router-dom';
 import Header from './components/Header/Header';
 import SiteBackground from './components/SiteBackground/SiteBackground';
@@ -20,12 +21,24 @@ import SpotDifferencePage from './pages/games/SpotDifferencePage';
 import WhereWasItPage from './pages/games/WhereWasItPage';
 import FindLetterPage from './pages/games/FindLetterPage';
 import JourneyPage from './pages/journey/JourneyPage';
-import AdminPage from './pages/admin/AdminPage';
-import CognitiveTrendPage from './pages/admin/trend/CognitiveTrendPage';
-import AlertsPage from './pages/admin/alerts/AlertsPage';
-import CoachReportsPage from './pages/admin/coach-reports/CoachReportsPage';
 import ProtectedRoute from './components/ProtectedRoute/ProtectedRoute';
 import AccessibilityWidget from './components/AccessibilityWidget/AccessibilityWidget';
+import { isAdminPanelEnabled } from './config/features';
+
+const AdminPage = import.meta.env.DEV ? lazy(() => import('./pages/admin/AdminPage')) : null;
+const CognitiveTrendPage = import.meta.env.DEV
+   ? lazy(() => import('./pages/admin/trend/CognitiveTrendPage'))
+   : null;
+const AlertsPage = import.meta.env.DEV ? lazy(() => import('./pages/admin/alerts/AlertsPage')) : null;
+const CoachReportsPage = import.meta.env.DEV
+   ? lazy(() => import('./pages/admin/coach-reports/CoachReportsPage'))
+   : null;
+
+const renderAdminRoute = (Page: ComponentType) => (
+   <Suspense fallback={null}>
+      <Page />
+   </Suspense>
+);
 
 function App() {
    return (
@@ -133,10 +146,24 @@ function App() {
                   </ProtectedRoute>
                }
             />
-            <Route path="/admin" element={<AdminPage />} />
-            <Route path="/admin/users/:userId/trend" element={<CognitiveTrendPage />} />
-            <Route path="/admin/users/:userId/coach-reports" element={<CoachReportsPage />} />
-            <Route path="/admin/alerts" element={<AlertsPage />} />
+            {isAdminPanelEnabled &&
+               AdminPage &&
+               CognitiveTrendPage &&
+               CoachReportsPage &&
+               AlertsPage && (
+                  <>
+                     <Route path="/admin" element={renderAdminRoute(AdminPage)} />
+                     <Route
+                        path="/admin/users/:userId/trend"
+                        element={renderAdminRoute(CognitiveTrendPage)}
+                     />
+                     <Route
+                        path="/admin/users/:userId/coach-reports"
+                        element={renderAdminRoute(CoachReportsPage)}
+                     />
+                     <Route path="/admin/alerts" element={renderAdminRoute(AlertsPage)} />
+                  </>
+               )}
             <Route path="*" element={<div>404 - Page not found</div>} />
          </Routes>
          <AccessibilityWidget />

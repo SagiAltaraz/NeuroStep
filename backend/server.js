@@ -32,7 +32,14 @@ const app = express();
 
 console.log('Firebase Connected!');
 
-const defaultOrigins = ['http://localhost:5173', 'http://localhost:5174', 'http://localhost:3000'];
+const defaultOrigins = [
+  'http://localhost',
+  'https://localhost',
+  'http://localhost:5173',
+  'http://localhost:5174',
+  'http://localhost:3000',
+  'https://localhost:3000',
+];
 const configuredOrigins = (process.env.CORS_ORIGINS ?? '')
   .split(',')
   .map(origin => origin.trim())
@@ -71,5 +78,5 @@ app.get("/{*path}", (req, res) => {
 // Start server
 const PORT = process.env.PORT || 3000;
 app.listen(PORT, () => {
-   console.log(`Server running on → http://localhost:${PORT}`);
+   console.log(`Server running on ג†’ http://localhost:${PORT}`);
 });
