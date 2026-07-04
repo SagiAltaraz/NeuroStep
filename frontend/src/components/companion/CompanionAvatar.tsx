@@ -11,6 +11,7 @@ import { useNavigate, useLocation } from 'react-router-dom';
 import { useAuth } from '../../context/AuthContext';
 import { getMyCompanion, isApiError, type CompanionResponse } from '../../api/me';
 import AvatarClip, { type ClipName } from './AvatarClip';
+import { CELEBRATE_EVENT } from './celebrate';
 import './CompanionAvatar.css';
 
 // companion's kebab gameId → the camelCase route path used in App.tsx
@@ -111,6 +112,7 @@ export default function CompanionAvatar() {
   const [dismissed, setDismissed] = useState(false);  // user closed it → stay quiet until next page
   const [videoOk, setVideoOk] = useState(true);       // false → fall back to the PNG poses
   const [flight, setFlight] = useState<Flight>(null);
+  const [celebrating, setCelebrating] = useState(false); // level-up → plays the celebrate clip
   const openAfterLand = useRef(false);                // land was triggered by a click/re-engage
   const rootRef = useRef<HTMLDivElement>(null);
   const reducedMotion = useMemo(
@@ -159,8 +161,36 @@ export default function CompanionAvatar() {
   // Quiet (chat closed or dismissed) → glide back to the anchor if the mascot
   // is still parked where it last landed, then after a short beat the jetpack
   // comes out and it starts roaming the gutter. Clicking it mid-flight lands it.
+  // Level-up celebration (fired by SessionResults when a report brings a node
+  // promotion). Interrupt whatever the mascot is doing, plant it at its anchor,
+  // and let the celebrate clip play; handleClipEnd returns it to idle.
   useEffect(() => {
-    if (open || flight || !videoOk || reducedMotion) return;
+    const onCelebrate = () => {
+      const el = rootRef.current;
+      if (el) {
+        el.style.animation = '';
+        el.style.transition = '';
+        el.style.transform = '';
+      }
+      setFlight(null);
+      setOpen(false);
+      setPose('celebrate');
+      setCelebrating(true);
+    };
+    window.addEventListener(CELEBRATE_EVENT, onCelebrate);
+    return () => window.removeEventListener(CELEBRATE_EVENT, onCelebrate);
+  }, []);
+
+  // The video path ends the celebration via the clip's onEnded; the PNG
+  // fallback has no such signal, so give it a fixed beat and reset.
+  useEffect(() => {
+    if (!celebrating || videoOk) return;
+    const t = setTimeout(() => { setCelebrating(false); setPose('idle'); }, 4000);
+    return () => clearTimeout(t);
+  }, [celebrating, videoOk]);
+
+  useEffect(() => {
+    if (open || flight || celebrating || !videoOk || reducedMotion) return;
     const el = rootRef.current;
     if (el && el.style.transform) {
       // drift home during the quiet gap — done well before the launch fires
@@ -208,7 +238,10 @@ export default function CompanionAvatar() {
         setOpen(true);
         setDismissed(false);
       }
-    } else if (clip === 'celebrate') setPose('idle');
+    } else if (clip === 'celebrate') {
+      setCelebrating(false);
+      setPose('idle');
+    }
   };
 
   // Smart pacing: linger on each message for its reading time, then move on;
@@ -248,13 +281,16 @@ export default function CompanionAvatar() {
   const msg = messages[Math.min(idx, messages.length - 1)];
   const resolvedPose: Pose = broken[pose] ? 'idle' : pose;
 
-  // The clip the state machine wants right now. Flight owns the jet clips;
-  // otherwise an open chat talks, and the pose drives the rest.
-  const clip: ClipName = flight
-    ? (`jet-${flight}` as ClipName)
-    : open && msg
-      ? 'talk'
-      : POSE_CLIP[resolvedPose];
+  // The clip the state machine wants right now. A level-up celebration wins
+  // over everything; then flight owns the jet clips; otherwise an open chat
+  // talks, and the pose drives the rest.
+  const clip: ClipName = celebrating
+    ? 'celebrate'
+    : flight
+      ? (`jet-${flight}` as ClipName)
+      : open && msg
+        ? 'talk'
+        : POSE_CLIP[resolvedPose];
 
   const flying = flight === 'launch' || flight === 'cruise';
 

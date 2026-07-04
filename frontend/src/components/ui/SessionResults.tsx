@@ -19,6 +19,7 @@ import { useNavigate } from 'react-router-dom';
 import { AnimatePresence, motion } from 'framer-motion';
 import { useLang, type TKey } from '../../context/LanguageContext';
 import Avatar from '../journey/Avatar';
+import { emitCelebrate } from '../companion/celebrate';
 import type { SessionResult } from '../../hooks/useGameSession';
 
 interface Props {
@@ -51,6 +52,14 @@ export default function SessionResults({ result, active = false }: Props) {
     const id = setTimeout(() => setTimedOut(true), RESULT_FALLBACK_MS);
     return () => clearTimeout(id);
   }, [active, result.phase]);
+
+  // When the full report lands with a node promotion, cue the companion mascot
+  // to celebrate — fires once per report (levelChanges identity is stable).
+  useEffect(() => {
+    if (result.phase === 'report' && (result.levelChanges ?? []).some((c) => c.delta > 0)) {
+      emitCelebrate();
+    }
+  }, [result.phase, result.levelChanges]);
 
   const ended = active || result.phase !== 'none';
   if (!ended) return null;
