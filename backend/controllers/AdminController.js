@@ -257,6 +257,97 @@ export const acknowledgeAlert = async (req, res) => {
   }
 };
 
+// ===== PLAYER FILE (תיק שחקן — one aggregated read for the admin) =====
+// Combines everything the Player-File page needs in a single round-trip:
+//   • user details (password-stripped, createdAt normalised to ms)
+//   • cognitiveProfile — up to 8 per-domain docs (level, trend, …)
+//   • progression/current — journey-map state (cold-start default if absent)
+//   • recent sessions — from the lightweight users/{id}/reports index
+//     (gameId, date, accuracy, cognitiveScore, summaryHe), newest-first
+//   • open alerts — this user's entries in admin/pendingAlerts
+const toMs = (v) => v?.toDate?.()?.getTime?.() ?? (typeof v === 'number' ? v : null);
+
+export const getUserPlayerFile = async (req, res) => {
+  try {
+    const { userId } = req.params;
+    const userRef = firestore.collection('users').doc(userId);
+
+    const [userSnap, profSnap, progSnap, reportsSnap, pendingSnap] = await Promise.all([
+      userRef.get(),
+      userRef.collection('cognitiveProfile').get(),
+      userRef.collection('progression').doc('current').get(),
+      userRef.collection('reports').orderBy('generatedAt', 'desc').limit(20).get(),
+      firestore.collection('admin').doc('pendingAlerts').get(),
+    ]);
+
+    if (!userSnap.exists) return res.status(404).json({ message: 'User not found' });
+
+    const { password, ...userData } = userSnap.data();
+    const user = { id: userSnap.id, ...userData, createdAt: toMs(userData.createdAt) };
+
+    const domains = profSnap.docs.map((d) => ({ id: d.id, ...d.data() }));
+
+    const progression = progSnap.exists
+      ? progSnap.data()
+      : { overallLevel: 0, rank: 'beginner', regions: {}, avatarState: 'idle' };
+
+    const sessions = reportsSnap.docs.map((d) => {
+      const data = d.data();
+      return {
+        sessionId:      data.sessionId      ?? d.id,
+        gameId:         data.gameId         ?? null,
+        generatedAt:    data.generatedAt    ?? null,
+        cognitiveScore: data.cognitiveScore ?? null,
+        accuracy:       data.accuracy       ?? null,
+        summaryHe:      data.summaryHe       ?? '',
+      };
+    });
+
+    const pending = pendingSnap.exists ? (pendingSnap.data() ?? {}) : {};
+    const alerts = Object.values(pending)
+      .filter((a) => a.userId === userId)
+      .map((a) => ({
+        alertId:      a.alertId      ?? null,
+        gameId:       a.gameId,
+        type:         a.type         ?? 'performance_decline',
+        trigger:      a.trigger      ?? null,
+        accuracyDrop: a.accuracyDrop ?? null,
+        createdAt:    a.createdAt    ?? null,
+        acknowledged: a.acknowledged ?? false,
+      }))
+      .sort((a, b) => (b.createdAt ?? 0) - (a.createdAt ?? 0));
+
+    res.json({ user, profile: { domains }, progression, sessions, alerts });
+  } catch (err) {
+    console.error('[getUserPlayerFile]', err);
+    res.status(500).json({ message: 'Failed to fetch player file', error: err.message });
+  }
+};
+
+// ===== SESSION REPORT (full per-session report for the admin) =====
+// Returns the complete report stored under sessions/{sessionId}.report —
+// domainScores, the Hebrew narrative (summaryHe/strengthsHe/recommendationsHe),
+// rawStats, and the adaptive summary (adjustmentCount + netDirection). The full
+// adjustment list is not persisted; rawStats carries its summary.
+export const getSessionReport = async (req, res) => {
+  try {
+    const { sessionId } = req.params;
+    const doc = await firestore.collection('sessions').doc(sessionId).get();
+    if (!doc.exists) return res.status(404).json({ message: 'Session not found' });
+
+    const data = doc.data();
+    if (!data.report) return res.status(404).json({ message: 'Report not found' });
+
+    res.json({
+      ...data.report,
+      startedAt: toMs(data.startedAt),
+    });
+  } catch (err) {
+    console.error('[getSessionReport]', err);
+    res.status(500).json({ message: 'Failed to fetch session report', error: err.message });
+  }
+};
+
 // ===== USER COACH REPORTS (longitudinal, every 5 sessions) =====
 export const getUserCoachReports = async (req, res) => {
   try {
