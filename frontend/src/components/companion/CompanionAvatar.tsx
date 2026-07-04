@@ -181,16 +181,20 @@ export default function CompanionAvatar() {
     return () => clearTimeout(t);
   }, [open, flight, videoOk, reducedMotion]);
 
-  // Landing: freeze the CSS roam wherever the mascot currently is — it lands
-  // ON THE SPOT the user clicked it, and stays there for the conversation.
-  // (The glide back to the anchor happens later, in the quiet gap above.)
-  useEffect(() => {
-    if (flight !== 'land' || !rootRef.current) return;
+  // Pin the mascot exactly where it is RIGHT NOW, synchronously, and start the
+  // landing there. Must run BEFORE the `companion--flying` class is removed:
+  // once the flight animation is gone the roam snaps the element back to its
+  // anchor, so reading the transform from an effect (a frame later) is too late.
+  const landInPlace = () => {
     const el = rootRef.current;
-    const frozen = getComputedStyle(el).transform;
-    el.style.animation = 'none';
-    el.style.transform = frozen === 'none' ? 'translate(0px, 0px)' : frozen;
-  }, [flight]);
+    if (el) {
+      const frozen = getComputedStyle(el).transform;
+      el.style.animation = 'none';
+      el.style.transition = 'none';
+      el.style.transform = frozen === 'none' ? 'translate(0px, 0px)' : frozen;
+    }
+    setFlight('land');
+  };
 
   // One-shot clips chain here: launch → cruise loop; land → grounded in place
   // (and open the chat if the landing was user-initiated); celebrate → idle.
@@ -225,13 +229,15 @@ export default function CompanionAvatar() {
     const t = setTimeout(() => {
       if (flight === 'launch' || flight === 'cruise') {
         openAfterLand.current = true;
-        setFlight('land');
+        landInPlace();
       } else if (!flight) {
         setIdx(0);
         setOpen(true);
       }
     }, QUIET_MS);
     return () => clearTimeout(t);
+    // landInPlace reads refs only; excluding it keeps this from re-firing.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [open, idx, dismissed, messages, flight]);
 
   const goGame = (gameId: string) => {
@@ -282,10 +288,10 @@ export default function CompanionAvatar() {
       <button
         className="companion-char"
         onClick={() => {
-          // clicking mid-flight brings it in for a landing, then the chat opens
+          // clicking mid-flight lands it ON THE SPOT, then the chat opens
           if (flying) {
             openAfterLand.current = true;
-            setFlight('land');
+            landInPlace();
             return;
           }
           if (flight === 'land') return; // already on approach
