@@ -12,20 +12,21 @@
  * If the browser can't play either format, onFail lets the parent fall back
  * to the static PNG poses.
  *
- * Format selection is done ONCE per session by browser, not via a <source>
- * list: Safari (the only engine with HEVC+alpha but no VP9+alpha) gets the
- * .mp4, everything else gets the .webm. A <source> list is ambiguous here —
- * Chrome on Macs with hardware HEVC will happily pick the mp4 and render the
- * alpha as black, and Safari can pick the webm with the same result.
+ * Browser split: Safari can't play VP9+alpha WebM and this toolchain can't make
+ * HEVC+alpha, so Safari renders a luma-matte .mp4 through a WebGL canvas
+ * (LumaClip). Chrome/Firefox keep this untouched WebM <video> path with its A/B
+ * double-buffer. The engine is detected once and the whole renderer is chosen
+ * accordingly — no ambiguous <source> lists.
  */
 import { useCallback, useEffect, useRef, useState } from 'react';
+import LumaClip from './LumaClip';
 
 // Safari (macOS + iOS) reports vendor "Apple Computer, Inc."; Chrome/Edge/
-// Firefox do not. This is the discriminator for the alpha-capable format.
+// Firefox do not. `localStorage.luma = '1'` forces the Safari luma path for
+// testing the WebGL renderer in any browser.
 const IS_SAFARI =
-   typeof navigator !== 'undefined' && /apple/i.test(navigator.vendor ?? '');
-const clipSrc = (name: ClipName) =>
-   `/companion/anim/${name}.${IS_SAFARI ? 'mp4' : 'webm'}`;
+   (typeof navigator !== 'undefined' && /apple/i.test(navigator.vendor ?? '')) ||
+   (typeof localStorage !== 'undefined' && localStorage.getItem('luma') === '1');
 
 export type ClipName =
    | 'idle'
@@ -57,7 +58,14 @@ interface Props {
    onFail?: () => void;
 }
 
-export default function AvatarClip({ clip, className, onEnded, onFail }: Props) {
+export default function AvatarClip(props: Props) {
+   // Safari has no alpha-video path — render the luma-matte via WebGL instead.
+   if (IS_SAFARI) return <LumaClip {...props} />;
+   return <WebmClip {...props} />;
+}
+
+// Chrome/Firefox path: WebM+alpha in a straightforward A/B <video> buffer.
+function WebmClip({ clip, className, onEnded, onFail }: Props) {
    // Two buffers; `active` is the visible one, the other stages the next clip.
    const [slots, setSlots] = useState<(ClipName | null)[]>([clip, null]);
    const [active, setActive] = useState(0);
@@ -126,7 +134,7 @@ export default function AvatarClip({ clip, className, onEnded, onFail }: Props) 
                   muted
                   playsInline
                   preload="auto"
-                  src={name ? clipSrc(name) : undefined}
+                  src={name ? `/companion/anim/${name}.webm` : undefined}
                   loop={name ? LOOPING[name] : false}
                   autoPlay={i === active}
                   style={{ opacity: i === active ? 1 : 0 }}
