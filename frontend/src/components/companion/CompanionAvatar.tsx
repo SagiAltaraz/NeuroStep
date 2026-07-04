@@ -6,10 +6,12 @@
  * encouraging tips inside games. Always visible; the bottom chat can later take
  * over the conversation via a professional LLM.
  */
-import { useEffect, useMemo, useState } from 'react';
+import { useEffect, useMemo, useRef, useState } from 'react';
 import { useNavigate, useLocation } from 'react-router-dom';
 import { useAuth } from '../../context/AuthContext';
 import { getMyCompanion, isApiError, type CompanionResponse } from '../../api/me';
+import AvatarClip, { type ClipName } from './AvatarClip';
+import { CELEBRATE_EVENT } from './celebrate';
 import './CompanionAvatar.css';
 
 // companion's kebab gameId → the camelCase route path used in App.tsx
@@ -31,6 +33,22 @@ const POSE_SRC: Record<Pose, string> = {
   think: '/companion/neurostep-bot-think.png',
   celebrate: '/companion/neurostep-bot-celebrate.png',
 };
+
+// Static poses → animated clips (wave greets by talking). The jet-* clips are
+// driven by the flight state machine, not by pose.
+const POSE_CLIP: Record<Pose, ClipName> = {
+  idle: 'idle',
+  wave: 'talk',
+  think: 'think',
+  celebrate: 'celebrate',
+};
+
+// Flight — the jetpack roam cycle over the side gutter:
+//   quiet/dismissed → launch → cruise (loops, element roams via CSS)
+//   click / re-engage while flying → land → chat opens.
+type Flight = 'launch' | 'cruise' | 'land' | null;
+const FLIGHT_DELAY_MS = 5000;   // how long after going quiet the jetpack comes out
+const GLIDE_HOME_MS = 1500;     // drift back to the anchor during the quiet gap
 
 type Ctx = 'home' | 'journey' | 'games' | 'game' | 'other';
 interface Reply { label: string; gameId: string }
@@ -92,6 +110,15 @@ export default function CompanionAvatar() {
   const [open, setOpen] = useState(true);
   const [idx, setIdx] = useState(0);
   const [dismissed, setDismissed] = useState(false);  // user closed it → stay quiet until next page
+  const [videoOk, setVideoOk] = useState(true);       // false → fall back to the PNG poses
+  const [flight, setFlight] = useState<Flight>(null);
+  const [celebrating, setCelebrating] = useState(false); // level-up → plays the celebrate clip
+  const openAfterLand = useRef(false);                // land was triggered by a click/re-engage
+  const rootRef = useRef<HTMLDivElement>(null);
+  const reducedMotion = useMemo(
+    () => window.matchMedia?.('(prefers-reduced-motion: reduce)').matches ?? false,
+    [],
+  );
 
   const ctx: Ctx = useMemo(() => {
     const p = loc.pathname;
@@ -120,9 +147,102 @@ export default function CompanionAvatar() {
     setOpen(true);
     setDismissed(false);
     setPose('wave');
+    setFlight(null);
+    openAfterLand.current = false;
+    if (rootRef.current) {
+      rootRef.current.style.transform = '';
+      rootRef.current.style.transition = '';
+      rootRef.current.style.animation = '';
+    }
     const t = setTimeout(() => setPose('idle'), 2600);
     return () => clearTimeout(t);
   }, [ctx, data]);
+
+  // Quiet (chat closed or dismissed) → glide back to the anchor if the mascot
+  // is still parked where it last landed, then after a short beat the jetpack
+  // comes out and it starts roaming the gutter. Clicking it mid-flight lands it.
+  // Level-up celebration (fired by SessionResults when a report brings a node
+  // promotion). Interrupt whatever the mascot is doing, plant it at its anchor,
+  // and let the celebrate clip play; handleClipEnd returns it to idle.
+  useEffect(() => {
+    const onCelebrate = () => {
+      const el = rootRef.current;
+      if (el) {
+        el.style.animation = '';
+        el.style.transition = '';
+        el.style.transform = '';
+      }
+      setFlight(null);
+      setOpen(false);
+      setPose('celebrate');
+      setCelebrating(true);
+    };
+    window.addEventListener(CELEBRATE_EVENT, onCelebrate);
+    return () => window.removeEventListener(CELEBRATE_EVENT, onCelebrate);
+  }, []);
+
+  // The video path ends the celebration via the clip's onEnded; the PNG
+  // fallback has no such signal, so give it a fixed beat and reset.
+  useEffect(() => {
+    if (!celebrating || videoOk) return;
+    const t = setTimeout(() => { setCelebrating(false); setPose('idle'); }, 4000);
+    return () => clearTimeout(t);
+  }, [celebrating, videoOk]);
+
+  useEffect(() => {
+    if (open || flight || celebrating || !videoOk || reducedMotion) return;
+    const el = rootRef.current;
+    if (el && el.style.transform) {
+      // drift home during the quiet gap — done well before the launch fires
+      el.style.transition = `transform ${GLIDE_HOME_MS}ms ease-in-out`;
+      el.style.transform = 'translate(0px, 0px)';
+    }
+    // ONE timer owns both the inline cleanup and the launch, so a cancelled
+    // effect can never leave a stale inline `animation: none` behind (which
+    // would silently disable the roam and pin the mascot to its anchor).
+    const t = setTimeout(() => {
+      if (el) {
+        el.style.transition = '';
+        el.style.transform = '';
+        el.style.animation = '';
+      }
+      setFlight('launch');
+    }, FLIGHT_DELAY_MS);
+    return () => clearTimeout(t);
+  }, [open, flight, videoOk, reducedMotion]);
+
+  // Pin the mascot exactly where it is RIGHT NOW, synchronously, and start the
+  // landing there. Must run BEFORE the `companion--flying` class is removed:
+  // once the flight animation is gone the roam snaps the element back to its
+  // anchor, so reading the transform from an effect (a frame later) is too late.
+  const landInPlace = () => {
+    const el = rootRef.current;
+    if (el) {
+      const frozen = getComputedStyle(el).transform;
+      el.style.animation = 'none';
+      el.style.transition = 'none';
+      el.style.transform = frozen === 'none' ? 'translate(0px, 0px)' : frozen;
+    }
+    setFlight('land');
+  };
+
+  // One-shot clips chain here: launch → cruise loop; land → grounded in place
+  // (and open the chat if the landing was user-initiated); celebrate → idle.
+  const handleClipEnd = (clip: ClipName) => {
+    if (clip === 'jet-launch') setFlight('cruise');
+    else if (clip === 'jet-land') {
+      setFlight(null);
+      if (openAfterLand.current) {
+        openAfterLand.current = false;
+        setIdx(0);
+        setOpen(true);
+        setDismissed(false);
+      }
+    } else if (clip === 'celebrate') {
+      setCelebrating(false);
+      setPose('idle');
+    }
+  };
 
   // Smart pacing: linger on each message for its reading time, then move on;
   // once the page's queue is done, go quiet — and only re-engage gently after a
@@ -137,10 +257,21 @@ export default function CompanionAvatar() {
       }, readMs(cur.text));
       return () => clearTimeout(t);
     }
-    // quiet → gentle re-engage after a long pause
-    const t = setTimeout(() => { setIdx(0); setOpen(true); }, QUIET_MS);
+    // quiet → gentle re-engage after a long pause. If it's out flying, bring it
+    // in for a landing first — the chat opens when the touchdown completes.
+    const t = setTimeout(() => {
+      if (flight === 'launch' || flight === 'cruise') {
+        openAfterLand.current = true;
+        landInPlace();
+      } else if (!flight) {
+        setIdx(0);
+        setOpen(true);
+      }
+    }, QUIET_MS);
     return () => clearTimeout(t);
-  }, [open, idx, dismissed, messages]);
+    // landInPlace reads refs only; excluding it keeps this from re-firing.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [open, idx, dismissed, messages, flight]);
 
   const goGame = (gameId: string) => {
     setOpen(false);
@@ -150,8 +281,25 @@ export default function CompanionAvatar() {
   const msg = messages[Math.min(idx, messages.length - 1)];
   const resolvedPose: Pose = broken[pose] ? 'idle' : pose;
 
+  // The clip the state machine wants right now. A level-up celebration wins
+  // over everything; then flight owns the jet clips; otherwise an open chat
+  // talks, and the pose drives the rest.
+  const clip: ClipName = celebrating
+    ? 'celebrate'
+    : flight
+      ? (`jet-${flight}` as ClipName)
+      : open && msg
+        ? 'talk'
+        : POSE_CLIP[resolvedPose];
+
+  const flying = flight === 'launch' || flight === 'cruise';
+
   return (
-    <div className={`companion companion--${ctx} ${open ? 'is-talking' : ''}`} dir="rtl">
+    <div
+      ref={rootRef}
+      className={`companion companion--${ctx} ${open ? 'is-talking' : ''} ${flying ? 'companion--flying' : ''}`}
+      dir="rtl"
+    >
       {open && msg && (
         <div className="companion-bubble" role="status">
           <button className="companion-close" onClick={() => { setOpen(false); setDismissed(true); }} aria-label="סגור">×</button>
@@ -175,11 +323,28 @@ export default function CompanionAvatar() {
 
       <button
         className="companion-char"
-        onClick={() => { setDismissed(false); setOpen((o) => !o); }}
+        onClick={() => {
+          // clicking mid-flight lands it ON THE SPOT, then the chat opens
+          if (flying) {
+            openAfterLand.current = true;
+            landInPlace();
+            return;
+          }
+          if (flight === 'land') return; // already on approach
+          setDismissed(false);
+          setOpen((o) => !o);
+        }}
         aria-label="המאמן שלי"
         title="המאמן שלי"
       >
-        {!broken.idle ? (
+        {videoOk ? (
+          <AvatarClip
+            clip={clip}
+            className="companion-video"
+            onEnded={handleClipEnd}
+            onFail={() => { setVideoOk(false); setFlight(null); }}
+          />
+        ) : !broken.idle ? (
           <img
             key={resolvedPose}
             className="companion-img"
