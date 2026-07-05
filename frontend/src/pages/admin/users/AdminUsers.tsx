@@ -329,6 +329,13 @@ const AdminUsers: React.FC<AdminUsersProps> = ({ onBack }) => {
                 ) : (
                   <>
                     <button
+                      className="btn btn-file"
+                      onClick={() => navigate(`/admin/users/${user.id}/player-file`)}
+                      title="Open player file"
+                    >
+                      File
+                    </button>
+                    <button
                       className="btn btn-trend"
                       onClick={() => navigate(`/admin/users/${user.id}/trend`)}
                       title="View cognitive score trend"

@@ -33,6 +33,9 @@ const AlertsPage = import.meta.env.DEV ? lazy(() => import('./pages/admin/alerts
 const CoachReportsPage = import.meta.env.DEV
    ? lazy(() => import('./pages/admin/coach-reports/CoachReportsPage'))
    : null;
+const PlayerFilePage = import.meta.env.DEV
+   ? lazy(() => import('./pages/admin/player-file/PlayerFilePage'))
+   : null;
 
 const renderAdminRoute = (Page: ComponentType) => (
    <Suspense fallback={null}>
@@ -150,9 +153,14 @@ function App() {
                AdminPage &&
                CognitiveTrendPage &&
                CoachReportsPage &&
+               PlayerFilePage &&
                AlertsPage && (
                   <>
                      <Route path="/admin" element={renderAdminRoute(AdminPage)} />
+                     <Route
+                        path="/admin/users/:userId/player-file"
+                        element={renderAdminRoute(PlayerFilePage)}
+                     />
                      <Route
                         path="/admin/users/:userId/trend"
                         element={renderAdminRoute(CognitiveTrendPage)}
