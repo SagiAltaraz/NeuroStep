@@ -152,56 +152,6 @@ export const getMyTargetTime = async (req, res) => {
    }
 };
 
-// ── Daily check-in ───────────────────────────────────────────────────────────
-// The companion asks once a day how the user feels + slept; the answer is stored
-// at users/{uid}/checkins/{YYYY-MM-DD} and read by the game-server's adaptive
-// warm-up (a tired / poorly-slept day opens the difficulty a touch easier).
-const CHECKIN_MOODS = ['good', 'ok', 'tired'];
-const CHECKIN_SLEEP = ['well', 'ok', 'bad'];
-// UTC day key — the SAME formula the game-server uses, so writes and reads agree.
-const todayKey = () => new Date().toISOString().slice(0, 10);
-
-// GET /api/me/checkin/today — today's check-in, or null if not done yet.
-export const getMyTodayCheckin = async (req, res) => {
-   try {
-      const userId = req.user.id;
-      const doc = await firestore
-         .collection('users')
-         .doc(userId)
-         .collection('checkins')
-         .doc(todayKey())
-         .get();
-      res.json(doc.exists ? doc.data() : null);
-   } catch (err) {
-      console.error('[me/checkin:get]', err.message);
-      res.status(500).json({ message: 'Failed to load check-in' });
-   }
-};
-
-// POST /api/me/checkin — record today's { mood, sleep }. Idempotent per day
-// (the doc id is the date, so a second submit just overwrites today's answer).
-export const postMyCheckin = async (req, res) => {
-   try {
-      const userId = req.user.id;
-      const { mood, sleep } = req.body ?? {};
-      if (!CHECKIN_MOODS.includes(mood) || !CHECKIN_SLEEP.includes(sleep)) {
-         return res.status(400).json({ message: 'Invalid mood or sleep value' });
-      }
-      const date = todayKey();
-      const data = { mood, sleep, at: Date.now(), date };
-      await firestore
-         .collection('users')
-         .doc(userId)
-         .collection('checkins')
-         .doc(date)
-         .set(data);
-      res.json({ ok: true, checkin: data });
-   } catch (err) {
-      console.error('[me/checkin:post]', err.message);
-      res.status(500).json({ message: 'Failed to save check-in' });
-   }
-};
-
 // GET /api/me/companion — the proactive companion's next message, derived from
 // the caller's own data. The GAME PICK is deterministic (the weakest cognitive
 // domain → the game that trains it); the phrasing here is templated Hebrew with

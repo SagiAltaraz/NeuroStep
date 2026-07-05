@@ -13,8 +13,7 @@ import { TOPICS }                                           from './kafka/topics
 import { startAdjustmentsConsumer, getAdjustmentsForSession } from './kafka/adjustments-consumer.js';
 import { getSession, initSession, deleteSession }           from './sessions/session-store.js';
 import { processEvent, persistDifficulty, resumeDifficulty,
-         seedLevelFromProfile, applyWarmupSeed, applyTirednessDamping,
-         classifyEvent } from './agents/adaptive-agent.js';
+         seedLevelFromProfile, applyWarmupSeed, classifyEvent } from './agents/adaptive-agent.js';
 import { startAnalyticsAgent, getSessionSnapshot }          from './agents/analytics-agent.js';
 import type { SessionSnapshot }                             from './agents/analytics-agent.js';
 import { generateSessionReport, deterministicCognitiveScore,
@@ -278,21 +277,6 @@ wss.on('connection', (ws: WebSocket) => {
             });
           }
         }
-      }
-
-      // ── Daily check-in (B1): ease the opening if the user is tired today ──
-      // Runs after resume/seed have set the starting D; only lowers this
-      // session's opening, never the persisted level.
-      const tiredParams = await applyTirednessDamping(session.adaptive, event.userId);
-      if (tiredParams && ws.readyState === WebSocket.OPEN) {
-        console.log(`[Tired] ${event.gameId} eased → D:${session.adaptive.D.toFixed(2)} | user:${event.userId}`);
-        safeSend(ws, {
-          type:      'adjustment',
-          reason:    'tired',
-          params:    tiredParams,
-          level:     session.adaptive.D,
-          direction: 'easier',
-        });
       }
     }
 

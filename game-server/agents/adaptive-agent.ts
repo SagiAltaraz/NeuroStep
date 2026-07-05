@@ -411,44 +411,6 @@ export function applyWarmupSeed(
    return paramsFromD(state.gameId, D);
 }
 
-// ── Daily check-in warm-up damping (B1) ──────────────────────────────────────
-
-const TIRED_FACTOR = 0.85; // opening difficulty multiplier on a tired / poor-sleep day
-
-/**
- * If the user logged a tired mood or poor sleep in today's check-in, ease this
- * session's OPENING difficulty by TIRED_FACTOR. Only state.D (the starting point)
- * is lowered — dSmoothed (the persisted ability target) is left untouched, so a
- * rough day never demotes the player's saved level. Call after resume/seed, when
- * state.D already holds the starting difficulty. Returns the eased params, or
- * null when there's no reason (or no way) to dampen.
- */
-export async function applyTirednessDamping(
-   state: AdaptiveState,
-   userId: string
-): Promise<DifficultyParams | null> {
-   if (userId === 'anonymous') return null;
-   try {
-      const today = new Date().toISOString().slice(0, 10); // UTC key — matches backend
-      const doc = await getDb()
-         .collection('users')
-         .doc(userId)
-         .collection('checkins')
-         .doc(today)
-         .get();
-      if (!doc.exists) return null;
-
-      const c = doc.data()!;
-      const tired = c.mood === 'tired' || c.sleep === 'bad';
-      if (!tired) return null;
-
-      state.D = clamp01(state.D * TIRED_FACTOR);
-      return paramsFromD(state.gameId, state.D);
-   } catch {
-      return null;
-   }
-}
-
 // ── Public event/result shapes ──────────────────────────────────────────────────
 
 export interface AdaptiveEvent {

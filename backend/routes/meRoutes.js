@@ -7,8 +7,6 @@ import {
    getMyGameStats,
    getMyCompanion,
    getMyTargetTime,
-   getMyTodayCheckin,
-   postMyCheckin,
 } from '../controllers/MeController.js';
 import { protect } from '../middleware/authMiddleware.js';
 
@@ -18,8 +16,6 @@ router.get('/profile', protect, getMyProfile);
 router.get('/progression', protect, getMyProgression);
 router.get('/companion', protect, getMyCompanion);
 router.get('/target-time/:gameId', protect, getMyTargetTime);
-router.get('/checkin/today', protect, getMyTodayCheckin);
-router.post('/checkin', protect, postMyCheckin);
 router.get('/reports/:sessionId', protect, getMyReport);
 router.get('/stats/:gameId', protect, getMyGameStats);
 
