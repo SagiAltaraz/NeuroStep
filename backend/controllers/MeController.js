@@ -4,7 +4,7 @@
 // is scoped to req.user.id (set by the `protect` middleware) — a user can never
 // read another user's data here (that's what the admin routes are for).
 import { firestore } from '../config/firebase.js';
-import { buildTrainingPlan } from '../services/trainingPlan.js';
+import { buildTrainingPlan, targetMinutes, GAME_DOMAIN } from '../services/trainingPlan.js';
 
 // ── Companion data maps ──────────────────────────────────────────────────────
 // Domain → the game whose PRIMARY domain it is (inverse of the game-server's
@@ -122,6 +122,33 @@ export const getMyGameStats = async (req, res) => {
    } catch (err) {
       console.error('[me/stats]', err.message);
       res.status(500).json({ message: 'Failed to load stats' });
+   }
+};
+
+// GET /api/me/target-time/:gameId — the recommended per-session play time
+// (minutes) for a game, adapted to the caller's ability in that game's PRIMARY
+// domain (weaker → a slightly longer session). Cold-start defaults to neutral.
+export const getMyTargetTime = async (req, res) => {
+   try {
+      const userId = req.user.id;
+      const { gameId } = req.params;
+      const domainId = GAME_DOMAIN[gameId] ?? null;
+
+      let level = 50; // neutral default until a profile exists
+      if (domainId) {
+         const doc = await firestore
+            .collection('users')
+            .doc(userId)
+            .collection('cognitiveProfile')
+            .doc(domainId)
+            .get();
+         if (doc.exists && typeof doc.data().level === 'number') level = doc.data().level;
+      }
+
+      res.json({ gameId, domainId, level, targetMinutes: targetMinutes(level) });
+   } catch (err) {
+      console.error('[me/target-time]', err.message);
+      res.status(500).json({ message: 'Failed to load target time' });
    }
 };
 
