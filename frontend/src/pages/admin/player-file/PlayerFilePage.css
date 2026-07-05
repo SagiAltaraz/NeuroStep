@@ -176,6 +176,50 @@
 .pf-domain-trend.down { color: #e5484d; }
 .pf-domain-trend.flat { color: #94a3b8; }
 
+/* ── Weekly training plan ── */
+.pf-plan-head {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: 12px;
+  flex-wrap: wrap;
+}
+.pf-plan-total { font-size: 12px; color: #2f86d6; font-weight: 700; }
+.pf-plan-list { list-style: none; margin: 8px 0 0; padding: 0; }
+.pf-plan-row {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  padding: 10px 12px;
+  border: 1px solid #eef2f7;
+  border-radius: 12px;
+  margin-bottom: 8px;
+  background: #fbfdff;
+}
+.pf-plan-row.prio-high { border-inline-start: 3px solid #e5484d; }
+.pf-plan-row.prio-medium { border-inline-start: 3px solid #f59e0b; }
+.pf-plan-row.prio-low { border-inline-start: 3px solid #16a34a; }
+.pf-plan-badge {
+  flex: 0 0 auto;
+  font-size: 11px;
+  font-weight: 700;
+  border-radius: 999px;
+  padding: 3px 10px;
+  min-width: 52px;
+  text-align: center;
+}
+.pf-plan-badge.prio-high { background: #fde2e2; color: #b91c1c; }
+.pf-plan-badge.prio-medium { background: #fef0d5; color: #b45309; }
+.pf-plan-badge.prio-low { background: #dcfce7; color: #15803d; }
+.pf-plan-main { flex: 1 1 auto; min-width: 0; }
+.pf-plan-title { display: flex; gap: 8px; align-items: baseline; flex-wrap: wrap; }
+.pf-plan-domain { font-weight: 700; font-size: 14px; }
+.pf-plan-game { color: #2f86d6; font-size: 13px; font-weight: 600; }
+.pf-plan-reason { margin: 2px 0 0; font-size: 12px; color: #5a7fa8; }
+.pf-plan-freq { flex: 0 0 auto; text-align: center; }
+.pf-plan-freq-num { display: block; font-size: 16px; font-weight: 800; color: #1c3a45; }
+.pf-plan-freq-label { display: block; font-size: 10px; color: #94a3b8; }
+
 /* ── Alerts ── */
 .pf-alert-list { list-style: none; margin: 0; padding: 0; }
 .pf-alert-row {

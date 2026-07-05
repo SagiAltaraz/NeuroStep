@@ -1,6 +1,7 @@
 import { userFirebaseService } from "../services/user.js";
 import { firestore } from "../config/firebase.js";
 import { FieldValue } from "firebase-admin/firestore";
+import { buildTrainingPlan } from "../services/trainingPlan.js";
 
 // Normalise a stored date to epoch-ms for the client. Handles Firestore
 // Timestamps (which JSON-serialise to {_seconds,…} that `new Date()` can't
@@ -332,7 +333,9 @@ export const getUserPlayerFile = async (req, res) => {
       }))
       .sort((a, b) => (b.createdAt ?? 0) - (a.createdAt ?? 0));
 
-    res.json({ user, profile: { domains }, progression, sessions, alerts });
+    const trainingPlan = buildTrainingPlan(domains);
+
+    res.json({ user, profile: { domains }, progression, sessions, alerts, trainingPlan });
   } catch (err) {
     console.error('[getUserPlayerFile]', err);
     res.status(500).json({ message: 'Failed to fetch player file', error: err.message });

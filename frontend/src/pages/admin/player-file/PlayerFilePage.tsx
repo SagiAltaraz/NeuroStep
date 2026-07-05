@@ -37,6 +37,27 @@ interface AlertRow {
   acknowledged: boolean;
 }
 
+interface TrainingPlanItem {
+  domainId:        string;
+  domainHe:        string;
+  gameId:          string;
+  gameHe:          string;
+  level:           number;
+  trend:           'up' | 'down' | 'stable';
+  deterioration:   boolean;
+  priority:        'high' | 'medium' | 'low';
+  priorityHe:      string;
+  sessionsPerWeek: number;
+  reasonHe:        string;
+}
+
+interface TrainingPlan {
+  items:          TrainingPlanItem[];
+  weeklySessions: number;
+  focusDomainHe:  string | null;
+  isColdStart:    boolean;
+}
+
 interface PlayerFile {
   user: {
     id:         string;
@@ -45,10 +66,11 @@ interface PlayerFile {
     role?:      string;
     createdAt:  number | null;
   };
-  profile:     { domains: DomainDoc[] };
-  progression: { overallLevel?: number; rank?: string; avatarState?: string };
-  sessions:    SessionRow[];
-  alerts:      AlertRow[];
+  profile:      { domains: DomainDoc[] };
+  progression:  { overallLevel?: number; rank?: string; avatarState?: string };
+  sessions:     SessionRow[];
+  alerts:       AlertRow[];
+  trainingPlan?: TrainingPlan;
 }
 
 interface SessionReport {
@@ -370,6 +392,38 @@ export default function PlayerFilePage() {
           </div>
         )}
       </section>
+
+      {/* ── Weekly training plan (derived from the profile) ── */}
+      {data.trainingPlan && data.trainingPlan.items.length > 0 && (
+        <section className="pf-card">
+          <div className="pf-plan-head">
+            <h2 className="pf-card-title">תוכנית אימונים שבועית</h2>
+            <span className="pf-plan-total">
+              {data.trainingPlan.weeklySessions} משחקים/שבוע
+              {data.trainingPlan.focusDomainHe ? ` · דגש: ${data.trainingPlan.focusDomainHe}` : ''}
+            </span>
+          </div>
+          <p className="pf-card-subtitle">נגזרת מהפרופיל — דומיינים חלשים או במגמת ירידה מקבלים עדיפות ותדירות גבוהה יותר.</p>
+          <ul className="pf-plan-list">
+            {data.trainingPlan.items.map((it) => (
+              <li className={`pf-plan-row prio-${it.priority}`} key={it.domainId}>
+                <span className={`pf-plan-badge prio-${it.priority}`}>{it.priorityHe}</span>
+                <div className="pf-plan-main">
+                  <div className="pf-plan-title">
+                    <span className="pf-plan-domain">{it.domainHe}</span>
+                    <span className="pf-plan-game">→ {it.gameHe}</span>
+                  </div>
+                  <p className="pf-plan-reason">{it.reasonHe}</p>
+                </div>
+                <span className="pf-plan-freq">
+                  <span className="pf-plan-freq-num">{it.sessionsPerWeek}×</span>
+                  <span className="pf-plan-freq-label">בשבוע</span>
+                </span>
+              </li>
+            ))}
+          </ul>
+        </section>
+      )}
 
       {/* ── Cognitive-score trend (recent sessions) ── */}
       {trendData.length > 0 && (
