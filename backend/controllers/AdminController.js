@@ -2,12 +2,29 @@ import { userFirebaseService } from "../services/user.js";
 import { firestore } from "../config/firebase.js";
 import { FieldValue } from "firebase-admin/firestore";
 
+// Normalise a stored date to epoch-ms for the client. Handles Firestore
+// Timestamps (which JSON-serialise to {_seconds,…} that `new Date()` can't
+// parse → "Invalid Date"), plain numbers, ISO strings, and Dates. Returns
+// null for anything unparseable so the UI can show a graceful fallback.
+const toMs = (v) => {
+  if (v == null) return null;
+  if (typeof v === 'number') return v;
+  if (typeof v?.toDate === 'function') return v.toDate().getTime();
+  const t = new Date(v).getTime();
+  return Number.isNaN(t) ? null : t;
+};
+
 // ===== GET ALL USERS =====
 export const getAllUsers = async (req, res) => {
   try {
     const users = await userFirebaseService.findAll();
-    // Remove password from response
-    const usersWithoutPassword = users.map(({ password, ...user }) => user);
+    // Strip password; normalise date fields to epoch-ms so the client can
+    // render them (raw Firestore Timestamps → "Invalid Date" otherwise).
+    const usersWithoutPassword = users.map(({ password, ...user }) => ({
+      ...user,
+      createdAt: toMs(user.createdAt),
+      updatedAt: toMs(user.updatedAt),
+    }));
     res.json(usersWithoutPassword);
   } catch (err) {
     res.status(500).json({ message: "Failed to fetch users" });
@@ -265,8 +282,6 @@ export const acknowledgeAlert = async (req, res) => {
 //   • recent sessions — from the lightweight users/{id}/reports index
 //     (gameId, date, accuracy, cognitiveScore, summaryHe), newest-first
 //   • open alerts — this user's entries in admin/pendingAlerts
-const toMs = (v) => v?.toDate?.()?.getTime?.() ?? (typeof v === 'number' ? v : null);
-
 export const getUserPlayerFile = async (req, res) => {
   try {
     const { userId } = req.params;
