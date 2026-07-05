@@ -1,0 +1,78 @@
+/* DailyCheckin — a small once-a-day prompt card, parked bottom-left so it
+   doesn't overlap the companion (which lives on the right gutter). */
+
+.daily-checkin {
+  position: fixed;
+  bottom: 20px;
+  left: 20px;
+  z-index: 45;
+  width: min(300px, calc(100vw - 40px));
+  background: #fff;
+  border: 1px solid #e7f1fb;
+  border-radius: 16px;
+  padding: 16px 18px;
+  box-shadow: 0 8px 28px rgba(28, 58, 69, 0.16);
+  animation: daily-checkin-in 0.22s ease-out;
+}
+
+@keyframes daily-checkin-in {
+  from { transform: translateY(12px); opacity: 0; }
+  to   { transform: translateY(0);    opacity: 1; }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .daily-checkin { animation: none; }
+}
+
+.daily-checkin-close {
+  position: absolute;
+  top: 8px;
+  left: 10px;
+  border: none;
+  background: transparent;
+  color: #94a3b8;
+  font-size: 20px;
+  line-height: 1;
+  cursor: pointer;
+}
+.daily-checkin-close:hover { color: #475569; }
+
+.daily-checkin-q {
+  margin: 4px 0 12px;
+  font-size: 15px;
+  font-weight: 700;
+  color: #1c3a45;
+}
+
+.daily-checkin-opts {
+  display: flex;
+  gap: 8px;
+  flex-wrap: wrap;
+}
+
+.daily-checkin-opt {
+  flex: 1 1 auto;
+  border: 1px solid #d7e3f0;
+  background: #f8fbff;
+  color: #1c3a45;
+  border-radius: 12px;
+  padding: 10px 8px;
+  font-size: 14px;
+  font-weight: 600;
+  cursor: pointer;
+  white-space: nowrap;
+  transition: background 0.15s, border-color 0.15s;
+}
+.daily-checkin-opt:hover:not(:disabled) {
+  background: #eaf4fd;
+  border-color: #2f86d6;
+}
+.daily-checkin-opt:disabled { opacity: 0.6; cursor: default; }
+
+.daily-checkin-thanks {
+  margin: 0;
+  font-size: 15px;
+  font-weight: 700;
+  color: #16a34a;
+  text-align: center;
+}
