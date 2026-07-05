@@ -29,11 +29,6 @@ export const DOMAIN_HE = {
   'visual-spatial':      'חשיבה חזותית-מרחבית',
 };
 
-// Inverse of DOMAIN_GAME — a game → its PRIMARY cognitive domain.
-export const GAME_DOMAIN = Object.fromEntries(
-  Object.entries(DOMAIN_GAME).map(([domain, game]) => [game, domain]),
-);
-
 export const GAME_HE = {
   memory:            'זיכרון',
   'find-letter':     'מצא את האותיות',
@@ -117,18 +112,6 @@ export function buildTrainingPlan(domains) {
     focusDomainHe: items[0]?.domainHe ?? null,
     isColdStart:   false,
   };
-}
-
-// Recommended per-session play time (minutes) for a domain, from its ability
-// level: weaker domains earn a longer session, clamped to a humane 5–15 min.
-//   targetMinutes = clamp(5, 15, base + weakness_bonus)
-// with base 6 and weakness_bonus 0..9 scaling inversely with level (level 100 →
-// 6 min, level 0 → 15 min). A missing level defaults to a neutral 50.
-export function targetMinutes(level) {
-  const lv = clamp(num(level, 50), 0, 100);
-  const base = 6;
-  const weaknessBonus = Math.round(((100 - lv) / 100) * 9);
-  return clamp(base + weaknessBonus, 5, 15);
 }
 
 // ── tiny helpers ──────────────────────────────────────────────────

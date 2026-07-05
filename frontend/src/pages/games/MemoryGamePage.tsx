@@ -3,7 +3,6 @@ import MemoryGameInstructions from '../../components/game-instructions/MemoryGam
 import Memory from '../../games/memory/Memory';
 import { useGameSession } from '../../hooks/useGameSession';
 import CoachingToast from '../../components/ui/CoachingToast';
-import RecommendedTimeBar from '../../components/ui/RecommendedTimeBar';
 import SessionResults from '../../components/ui/SessionResults';
 
 export default function MemoryGamePage() {
@@ -21,7 +20,6 @@ export default function MemoryGamePage() {
         adjustment={adjustment ?? undefined}
       />
       <CoachingToast message={coachingMessage} />
-      <RecommendedTimeBar gameId="memory" />
       <SessionResults result={sessionResult} onFinish={endSession} />
     </>
   );

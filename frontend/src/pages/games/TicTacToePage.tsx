@@ -3,7 +3,6 @@ import TicTacToeInstructions from '../../components/game-instructions/TicTacToeI
 import TicTacToe from '../../games/tic-tac-toe/TicTacToe';
 import { useGameSession } from '../../hooks/useGameSession';
 import CoachingToast from '../../components/ui/CoachingToast';
-import RecommendedTimeBar from '../../components/ui/RecommendedTimeBar';
 import SessionResults from '../../components/ui/SessionResults';
 
 export default function TicTacToePage() {
@@ -21,7 +20,6 @@ export default function TicTacToePage() {
         adjustment={adjustment ?? undefined}
       />
       <CoachingToast message={coachingMessage} />
-      <RecommendedTimeBar gameId="tictactoe" />
       <SessionResults result={sessionResult} onFinish={endSession} />
     </>
   );

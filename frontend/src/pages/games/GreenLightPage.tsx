@@ -3,7 +3,6 @@ import GreenLightInstructions from '../../components/game-instructions/GreenLigh
 import GreenLight from '../../games/green-light/GreenLight';
 import { useGameSession } from '../../hooks/useGameSession';
 import CoachingToast from '../../components/ui/CoachingToast';
-import RecommendedTimeBar from '../../components/ui/RecommendedTimeBar';
 import SessionResults from '../../components/ui/SessionResults';
 
 export default function GreenLightPage() {
@@ -18,7 +17,6 @@ export default function GreenLightPage() {
     <>
       <GreenLight onAction={sendEvent} adjustment={adjustment ?? undefined} />
       <CoachingToast message={coachingMessage} />
-      <RecommendedTimeBar gameId="green-light" />
       <SessionResults result={sessionResult} onFinish={endSession} />
     </>
   );

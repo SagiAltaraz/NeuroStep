@@ -3,7 +3,6 @@ import ColorTrains from '../../games/color-trains/ColorTrains';
 import ColorTrainsInstructions from '../../components/game-instructions/ColorTrainsInstructions';
 import { useGameSession } from '../../hooks/useGameSession';
 import CoachingToast from '../../components/ui/CoachingToast';
-import RecommendedTimeBar from '../../components/ui/RecommendedTimeBar';
 import SessionResults from '../../components/ui/SessionResults';
 
 export default function ColorTrainsPage() {
@@ -18,7 +17,6 @@ export default function ColorTrainsPage() {
     <>
       <ColorTrains onAction={sendEvent} adjustment={adjustment ?? undefined} />
       <CoachingToast message={coachingMessage} />
-      <RecommendedTimeBar gameId="color-trains" />
       <SessionResults result={sessionResult} onFinish={endSession} />
     </>
   );
