@@ -351,6 +351,16 @@ class ShapesScene extends Phaser.Scene {
     return 0;
   }
 
+  // How many distinct colors are in play, gated by level — the scene starts
+  // visually calm and grows richer. Purely aesthetic: the target is always
+  // identified by SHAPE, never by color, so this never changes the logic.
+  //   levels 1-2: a single color   ·   3-4: two colors   ·   5+: the full palette
+  private paletteForLevel(): number[] {
+    if (this.level >= 5) return CIRCLE_COLORS;
+    if (this.level >= 3) return CIRCLE_COLORS.slice(0, 2);
+    return CIRCLE_COLORS.slice(0, 1);
+  }
+
   // Identical idle motion for EVERY shape — motion must never be a cue either.
   private addIdleFloat(c: Phaser.GameObjects.Container, y: number) {
     this.tweens.add({
@@ -396,9 +406,14 @@ class ShapesScene extends Phaser.Scene {
     const c = this.add.container(x, y).setDepth(6);
     const g = this.add.graphics();
     const r = 36;
-    const color = Phaser.Utils.Array.GetRandom(CIRCLE_COLORS) as number;
+    const color = Phaser.Utils.Array.GetRandom(this.paletteForLevel()) as number;
     this.lastCircleColor = color;
 
+    // Soft drop shadow — stacked translucent discs nudged down (cheap fake
+    // blur, works on both WebGL and Canvas renderers). Drawn first, so it
+    // sits beneath the glow and body.
+    g.fillStyle(0x0f2233, 0.07); g.fillCircle(0, 8, r + 2);
+    g.fillStyle(0x0f2233, 0.08); g.fillCircle(0, 5, r - 1);
     // Outer glow
     g.fillStyle(color, 0.15); g.fillCircle(0, 0, r + 16);
     // Ring
@@ -428,8 +443,12 @@ class ShapesScene extends Phaser.Scene {
 
     // Size grows with the tier until it matches the circle's visual weight.
     const half  = tier === 2 ? 34 : tier === 1 ? 30 : 16;
-    const color = tier === 0 ? 0x64748b : (Phaser.Utils.Array.GetRandom(CIRCLE_COLORS) as number);
+    const color = tier === 0 ? 0x64748b : (Phaser.Utils.Array.GetRandom(this.paletteForLevel()) as number);
     const main  = this.polyPoints(type, half);
+
+    // Soft drop shadow — same silhouette nudged down, drawn first (beneath).
+    g.fillStyle(0x0f2233, 0.08);
+    g.fillPoints(main.map((p) => ({ x: p.x, y: p.y + 6 })), true);
 
     if (tier === 2) {
       // Full circle treatment — glow + ring + shine — only the geometry differs.

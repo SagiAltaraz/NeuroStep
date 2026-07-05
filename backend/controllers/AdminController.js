@@ -1,13 +1,31 @@
 import { userFirebaseService } from "../services/user.js";
 import { firestore } from "../config/firebase.js";
 import { FieldValue } from "firebase-admin/firestore";
+import { buildTrainingPlan } from "../services/trainingPlan.js";
+
+// Normalise a stored date to epoch-ms for the client. Handles Firestore
+// Timestamps (which JSON-serialise to {_seconds,…} that `new Date()` can't
+// parse → "Invalid Date"), plain numbers, ISO strings, and Dates. Returns
+// null for anything unparseable so the UI can show a graceful fallback.
+const toMs = (v) => {
+  if (v == null) return null;
+  if (typeof v === 'number') return v;
+  if (typeof v?.toDate === 'function') return v.toDate().getTime();
+  const t = new Date(v).getTime();
+  return Number.isNaN(t) ? null : t;
+};
 
 // ===== GET ALL USERS =====
 export const getAllUsers = async (req, res) => {
   try {
     const users = await userFirebaseService.findAll();
-    // Remove password from response
-    const usersWithoutPassword = users.map(({ password, ...user }) => user);
+    // Strip password; normalise date fields to epoch-ms so the client can
+    // render them (raw Firestore Timestamps → "Invalid Date" otherwise).
+    const usersWithoutPassword = users.map(({ password, ...user }) => ({
+      ...user,
+      createdAt: toMs(user.createdAt),
+      updatedAt: toMs(user.updatedAt),
+    }));
     res.json(usersWithoutPassword);
   } catch (err) {
     res.status(500).json({ message: "Failed to fetch users" });
@@ -257,6 +275,97 @@ export const acknowledgeAlert = async (req, res) => {
   }
 };
 
+// ===== PLAYER FILE (תיק שחקן — one aggregated read for the admin) =====
+// Combines everything the Player-File page needs in a single round-trip:
+//   • user details (password-stripped, createdAt normalised to ms)
+//   • cognitiveProfile — up to 8 per-domain docs (level, trend, …)
+//   • progression/current — journey-map state (cold-start default if absent)
+//   • recent sessions — from the lightweight users/{id}/reports index
+//     (gameId, date, accuracy, cognitiveScore, summaryHe), newest-first
+//   • open alerts — this user's entries in admin/pendingAlerts
+export const getUserPlayerFile = async (req, res) => {
+  try {
+    const { userId } = req.params;
+    const userRef = firestore.collection('users').doc(userId);
+
+    const [userSnap, profSnap, progSnap, reportsSnap, pendingSnap] = await Promise.all([
+      userRef.get(),
+      userRef.collection('cognitiveProfile').get(),
+      userRef.collection('progression').doc('current').get(),
+      userRef.collection('reports').orderBy('generatedAt', 'desc').limit(20).get(),
+      firestore.collection('admin').doc('pendingAlerts').get(),
+    ]);
+
+    if (!userSnap.exists) return res.status(404).json({ message: 'User not found' });
+
+    const { password, ...userData } = userSnap.data();
+    const user = { id: userSnap.id, ...userData, createdAt: toMs(userData.createdAt) };
+
+    const domains = profSnap.docs.map((d) => ({ id: d.id, ...d.data() }));
+
+    const progression = progSnap.exists
+      ? progSnap.data()
+      : { overallLevel: 0, rank: 'beginner', regions: {}, avatarState: 'idle' };
+
+    const sessions = reportsSnap.docs.map((d) => {
+      const data = d.data();
+      return {
+        sessionId:      data.sessionId      ?? d.id,
+        gameId:         data.gameId         ?? null,
+        generatedAt:    data.generatedAt    ?? null,
+        cognitiveScore: data.cognitiveScore ?? null,
+        accuracy:       data.accuracy       ?? null,
+        summaryHe:      data.summaryHe       ?? '',
+      };
+    });
+
+    const pending = pendingSnap.exists ? (pendingSnap.data() ?? {}) : {};
+    const alerts = Object.values(pending)
+      .filter((a) => a.userId === userId)
+      .map((a) => ({
+        alertId:      a.alertId      ?? null,
+        gameId:       a.gameId,
+        type:         a.type         ?? 'performance_decline',
+        trigger:      a.trigger      ?? null,
+        accuracyDrop: a.accuracyDrop ?? null,
+        createdAt:    a.createdAt    ?? null,
+        acknowledged: a.acknowledged ?? false,
+      }))
+      .sort((a, b) => (b.createdAt ?? 0) - (a.createdAt ?? 0));
+
+    const trainingPlan = buildTrainingPlan(domains);
+
+    res.json({ user, profile: { domains }, progression, sessions, alerts, trainingPlan });
+  } catch (err) {
+    console.error('[getUserPlayerFile]', err);
+    res.status(500).json({ message: 'Failed to fetch player file', error: err.message });
+  }
+};
+
+// ===== SESSION REPORT (full per-session report for the admin) =====
+// Returns the complete report stored under sessions/{sessionId}.report —
+// domainScores, the Hebrew narrative (summaryHe/strengthsHe/recommendationsHe),
+// rawStats, and the adaptive summary (adjustmentCount + netDirection). The full
+// adjustment list is not persisted; rawStats carries its summary.
+export const getSessionReport = async (req, res) => {
+  try {
+    const { sessionId } = req.params;
+    const doc = await firestore.collection('sessions').doc(sessionId).get();
+    if (!doc.exists) return res.status(404).json({ message: 'Session not found' });
+
+    const data = doc.data();
+    if (!data.report) return res.status(404).json({ message: 'Report not found' });
+
+    res.json({
+      ...data.report,
+      startedAt: toMs(data.startedAt),
+    });
+  } catch (err) {
+    console.error('[getSessionReport]', err);
+    res.status(500).json({ message: 'Failed to fetch session report', error: err.message });
+  }
+};
+
 // ===== USER COACH REPORTS (longitudinal, every 5 sessions) =====
 export const getUserCoachReports = async (req, res) => {
   try {
@@ -272,5 +381,73 @@ export const getUserCoachReports = async (req, res) => {
   } catch (err) {
     console.error('[getUserCoachReports]', err);
     res.status(500).json({ message: "Failed to fetch coach reports", error: err.message });
+  }
+};
+
+// ===== SYSTEM SETTINGS (admin/settings) =====
+// The site name is a hardcoded product constant ("NeuroStep") and is NOT stored
+// here — only the toggles that actually do something are persisted.
+const SETTINGS_DEFAULTS = { emailNotifications: true, maintenanceMode: false };
+
+export const getSettings = async (req, res) => {
+  try {
+    const doc = await firestore.collection('admin').doc('settings').get();
+    res.json({ ...SETTINGS_DEFAULTS, ...(doc.exists ? doc.data() : {}) });
+  } catch (err) {
+    console.error('[getSettings]', err);
+    res.status(500).json({ message: "Failed to fetch settings", error: err.message });
+  }
+};
+
+export const updateSettings = async (req, res) => {
+  try {
+    const { emailNotifications, maintenanceMode } = req.body ?? {};
+    const next = {
+      emailNotifications: !!emailNotifications,
+      maintenanceMode:    !!maintenanceMode,
+      updatedAt:          Date.now(),
+    };
+    await firestore.collection('admin').doc('settings').set(next, { merge: true });
+    res.json({ ok: true, settings: { ...SETTINGS_DEFAULTS, ...next } });
+  } catch (err) {
+    console.error('[updateSettings]', err);
+    res.status(500).json({ message: "Failed to save settings", error: err.message });
+  }
+};
+
+// ===== ALERT THRESHOLD CONFIG (admin/alertConfig) =====
+// Decline-alert sensitivity, editable from the admin UI and consumed live by
+// the game-server alert-agent (which falls back to these same defaults). The
+// 3-session window is structural, exposed read-only for context.
+const ALERT_CONFIG_DEFAULTS = { accuracyDropPct: 25, scoreDrop: 20, windowSessions: 3 };
+
+const clampInt = (v, lo, hi, dflt) => {
+  const n = Number(v);
+  return Number.isFinite(n) ? Math.max(lo, Math.min(hi, Math.round(n))) : dflt;
+};
+
+export const getAlertConfig = async (req, res) => {
+  try {
+    const doc = await firestore.collection('admin').doc('alertConfig').get();
+    res.json({ ...ALERT_CONFIG_DEFAULTS, ...(doc.exists ? doc.data() : {}) });
+  } catch (err) {
+    console.error('[getAlertConfig]', err);
+    res.status(500).json({ message: "Failed to fetch alert config", error: err.message });
+  }
+};
+
+export const updateAlertConfig = async (req, res) => {
+  try {
+    const { accuracyDropPct, scoreDrop } = req.body ?? {};
+    const next = {
+      accuracyDropPct: clampInt(accuracyDropPct, 5, 90, ALERT_CONFIG_DEFAULTS.accuracyDropPct),
+      scoreDrop:       clampInt(scoreDrop,       5, 90, ALERT_CONFIG_DEFAULTS.scoreDrop),
+      updatedAt:       Date.now(),
+    };
+    await firestore.collection('admin').doc('alertConfig').set(next, { merge: true });
+    res.json({ ok: true, config: { ...ALERT_CONFIG_DEFAULTS, ...next } });
+  } catch (err) {
+    console.error('[updateAlertConfig]', err);
+    res.status(500).json({ message: "Failed to save alert config", error: err.message });
   }
 };

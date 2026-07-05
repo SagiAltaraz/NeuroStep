@@ -4,6 +4,7 @@
 // is scoped to req.user.id (set by the `protect` middleware) — a user can never
 // read another user's data here (that's what the admin routes are for).
 import { firestore } from '../config/firebase.js';
+import { buildTrainingPlan } from '../services/trainingPlan.js';
 
 // ── Companion data maps ──────────────────────────────────────────────────────
 // Domain → the game whose PRIMARY domain it is (inverse of the game-server's
@@ -180,6 +181,7 @@ export const getMyCompanion = async (req, res) => {
          suggestedGameId,
          suggestedGameHe,
          mood: isNew ? 'welcome' : 'nudge',
+         plan: buildTrainingPlan(domains),
       });
    } catch (err) {
       console.error('[me/companion]', err.message);

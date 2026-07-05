@@ -190,3 +190,45 @@
   .alerts-header h1 { font-size: 1.4rem; }
   .alert-card       { padding: 12px 14px; }
 }
+
+/* ── Alert threshold config panel (E3) ── */
+.alert-config {
+  background: #fff;
+  border: 1px solid #e2e8f0;
+  border-radius: 14px;
+  padding: 16px 18px;
+  margin-bottom: 18px;
+  box-shadow: 0 2px 10px rgba(47, 134, 214, 0.06);
+}
+.alert-config-title { font-size: 15px; font-weight: 700; margin: 0; color: #1c3a45; }
+.alert-config-sub { font-size: 12px; color: #64748b; margin: 4px 0 12px; }
+.alert-config-fields {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: flex-end;
+  gap: 14px;
+}
+.alert-config-field { display: flex; flex-direction: column; gap: 4px; font-size: 12px; color: #475569; }
+.alert-config-field input {
+  width: 110px;
+  padding: 7px 10px;
+  border: 1px solid #d7e3f0;
+  border-radius: 8px;
+  font-size: 14px;
+  text-align: center;
+}
+.alert-config-field input:focus { outline: none; border-color: #2f86d6; }
+.alert-config-save {
+  border: none;
+  background: #2f86d6;
+  color: #fff;
+  border-radius: 9px;
+  padding: 9px 18px;
+  font-weight: 700;
+  font-size: 13px;
+  cursor: pointer;
+}
+.alert-config-save:disabled { opacity: 0.6; cursor: default; }
+.alert-config-status { display: inline-block; margin-top: 10px; font-size: 12px; font-weight: 700; }
+.alert-config-status.ok  { color: #16a34a; }
+.alert-config-status.err { color: #dc2626; }

@@ -20,6 +20,12 @@ interface Alert {
   acknowledged: boolean;
 }
 
+interface AlertConfig {
+  accuracyDropPct: number;
+  scoreDrop:       number;
+  windowSessions:  number;
+}
+
 const GAME_LABELS_HE: Record<GameId, string> = {
   'shapes-click': 'איתור צורות',
   'color-trains': 'רכבות צבעוניות',
@@ -66,6 +72,11 @@ export default function AlertsPage() {
   const [error,     setError]     = useState<string | null>(null);
   const [busyKey,   setBusyKey]   = useState<string | null>(null);
 
+  // Alert-sensitivity thresholds (admin/alertConfig), editable here.
+  const [cfg,       setCfg]       = useState<AlertConfig | null>(null);
+  const [cfgSaving, setCfgSaving] = useState(false);
+  const [cfgStatus, setCfgStatus] = useState<'idle' | 'saved' | 'error'>('idle');
+
   if (!isAdmin) return <Navigate to="/" />;
 
   const fetchAlerts = async () => {
@@ -94,6 +105,38 @@ export default function AlertsPage() {
     return () => window.removeEventListener('focus', onFocus);
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [token]);
+
+  // Load the alert-threshold config once.
+  useEffect(() => {
+    if (!token) return;
+    let cancelled = false;
+    fetch('/api/admin/alert-config', { headers: { Authorization: `Bearer ${token}` } })
+      .then(r => (r.ok ? r.json() : null))
+      .then(d => { if (!cancelled && d) setCfg(d as AlertConfig); })
+      .catch(() => {/* non-fatal */});
+    return () => { cancelled = true; };
+  }, [token]);
+
+  const saveConfig = async () => {
+    if (!token || !cfg) return;
+    setCfgSaving(true);
+    setCfgStatus('idle');
+    try {
+      const res = await fetch('/api/admin/alert-config', {
+        method:  'PUT',
+        headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${token}` },
+        body:    JSON.stringify({ accuracyDropPct: cfg.accuracyDropPct, scoreDrop: cfg.scoreDrop }),
+      });
+      if (!res.ok) throw new Error(`HTTP ${res.status}`);
+      const json = await res.json();
+      if (json.config) setCfg(json.config as AlertConfig);   // reflect server clamping
+      setCfgStatus('saved');
+    } catch {
+      setCfgStatus('error');
+    } finally {
+      setCfgSaving(false);
+    }
+  };
 
   const acknowledge = async (alert: Alert) => {
     if (!alert.alertId) return;
@@ -147,6 +190,38 @@ export default function AlertsPage() {
     </div>
   );
 
+  const ConfigPanel = cfg && (
+    <section className="alert-config" dir="rtl">
+      <h2 className="alert-config-title">ספי רגישות להתראה</h2>
+      <p className="alert-config-sub">
+        התראה נפתחת כשמזוהה ירידה על פני {cfg.windowSessions} משחקים רצופים ומעבר לספים הבאים.
+      </p>
+      <div className="alert-config-fields">
+        <label className="alert-config-field">
+          <span>ירידה בדיוק (נק׳ אחוז)</span>
+          <input
+            type="number" min={5} max={90}
+            value={cfg.accuracyDropPct}
+            onChange={(e) => { setCfg({ ...cfg, accuracyDropPct: Number(e.target.value) }); setCfgStatus('idle'); }}
+          />
+        </label>
+        <label className="alert-config-field">
+          <span>ירידה בציון קוגניטיבי</span>
+          <input
+            type="number" min={5} max={90}
+            value={cfg.scoreDrop}
+            onChange={(e) => { setCfg({ ...cfg, scoreDrop: Number(e.target.value) }); setCfgStatus('idle'); }}
+          />
+        </label>
+        <button className="alert-config-save" onClick={saveConfig} disabled={cfgSaving}>
+          {cfgSaving ? 'שומר…' : 'שמור ספים'}
+        </button>
+      </div>
+      {cfgStatus === 'saved' && <span className="alert-config-status ok">✓ נשמר</span>}
+      {cfgStatus === 'error' && <span className="alert-config-status err">השמירה נכשלה</span>}
+    </section>
+  );
+
   if (loading) {
     return (
       <main className="alerts-page" dir="rtl">
@@ -174,6 +249,7 @@ export default function AlertsPage() {
     return (
       <main className="alerts-page" dir="rtl">
         {Header}
+        {ConfigPanel}
         <div className="empty-state">
           <span className="emoji">✓</span>
           <h2>אין אזעקות ממתינות</h2>
@@ -186,6 +262,7 @@ export default function AlertsPage() {
   return (
     <main className="alerts-page" dir="rtl">
       {Header}
+      {ConfigPanel}
       <div className="alerts-list">
         {alerts.map(a => {
           const key   = `${a.userId}_${a.gameId}`;

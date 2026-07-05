@@ -8,8 +8,8 @@ interface User {
   name: string;
   email: string;
   role: "user" | "admin";
-  createdAt?: string;
-  updatedAt?: string;
+  createdAt?: number | string | null;
+  updatedAt?: number | string | null;
 }
 
 interface AdminUsersProps {
@@ -176,9 +176,11 @@ const AdminUsers: React.FC<AdminUsersProps> = ({ onBack }) => {
     }
   };
 
-  const formatDate = (dateString?: string) => {
-    if (!dateString) return "N/A";
-    return new Date(dateString).toLocaleDateString("en-US", {
+  const formatDate = (value?: number | string | null) => {
+    if (value == null) return "N/A";
+    const d = new Date(value);
+    if (Number.isNaN(d.getTime())) return "N/A";
+    return d.toLocaleDateString("en-US", {
       year: "numeric",
       month: "short",
       day: "numeric",
@@ -328,6 +330,13 @@ const AdminUsers: React.FC<AdminUsersProps> = ({ onBack }) => {
                   </>
                 ) : (
                   <>
+                    <button
+                      className="btn btn-file"
+                      onClick={() => navigate(`/admin/users/${user.id}/player-file`)}
+                      title="Open player file"
+                    >
+                      File
+                    </button>
                     <button
                       className="btn btn-trend"
                       onClick={() => navigate(`/admin/users/${user.id}/trend`)}
