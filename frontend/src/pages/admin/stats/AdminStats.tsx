@@ -133,6 +133,48 @@ const AdminStats: React.FC<{ onBack: () => void }> = ({ onBack }) => {
   // Recent reports (last 5 with score)
   const recentReports = reportsWithScore.slice(0, 5);
 
+  // ── Export (client-side, from the already-loaded data) ───────────────────────
+
+  const downloadBlob = (filename: string, content: string, mime: string) => {
+    const url = URL.createObjectURL(new Blob([content], { type: mime }));
+    const a = document.createElement('a');
+    a.href = url;
+    a.download = filename;
+    document.body.appendChild(a);
+    a.click();
+    document.body.removeChild(a);
+    URL.revokeObjectURL(url);
+  };
+
+  const csvEscape = (v: unknown) => {
+    const s = v == null ? '' : String(v);
+    return /[",\n]/.test(s) ? `"${s.replace(/"/g, '""')}"` : s;
+  };
+
+  const exportCSV = () => {
+    const cols = ['id', 'userId', 'username', 'gameId', 'startedAt', 'accuracy',
+      'avgReactionMs', 'peakStreak', 'hits', 'misses', 'timeouts', 'cognitiveScore'];
+    const rows = sessions.map(s => [
+      s.id ?? '', s.userId, s.username ?? '', s.gameId,
+      s.startedAt ? new Date(s.startedAt).toISOString() : '',
+      s.accuracy ?? '', s.avgReactionMs, s.peakStreak, s.hits, s.misses, s.timeouts,
+      s.report?.cognitiveScore ?? '',
+    ]);
+    const csv = [cols.join(','), ...rows.map(r => r.map(csvEscape).join(','))].join('\n');
+    downloadBlob(`neurostep-sessions-${Date.now()}.csv`, '﻿' + csv, 'text/csv;charset=utf-8;');
+  };
+
+  const exportJSON = () => {
+    const payload = {
+      generatedAt: new Date().toISOString(),
+      kpis: { totalSessions, uniqueUsers, avgAccuracy, avgCogScore },
+      accuracyByGame: byGame,
+      tokenUsage,
+      sessions,
+    };
+    downloadBlob(`neurostep-stats-${Date.now()}.json`, JSON.stringify(payload, null, 2), 'application/json');
+  };
+
   // ── Render ───────────────────────────────────────────────────────────────────
 
   if (loading) return (
@@ -163,7 +205,15 @@ const AdminStats: React.FC<{ onBack: () => void }> = ({ onBack }) => {
     <div className="admin-view-page">
       <div className="view-header">
         <h2>Statistics</h2>
-        <button className="back-btn" onClick={onBack}>← Back</button>
+        <div className="stats-actions">
+          <button className="export-btn" onClick={exportCSV} disabled={sessions.length === 0}>
+            ⬇ CSV
+          </button>
+          <button className="export-btn" onClick={exportJSON} disabled={sessions.length === 0}>
+            ⬇ JSON
+          </button>
+          <button className="back-btn" onClick={onBack}>← Back</button>
+        </div>
       </div>
 
       {/* ── KPI row ── */}

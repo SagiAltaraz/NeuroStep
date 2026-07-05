@@ -27,6 +27,25 @@ import type { SessionSnapshot } from './analytics-agent.js';
 const ACCURACY_DROP_THRESHOLD = 0.25;   // 25 percentage points across 3 sessions
 const SCORE_DROP_THRESHOLD    = 20;     // cognitive score points across 3 sessions
 
+// Admin-tunable thresholds live in admin/alertConfig; we fall back to the
+// constants above if the doc is missing or unreadable. Read per check — alert
+// checks run once per session end, so the extra single-doc read is negligible.
+async function loadThresholds(
+  db: ReturnType<typeof getDb>,
+): Promise<{ accuracyDrop: number; scoreDrop: number }> {
+  try {
+    const doc = await db.collection('admin').doc('alertConfig').get();
+    const d = doc.exists ? doc.data() ?? {} : {};
+    const accuracyDrop = typeof d.accuracyDropPct === 'number'
+      ? d.accuracyDropPct / 100
+      : ACCURACY_DROP_THRESHOLD;
+    const scoreDrop = typeof d.scoreDrop === 'number' ? d.scoreDrop : SCORE_DROP_THRESHOLD;
+    return { accuracyDrop, scoreDrop };
+  } catch {
+    return { accuracyDrop: ACCURACY_DROP_THRESHOLD, scoreDrop: SCORE_DROP_THRESHOLD };
+  }
+}
+
 export async function checkAlerts(
   userId:   string,
   gameId:   GameId,
@@ -41,6 +60,7 @@ export async function checkAlerts(
   const currentAccuracy = current.accuracy;
 
   const db = getDb();
+  const { accuracyDrop, scoreDrop } = await loadThresholds(db);
 
   let prevSnap;
   try {
@@ -70,7 +90,7 @@ export async function checkAlerts(
     totalDrop        = accuracies[2] - accuracies[0];   // oldest minus newest = drop when positive
 
     const isMonotoneDecline = accuracies[0] < accuracies[1] && accuracies[1] < accuracies[2];
-    isLargeAccuracyDrop     = isMonotoneDecline && totalDrop >= ACCURACY_DROP_THRESHOLD;
+    isLargeAccuracyDrop     = isMonotoneDecline && totalDrop >= accuracyDrop;
   }
 
   // Cognitive scores come from completed report-agent runs — current session's
@@ -80,7 +100,7 @@ export async function checkAlerts(
 
   const isLargeScoreDrop =
     cogScores.length >= 2 &&
-    (cogScores[cogScores.length - 1] - cogScores[0]) >= SCORE_DROP_THRESHOLD;
+    (cogScores[cogScores.length - 1] - cogScores[0]) >= scoreDrop;
 
   if (!isLargeAccuracyDrop && !isLargeScoreDrop) return false;
 

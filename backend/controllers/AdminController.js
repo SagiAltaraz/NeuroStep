@@ -383,3 +383,71 @@ export const getUserCoachReports = async (req, res) => {
     res.status(500).json({ message: "Failed to fetch coach reports", error: err.message });
   }
 };
+
+// ===== SYSTEM SETTINGS (admin/settings) =====
+// The site name is a hardcoded product constant ("NeuroStep") and is NOT stored
+// here — only the toggles that actually do something are persisted.
+const SETTINGS_DEFAULTS = { emailNotifications: true, maintenanceMode: false };
+
+export const getSettings = async (req, res) => {
+  try {
+    const doc = await firestore.collection('admin').doc('settings').get();
+    res.json({ ...SETTINGS_DEFAULTS, ...(doc.exists ? doc.data() : {}) });
+  } catch (err) {
+    console.error('[getSettings]', err);
+    res.status(500).json({ message: "Failed to fetch settings", error: err.message });
+  }
+};
+
+export const updateSettings = async (req, res) => {
+  try {
+    const { emailNotifications, maintenanceMode } = req.body ?? {};
+    const next = {
+      emailNotifications: !!emailNotifications,
+      maintenanceMode:    !!maintenanceMode,
+      updatedAt:          Date.now(),
+    };
+    await firestore.collection('admin').doc('settings').set(next, { merge: true });
+    res.json({ ok: true, settings: { ...SETTINGS_DEFAULTS, ...next } });
+  } catch (err) {
+    console.error('[updateSettings]', err);
+    res.status(500).json({ message: "Failed to save settings", error: err.message });
+  }
+};
+
+// ===== ALERT THRESHOLD CONFIG (admin/alertConfig) =====
+// Decline-alert sensitivity, editable from the admin UI and consumed live by
+// the game-server alert-agent (which falls back to these same defaults). The
+// 3-session window is structural, exposed read-only for context.
+const ALERT_CONFIG_DEFAULTS = { accuracyDropPct: 25, scoreDrop: 20, windowSessions: 3 };
+
+const clampInt = (v, lo, hi, dflt) => {
+  const n = Number(v);
+  return Number.isFinite(n) ? Math.max(lo, Math.min(hi, Math.round(n))) : dflt;
+};
+
+export const getAlertConfig = async (req, res) => {
+  try {
+    const doc = await firestore.collection('admin').doc('alertConfig').get();
+    res.json({ ...ALERT_CONFIG_DEFAULTS, ...(doc.exists ? doc.data() : {}) });
+  } catch (err) {
+    console.error('[getAlertConfig]', err);
+    res.status(500).json({ message: "Failed to fetch alert config", error: err.message });
+  }
+};
+
+export const updateAlertConfig = async (req, res) => {
+  try {
+    const { accuracyDropPct, scoreDrop } = req.body ?? {};
+    const next = {
+      accuracyDropPct: clampInt(accuracyDropPct, 5, 90, ALERT_CONFIG_DEFAULTS.accuracyDropPct),
+      scoreDrop:       clampInt(scoreDrop,       5, 90, ALERT_CONFIG_DEFAULTS.scoreDrop),
+      updatedAt:       Date.now(),
+    };
+    await firestore.collection('admin').doc('alertConfig').set(next, { merge: true });
+    res.json({ ok: true, config: { ...ALERT_CONFIG_DEFAULTS, ...next } });
+  } catch (err) {
+    console.error('[updateAlertConfig]', err);
+    res.status(500).json({ message: "Failed to save alert config", error: err.message });
+  }
+};

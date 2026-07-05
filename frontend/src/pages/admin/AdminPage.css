@@ -177,6 +177,43 @@
   background: #2d2d44;
 }
 
+.save-btn:disabled {
+  opacity: 0.6;
+  cursor: default;
+}
+
+.settings-readonly {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 0.75rem 1rem;
+  margin-bottom: 1.25rem;
+  background: #f8fafc;
+  border: 1px solid #e2e8f0;
+  border-radius: 8px;
+}
+
+.settings-readonly-label {
+  font-size: 0.9rem;
+  font-weight: 500;
+  color: #64748b;
+}
+
+.settings-readonly-value {
+  font-size: 0.95rem;
+  font-weight: 700;
+  color: #1a1a2e;
+}
+
+.settings-status {
+  margin: 0.9rem 0 0;
+  font-size: 0.85rem;
+  font-weight: 600;
+}
+
+.settings-status.ok  { color: #16a34a; }
+.settings-status.err { color: #dc2626; }
+
 .add-btn {
   background: #6366f1;
   color: #fff;
