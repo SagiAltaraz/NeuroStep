@@ -25,15 +25,17 @@ import ProtectedRoute from './components/ProtectedRoute/ProtectedRoute';
 import AccessibilityWidget from './components/AccessibilityWidget/AccessibilityWidget';
 import { isAdminPanelEnabled } from './config/features';
 
-const AdminPage = import.meta.env.DEV ? lazy(() => import('./pages/admin/AdminPage')) : null;
-const CognitiveTrendPage = import.meta.env.DEV
+// Admin pages are lazy-loaded so they only weigh on the bundle when the panel
+// is enabled (see isAdminPanelEnabled in config/features).
+const AdminPage = isAdminPanelEnabled ? lazy(() => import('./pages/admin/AdminPage')) : null;
+const CognitiveTrendPage = isAdminPanelEnabled
    ? lazy(() => import('./pages/admin/trend/CognitiveTrendPage'))
    : null;
-const AlertsPage = import.meta.env.DEV ? lazy(() => import('./pages/admin/alerts/AlertsPage')) : null;
-const CoachReportsPage = import.meta.env.DEV
+const AlertsPage = isAdminPanelEnabled ? lazy(() => import('./pages/admin/alerts/AlertsPage')) : null;
+const CoachReportsPage = isAdminPanelEnabled
    ? lazy(() => import('./pages/admin/coach-reports/CoachReportsPage'))
    : null;
-const PlayerFilePage = import.meta.env.DEV
+const PlayerFilePage = isAdminPanelEnabled
    ? lazy(() => import('./pages/admin/player-file/PlayerFilePage'))
    : null;
 
