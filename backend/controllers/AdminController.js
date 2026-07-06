@@ -335,6 +335,16 @@ export const getUserPlayerFile = async (req, res) => {
 
     const trainingPlan = buildTrainingPlan(domains);
 
+    // Persist the derived plan so it lives in the DB, not only in this view.
+    // Fire-and-forget — a write failure must never break the read.
+    if (!trainingPlan.isColdStart) {
+      userRef
+        .collection('trainingPlan')
+        .doc('current')
+        .set({ ...trainingPlan, updatedAt: Date.now() }, { merge: true })
+        .catch((e) => console.error('[player-file:persistPlan]', e.message));
+    }
+
     res.json({ user, profile: { domains }, progression, sessions, alerts, trainingPlan });
   } catch (err) {
     console.error('[getUserPlayerFile]', err);

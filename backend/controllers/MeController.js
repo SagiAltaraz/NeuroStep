@@ -175,13 +175,29 @@ export const getMyCompanion = async (req, res) => {
               `היום בא לי שנעבוד על ${domainHe}. בא לך "${suggestedGameHe}"?`,
            ]);
 
+      const plan = buildTrainingPlan(domains);
+
+      // Persist the derived plan so it lives in the DB (queryable, auditable),
+      // not only in the dashboard/companion view. Fire-and-forget — a write
+      // failure must never break the read. Skipped for brand-new users (no
+      // profile yet → an empty cold-start plan isn't worth storing).
+      if (!isNew) {
+         firestore
+            .collection('users')
+            .doc(userId)
+            .collection('trainingPlan')
+            .doc('current')
+            .set({ ...plan, updatedAt: Date.now() }, { merge: true })
+            .catch((e) => console.error('[companion:persistPlan]', e.message));
+      }
+
       res.json({
          greetingHe,
          reasonHe,
          suggestedGameId,
          suggestedGameHe,
          mood: isNew ? 'welcome' : 'nudge',
-         plan: buildTrainingPlan(domains),
+         plan,
       });
    } catch (err) {
       console.error('[me/companion]', err.message);
