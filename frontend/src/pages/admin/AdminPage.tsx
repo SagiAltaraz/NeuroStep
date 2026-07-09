@@ -2,14 +2,15 @@
 import { useAuth } from "../../context/AuthContext";
 import { Navigate, useNavigate, useSearchParams } from "react-router-dom";
 
-import AdminStats    from "./stats/AdminStats";
-import AdminEvents   from "./events/AdminEvents";
-import AdminUsers    from "./users/AdminUsers";
-import AdminActivity from "./activity/AdminActivity";
+import AdminStats     from "./stats/AdminStats";
+import AdminEvents    from "./events/AdminEvents";
+import AdminUsers     from "./users/AdminUsers";
+import AdminActivity  from "./activity/AdminActivity";
+import TrendsUserList from "./trends-list/TrendsUserList";
 
 import "./AdminPage.css";
 
-type AdminView = "stats" | "events" | "users" | "activity";
+type AdminView = "stats" | "events" | "users" | "activity" | "trends";
 
 const AdminPage: React.FC = () => {
   const { isAdmin } = useAuth();
@@ -44,9 +45,8 @@ const AdminPage: React.FC = () => {
           <button className="admin-card" onClick={() => openView("activity")}>
             🕒 <span>Activity</span>
           </button>
-          {/* Cognitive trends live per-user; this opens the users list where each
-              row has a "Trend" action (and the back button returns here). */}
-          <button className="admin-card" onClick={() => openView("users")}>
+          {/* A focused user picker → each row opens that user's cognitive trend. */}
+          <button className="admin-card" onClick={() => openView("trends")}>
             📈 <span>Trends</span>
           </button>
         </div>
@@ -62,6 +62,8 @@ const AdminPage: React.FC = () => {
         return <AdminUsers onBack={handleBack} />;
       case "activity":
         return <AdminActivity onBack={handleBack} />;
+      case "trends":
+        return <TrendsUserList onBack={handleBack} />;
       default:
         return null;
     }
