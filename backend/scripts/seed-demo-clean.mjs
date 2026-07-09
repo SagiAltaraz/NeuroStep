@@ -13,7 +13,7 @@ import { config } from 'dotenv';
 import { fileURLToPath } from 'url';
 import { dirname, resolve } from 'path';
 import { initializeApp, cert, getApps } from 'firebase-admin/app';
-import { getFirestore } from 'firebase-admin/firestore';
+import { getFirestore, FieldValue } from 'firebase-admin/firestore';
 
 const __dirname = dirname(fileURLToPath(import.meta.url));
 config({ path: resolve(__dirname, '../.env') });
@@ -31,7 +31,8 @@ async function clean() {
   const db = getFirestore(app);
 
   const snap = await db.collection('users').where('demo', '==', true).get();
-  console.log(`\nFound ${snap.size} demo users in project ${process.env.FIREBASE_PROJECT_ID}.`);
+  const sessSnap = await db.collection('sessions').where('demo', '==', true).get();
+  console.log(`\nFound ${snap.size} demo users and ${sessSnap.size} demo sessions in project ${process.env.FIREBASE_PROJECT_ID}.`);
 
   if (DRY_RUN) {
     snap.docs.slice(0, 10).forEach((d) => console.log(`  · ${d.data().name} <${d.data().email}>`));
@@ -42,11 +43,33 @@ async function clean() {
 
   let done = 0;
   for (const doc of snap.docs) {
-    // recursiveDelete removes the doc AND all its subcollections.
+    // recursiveDelete removes the user doc AND all its subcollections.
     await db.recursiveDelete(doc.ref);
-    if (++done % 25 === 0) console.log(`  …deleted ${done}/${snap.size}`);
+    if (++done % 25 === 0) console.log(`  …deleted ${done}/${snap.size} users`);
   }
-  console.log(`\n🧹 Deleted ${done} demo users (with all subcollections).\n`);
+  // Top-level demo sessions live outside the user tree — delete in batches.
+  let sdone = 0;
+  let batch = db.batch(), n = 0;
+  for (const doc of sessSnap.docs) {
+    batch.delete(doc.ref); n++; sdone++;
+    if (n >= 400) { await batch.commit(); batch = db.batch(); n = 0; }
+  }
+  if (n) await batch.commit();
+
+  // Remove demo entries from the admin/pendingAlerts map (a single doc, keyed
+  // by userId_gameId — delete only the keys we flagged demo:true).
+  const paRef = db.collection('admin').doc('pendingAlerts');
+  const paSnap = await paRef.get();
+  let adone = 0;
+  if (paSnap.exists) {
+    const data = paSnap.data() ?? {};
+    const patch = {};
+    for (const [key, val] of Object.entries(data)) {
+      if (val && val.demo === true) { patch[key] = FieldValue.delete(); adone++; }
+    }
+    if (adone) await paRef.update(patch);
+  }
+  console.log(`\n🧹 Deleted ${done} demo users (with subcollections) + ${sdone} demo sessions + ${adone} demo alerts.\n`);
 }
 
 clean().then(() => process.exit(0)).catch((e) => { console.error(e); process.exit(1); });

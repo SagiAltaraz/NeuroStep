@@ -31,6 +31,10 @@ config({ path: resolve(__dirname, '../.env') });
 const args = process.argv.slice(2);
 const DRY_RUN = args.includes('--dry-run');
 const COUNT = Number(args[args.indexOf('--count') + 1]) || (DRY_RUN ? 2 : 150);
+// --start N   : offset the demo index (so emails don't collide with an earlier run)
+const START = args.includes('--start') ? Number(args[args.indexOf('--start') + 1]) || 0 : 0;
+// --alerts    : make every user a declining player WITH a cognitive-decline alert
+const WITH_ALERTS = args.includes('--alerts');
 
 // ── Reference data (mirrors game-server/types/domains.ts) ────────────────────
 const DOMAINS = [
@@ -99,8 +103,10 @@ const summaryFor = (score, gameId) => {
 };
 
 // ── Build one user's full dataset ────────────────────────────────────────────
-function buildUser(i) {
-  const arch = pickArchetype();
+function buildUser(i, opts = {}) {
+  const arch = opts.forceArch
+    ? ARCHETYPES.find((a) => a.name === opts.forceArch)
+    : pickArchetype();
   const first = pick(FIRST), last = pick(LAST);
   const name = `${first} ${last}`;
   const email = `demo.${i}@demo.neurostep.app`;
@@ -123,6 +129,12 @@ function buildUser(i) {
     const { primary, secondary } = GAME_DOMAINS[gameId];
     const generatedAt = round(startedAt + t * spanDays * DAY + rand(-0.3, 0.3) * DAY);
     const accuracy = round(clamp(score + rand(-8, 8), 5, 99)) / 100;
+    // Richer per-session stats — faster reaction & longer streaks track a higher score.
+    const avgReactionMs = round(clamp(2200 - score * 14 + rand(-150, 150), 400, 2600));
+    const peakStreak = round(clamp(score / 12 + rand(0, 4), 0, 15));
+    const durationMs = randInt(45, 240) * 1000;
+    const adjustmentCount = randInt(0, 6);
+    const netDirection = pick(['harder', 'easier', 'stable']);
 
     const domainScores = { [primary]: score };
     for (const sec of secondary) domainScores[sec] = round(score * 0.85);
@@ -133,6 +145,8 @@ function buildUser(i) {
       gameId, cognitiveScore: score, domainScores,
       summaryHe: summaryFor(score, gameId),
       accuracy, generatedAt,
+      avgReactionMs, peakStreak, durationMs, adjustmentCount, netDirection,
+      startedAt: generatedAt - durationMs,
     });
   }
 
@@ -252,10 +266,26 @@ function buildUser(i) {
     };
   }
 
+  // Optional cognitive-decline alert (matches alert-agent's shape). Fired on a
+  // game the user actually played, so the data stays consistent.
+  let alert = null;
+  if (opts.withAlert && playedGames.length) {
+    // Prefer a game that trains the weakest domain; else any game they played.
+    const gameId = playedGames.find((g) => GAME_DOMAINS[g].primary === weakest[0]) || pick(playedGames);
+    alert = {
+      type: 'performance_decline',
+      gameId,
+      createdAt: Date.now() - randInt(0, 5) * DAY,
+      accuracyDrop: randInt(15, 38),
+      trigger: pick(['accuracy', 'cognitive_score']),
+      acknowledged: false,
+    };
+  }
+
   return {
     i, name, email, arch: arch.name, createdAt,
     reports, profiles, progression, stats,
-    trainingPlan, timeline, coachReports, directorAdvice, promptSnapshot,
+    trainingPlan, timeline, coachReports, directorAdvice, promptSnapshot, alert,
   };
 }
 
@@ -276,13 +306,15 @@ async function seed() {
 
   console.log(`\n${DRY_RUN ? '🧪 DRY RUN' : '🚀 SEEDING'} — ${COUNT} demo users → project ${process.env.FIREBASE_PROJECT_ID}\n`);
 
+  const buildOpts = WITH_ALERTS ? { forceArch: 'declining', withAlert: true } : {};
+
   if (DRY_RUN) {
     for (let i = 0; i < COUNT; i++) {
-      const u = buildUser(i);
+      const u = buildUser(START + i, buildOpts);
       console.log(`── ${u.name} <${u.email}>  [${u.arch}]`);
       console.log(`   sessions: ${u.reports.length} | overallLevel: ${u.progression.overallLevel} (${u.progression.rank})`);
       console.log(`   domains: ${Object.entries(u.profiles).map(([d, p]) => `${d.split('-')[0]}:${p.level}${p.trend === 'up' ? '↑' : p.trend === 'down' ? '↓' : ''}`).join('  ')}`);
-      console.log(`   first report score ${u.reports[0]?.cognitiveScore} → last ${u.reports.at(-1)?.cognitiveScore}\n`);
+      console.log(`   first report score ${u.reports[0]?.cognitiveScore} → last ${u.reports.at(-1)?.cognitiveScore}${u.alert ? `  ⚠ ALERT: ${u.alert.trigger} drop ${u.alert.accuracyDrop}% on ${u.alert.gameId}` : ''}\n`);
     }
     console.log('No data written (dry run). Re-run without --dry-run to seed.\n');
     return;
@@ -290,6 +322,7 @@ async function seed() {
 
   let batch = db.batch();
   let ops = 0;
+  const pendingAlerts = {}; // accumulated → admin/pendingAlerts (merged once at end)
   const commit = async () => { if (ops) { await batch.commit(); batch = db.batch(); ops = 0; } };
 
   const userDoc = (u) => {
@@ -303,9 +336,17 @@ async function seed() {
   };
 
   for (let i = 0; i < COUNT; i++) {
-    const u = buildUser(i);
+    const u = buildUser(START + i, buildOpts);
     const userRef = db.collection('users').doc(); // auto id
     batch.set(userRef, userDoc(u)); ops++;
+
+    // Cognitive-decline alert → per-user audit trail + admin pending map.
+    if (u.alert) {
+      const alertRef = userRef.collection('alerts').doc();
+      const alertData = { ...u.alert, userId: userRef.id, alertId: alertRef.id };
+      batch.set(alertRef, alertData); ops++;
+      pendingAlerts[`${userRef.id}_${u.alert.gameId}`] = { ...alertData, demo: true };
+    }
 
     for (const [d, p] of Object.entries(u.profiles)) {
       batch.set(userRef.collection('cognitiveProfile').doc(d), p); ops++;
@@ -319,10 +360,25 @@ async function seed() {
       batch.set(userRef.collection('timeline').doc(d), tl); ops++;
     }
     for (const r of u.reports) {
+      // Lightweight per-user report index (Trends + player-file read this).
       batch.set(userRef.collection('reports').doc(r.sessionId), {
         sessionId: r.sessionId, userId: userRef.id, gameId: r.gameId,
         cognitiveScore: r.cognitiveScore, domainScores: r.domainScores,
         summaryHe: r.summaryHe, accuracy: r.accuracy, generatedAt: r.generatedAt,
+      }); ops++;
+      // Top-level session doc (admin Sessions view + session drill-down).
+      batch.set(db.collection('sessions').doc(r.sessionId), {
+        sessionId: r.sessionId, userId: userRef.id, gameId: r.gameId, demo: true,
+        startedAt: r.startedAt, endedAt: r.generatedAt, durationMs: r.durationMs,
+        accuracy: r.accuracy, avgReactionMs: r.avgReactionMs, peakStreak: r.peakStreak,
+        report: {
+          cognitiveScore: r.cognitiveScore, summaryHe: r.summaryHe,
+          generatedAt: r.generatedAt, domainScores: r.domainScores,
+          rawStats: {
+            accuracy: r.accuracy, avgReactionMs: r.avgReactionMs, peakStreak: r.peakStreak,
+            durationMs: r.durationMs, adjustmentCount: r.adjustmentCount, netDirection: r.netDirection,
+          },
+        },
       }); ops++;
     }
     for (const c of u.coachReports) {
@@ -338,7 +394,13 @@ async function seed() {
     if ((i + 1) % 25 === 0) console.log(`  …${i + 1}/${COUNT} users staged`);
   }
   await commit();
-  console.log(`\n✅ Seeded ${COUNT} demo users. Remove them any time with:\n   node backend/scripts/seed-demo-clean.mjs\n`);
+
+  // Merge all accumulated alerts into the single admin/pendingAlerts map doc.
+  const alertCount = Object.keys(pendingAlerts).length;
+  if (alertCount) {
+    await db.collection('admin').doc('pendingAlerts').set(pendingAlerts, { merge: true });
+  }
+  console.log(`\n✅ Seeded ${COUNT} demo users${alertCount ? ` (+${alertCount} alerts)` : ''}. Remove them any time with:\n   node backend/scripts/seed-demo-clean.mjs\n`);
 }
 
 seed().then(() => process.exit(0)).catch((e) => { console.error(e); process.exit(1); });
