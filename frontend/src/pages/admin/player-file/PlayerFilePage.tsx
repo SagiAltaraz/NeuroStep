@@ -273,7 +273,7 @@ export default function PlayerFilePage() {
           {data?.user.name ? `${data.user.name} · ` : ''}{userId}
         </p>
       </div>
-      <button className="pf-back-btn" onClick={() => navigate('/admin')}>
+      <button className="pf-back-btn" onClick={() => navigate(-1)}>
         <ChevronRight size={14} />
         חזור
       </button>

@@ -1,48 +1,53 @@
 // src/pages/admin/AdminPage.tsx
-import { useState } from "react";
 import { useAuth } from "../../context/AuthContext";
-import { Navigate, useNavigate } from "react-router-dom";
+import { Navigate, useNavigate, useSearchParams } from "react-router-dom";
 
-import AdminStats    from "./stats/AdminStats";
-import AdminEvents   from "./events/AdminEvents";
-import AdminUsers    from "./users/AdminUsers";
-import AdminSettings from "./settings/AdminSettings";
-import AdminActivity from "./activity/AdminActivity";
+import AdminStats     from "./stats/AdminStats";
+import AdminEvents    from "./events/AdminEvents";
+import AdminUsers     from "./users/AdminUsers";
+import AdminActivity  from "./activity/AdminActivity";
+import TrendsUserList from "./trends-list/TrendsUserList";
 
 import "./AdminPage.css";
 
-type AdminView = "stats" | "events" | "users" | "settings" | "activity";
+type AdminView = "stats" | "events" | "users" | "activity" | "trends";
 
 const AdminPage: React.FC = () => {
   const { isAdmin } = useAuth();
   const navigate = useNavigate();
-  const [activeView, setActiveView] = useState<AdminView | null>(null);
+  // The open section lives in the URL (?view=users) rather than in local state,
+  // so returning from a per-user sub-route (trend / player-file / coach-reports)
+  // via navigate(-1) lands back on the section you were in — not the main grid.
+  const [searchParams, setSearchParams] = useSearchParams();
 
   if (!isAdmin) return <Navigate to="/" />;
 
-  const handleBack = () => setActiveView(null);
+  const activeView = searchParams.get("view") as AdminView | null;
+  const openView = (view: AdminView) => setSearchParams({ view });
+  const handleBack = () => setSearchParams({});
 
   const renderView = () => {
     if (!activeView) {
       return (
         <div className="admin-grid">
-          <button className="admin-card" onClick={() => setActiveView("stats")}>
+          <button className="admin-card" onClick={() => openView("stats")}>
             📊 <span>Statistics</span>
           </button>
           <button className="admin-card" onClick={() => navigate("/admin/alerts")}>
             🚨 <span>Alerts</span>
           </button>
-          <button className="admin-card" onClick={() => setActiveView("events")}>
+          <button className="admin-card" onClick={() => openView("events")}>
             📅 <span>Events</span>
           </button>
-          <button className="admin-card" onClick={() => setActiveView("users")}>
+          <button className="admin-card" onClick={() => openView("users")}>
             👥 <span>Users</span>
           </button>
-          <button className="admin-card" onClick={() => setActiveView("activity")}>
+          <button className="admin-card" onClick={() => openView("activity")}>
             🕒 <span>Activity</span>
           </button>
-          <button className="admin-card" onClick={() => setActiveView("settings")}>
-            ⚙️ <span>Settings</span>
+          {/* A focused user picker → each row opens that user's cognitive trend. */}
+          <button className="admin-card" onClick={() => openView("trends")}>
+            📈 <span>Trends</span>
           </button>
         </div>
       );
@@ -55,10 +60,12 @@ const AdminPage: React.FC = () => {
         return <AdminEvents onBack={handleBack} />;
       case "users":
         return <AdminUsers onBack={handleBack} />;
-      case "settings":
-        return <AdminSettings onBack={handleBack} />;
       case "activity":
         return <AdminActivity onBack={handleBack} />;
+      case "trends":
+        return <TrendsUserList onBack={handleBack} />;
+      default:
+        return null;
     }
   };
 

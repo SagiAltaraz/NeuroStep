@@ -125,7 +125,7 @@ export default function CoachReportsPage() {
         <h1>דוחות התקדמות</h1>
         <p className="subtitle">{userId}</p>
       </div>
-      <button className="cr-back-btn" onClick={() => navigate('/admin')}>
+      <button className="cr-back-btn" onClick={() => navigate(-1)}>
         <ChevronRight size={14} />
         חזור
       </button>

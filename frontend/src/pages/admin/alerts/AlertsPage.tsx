@@ -183,7 +183,7 @@ export default function AlertsPage() {
           התרעות על דפוסי ירידה בביצועים — לבדיקה על־ידי המטפל
         </p>
       </div>
-      <button className="alerts-back-btn" onClick={() => navigate('/admin')}>
+      <button className="alerts-back-btn" onClick={() => navigate(-1)}>
         <ChevronRight size={14} />
         חזור
       </button>
