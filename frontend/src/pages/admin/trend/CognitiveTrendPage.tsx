@@ -161,7 +161,7 @@ export default function CognitiveTrendPage() {
           {data?.user.displayName ? `${data.user.displayName} · ` : ''}{userId}
         </p>
       </div>
-      <button className="trend-back-btn" onClick={() => navigate('/admin')}>
+      <button className="trend-back-btn" onClick={() => navigate(-1)}>
         <ChevronRight size={14} />
         חזור
       </button>

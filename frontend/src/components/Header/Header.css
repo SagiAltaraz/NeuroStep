@@ -116,6 +116,11 @@
   color: #2f86d6;
   flex-shrink: 0;
 }
+.user-chip-greet {
+  font-weight: 500;
+  font-size: 0.82rem;
+  color: #475569;
+}
 .user-chip-name {
   font-weight: 700;
   font-size: 0.86rem;

@@ -30,8 +30,9 @@ const Header: React.FC = () => {
                   {user ? (
                      <>
                         {/* Signed-in identity — a tidy chip, not loose text */}
-                        <li className="user-chip" title={user.name}>
+                        <li className="user-chip" title={`${t('header.welcome')}, ${user.name}`}>
                            <User size={15} />
+                           <span className="user-chip-greet">{t('header.welcome')},</span>
                            <span className="user-chip-name">{user.name}</span>
                         </li>
 
