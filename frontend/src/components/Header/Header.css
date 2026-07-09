@@ -60,8 +60,15 @@
 
 /* ===== USER WELCOME ===== */
 .welcome {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.4rem;
   font-size: 0.9rem;
   color: #64748b;
+}
+
+.welcome svg {
+  color: #2f86d6;
 }
 
 .welcome strong {

@@ -1,6 +1,6 @@
 import React, { useState } from 'react';
 import { Link } from 'react-router-dom';
-import { Globe, LogOut } from 'lucide-react';
+import { Globe, LogOut, User } from 'lucide-react';
 import { useAuth } from '../../context/AuthContext';
 import { useLang } from '../../context/LanguageContext';
 import { isAdminPanelEnabled } from '../../config/features';
@@ -28,7 +28,8 @@ const Header: React.FC = () => {
                   {user ? (
                      <>
                         <li className="welcome">
-                           {t('header.welcome')}, <strong>{user.name}</strong>
+                           <User size={15} />
+                           <strong>{user.name}</strong>
                         </li>
 
                         <li>
