@@ -1,6 +1,6 @@
 import React, { useState } from 'react';
 import { Link } from 'react-router-dom';
-import { Globe, LogOut, User } from 'lucide-react';
+import { Globe, LogOut, User, Map, Shield } from 'lucide-react';
 import { useAuth } from '../../context/AuthContext';
 import { useLang } from '../../context/LanguageContext';
 import { isAdminPanelEnabled } from '../../config/features';
@@ -12,12 +12,14 @@ const Header: React.FC = () => {
    const { user, isAdmin, logout } = useAuth();
    const { t, toggle, lang } = useLang();
 
+   const close = () => setIsMenuOpen(false);
+
    return (
       <header className="header">
          <div className="header-container">
             {/* Logo */}
             <div className="logo">
-               <Link to="/" style={{ textDecoration: "none" }}>
+               <Link to="/" style={{ textDecoration: 'none' }} onClick={close}>
                   <Logo height={28} />
                </Link>
             </div>
@@ -27,34 +29,47 @@ const Header: React.FC = () => {
                <ul>
                   {user ? (
                      <>
-                        <li className="welcome">
+                        {/* Signed-in identity — a tidy chip, not loose text */}
+                        <li className="user-chip" title={user.name}>
                            <User size={15} />
-                           <strong>{user.name}</strong>
+                           <span className="user-chip-name">{user.name}</span>
                         </li>
 
                         <li>
-                           <Link to="/journey">{t('header.journey')}</Link>
+                           <Link to="/journey" className="nav-link" onClick={close}>
+                              <Map size={15} />
+                              <span>{t('header.journey')}</span>
+                           </Link>
                         </li>
 
                         {isAdminPanelEnabled && isAdmin && (
                            <li>
-                              <Link to="/admin" className="admin-link">
-                                 {t('header.admin')}
+                              <Link to="/admin" className="nav-link nav-link--admin" onClick={close}>
+                                 <Shield size={15} />
+                                 <span>{t('header.admin')}</span>
                               </Link>
                            </li>
                         )}
 
                         <li>
-                           <button className="logout-btn" onClick={logout}>
-                              <LogOut size={14} />
+                           <button className="icon-btn logout-btn" onClick={() => { close(); logout(); }}>
+                              <LogOut size={15} />
                               <span>{t('header.logout')}</span>
                            </button>
                         </li>
                      </>
                   ) : (
                      <>
-                        <li><Link to="/sign-up">{t('header.signup')}</Link></li>
-                        <li><Link to="/log-in">{t('header.login')}</Link></li>
+                        <li>
+                           <Link to="/log-in" className="nav-link" onClick={close}>
+                              {t('header.login')}
+                           </Link>
+                        </li>
+                        <li>
+                           <Link to="/sign-up" className="nav-cta" onClick={close}>
+                              {t('header.signup')}
+                           </Link>
+                        </li>
                      </>
                   )}
 
@@ -62,11 +77,11 @@ const Header: React.FC = () => {
                   <li>
                      <button
                         type="button"
-                        className="lang-toggle"
+                        className="icon-btn lang-toggle"
                         onClick={toggle}
                         aria-label={lang === 'he' ? 'Switch to English' : 'החלף לעברית'}
                      >
-                        <Globe size={14} />
+                        <Globe size={15} />
                         <span>{t('header.lang.toggle')}</span>
                      </button>
                   </li>
@@ -77,6 +92,7 @@ const Header: React.FC = () => {
             <button
                className="menu-toggle"
                onClick={() => setIsMenuOpen((prev) => !prev)}
+               aria-label={isMenuOpen ? 'Close menu' : 'Open menu'}
             >
                {isMenuOpen ? '✕' : '☰'}
             </button>

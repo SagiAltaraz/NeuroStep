@@ -7,7 +7,7 @@
     rgba(176, 222, 206, 0.55)
   );
   backdrop-filter: blur(10px);
-  padding: 0.75rem 1.5rem;
+  padding: 0.7rem 1.5rem;
   position: sticky;
   top: 0;
   z-index: 1000;
@@ -25,6 +25,8 @@
 /* ===== LOGO ===== */
 .logo {
   line-height: 1;
+  display: flex;
+  align-items: center;
 }
 
 /* ===== NAVIGATION ===== */
@@ -32,91 +34,118 @@
   list-style: none;
   display: flex;
   align-items: center;
-  gap: 1.5rem;
+  gap: 0.5rem;
   margin: 0;
   padding: 0;
 }
 
+/* All nav anchors reset — colour + shape come from the specific classes below */
 .nav a {
-  font-size: 0.9rem;
-  color: #64748b;
   text-decoration: none;
-  font-weight: 500;
-  transition: color 0.2s;
 }
 
-.nav a:hover {
-  color: #1a1a2e;
-}
-
-.admin-link {
-  color: #6366f1 !important;
-  font-weight: 600;
-}
-
-.admin-link:hover {
-  color: #4f46e5 !important;
-}
-
-/* ===== USER WELCOME ===== */
-.welcome {
+/* ---- Shared pill shape for every clickable control ---- */
+.nav-link,
+.icon-btn,
+.nav-cta {
   display: inline-flex;
   align-items: center;
   gap: 0.4rem;
-  font-size: 0.9rem;
-  color: #64748b;
+  padding: 0.5rem 0.95rem;
+  font-size: 0.88rem;
+  font-weight: 600;
+  border-radius: 999px;
+  border: 1px solid transparent;
+  cursor: pointer;
+  white-space: nowrap;
+  transition: background 0.15s ease, border-color 0.15s ease, color 0.15s ease,
+    transform 0.1s ease, box-shadow 0.15s ease;
+}
+.nav-link:active,
+.icon-btn:active,
+.nav-cta:active {
+  transform: scale(0.96);
 }
 
-.welcome svg {
+/* ---- Navigation links (Journey, Login) ---- */
+.nav-link {
+  color: #475569;
+  background: transparent;
+}
+.nav-link:hover {
   color: #2f86d6;
+  background: rgba(47, 134, 214, 0.1);
 }
 
-.welcome strong {
-  color: #1a1a2e;
+/* Admin gets a distinct accent so it reads as a privileged area */
+.nav-link--admin {
+  color: #6366f1;
+}
+.nav-link--admin:hover {
+  color: #4f46e5;
+  background: rgba(99, 102, 241, 0.12);
+}
+
+/* ---- Primary call to action (Sign up) ---- */
+.nav-cta {
+  color: #fff;
+  font-weight: 700;
+  padding-inline: 1.15rem;
+  background: linear-gradient(135deg, #2f86d6, #1c3a45);
+  box-shadow: 0 4px 12px -4px rgba(47, 134, 214, 0.55);
+}
+.nav-cta:hover {
+  filter: brightness(1.07);
+  transform: translateY(-1px);
+  box-shadow: 0 6px 16px -5px rgba(47, 134, 214, 0.6);
+}
+
+/* ===== USER CHIP (signed-in name) ===== */
+.user-chip {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.45rem;
+  padding: 0.4rem 0.85rem;
+  border-radius: 999px;
+  background: rgba(255, 255, 255, 0.5);
+  border: 1px solid rgba(255, 255, 255, 0.65);
+  color: #1c3a45;
+  max-width: 200px;
+}
+.user-chip svg {
+  color: #2f86d6;
+  flex-shrink: 0;
+}
+.user-chip-name {
+  font-weight: 700;
+  font-size: 0.86rem;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
 }
 
 /* ===== LOGOUT BUTTON ===== */
 .logout-btn {
-  display: inline-flex;
-  align-items: center;
-  gap: 0.4rem;
-  padding: 0.45rem 0.9rem;
-  font-size: 0.85rem;
-  font-weight: 600;
-  border: 1px solid rgba(100, 116, 139, 0.28);
-  border-radius: 999px;
-  background: rgba(255, 255, 255, 0.35);
   color: #64748b;
-  cursor: pointer;
-  transition: background 0.15s ease, border-color 0.15s ease, color 0.15s ease, transform 0.1s ease;
+  border-color: rgba(100, 116, 139, 0.28);
+  background: rgba(255, 255, 255, 0.35);
 }
-
-/* hover hints at the sign-out action with a soft red */
 .logout-btn:hover {
   background: rgba(239, 68, 68, 0.1);
   color: #dc2626;
   border-color: rgba(239, 68, 68, 0.4);
 }
-.logout-btn:active { transform: scale(0.96); }
 
 /* ===== LANGUAGE TOGGLE ===== */
 .lang-toggle {
-  display: inline-flex;
-  align-items: center;
-  gap: 0.4rem;
-  padding: 0.45rem 0.85rem;
-  font-size: 0.85rem;
-  font-weight: 600;
   color: #2f86d6;
   background: rgba(47, 134, 214, 0.08);
-  border: 1px solid rgba(47, 134, 214, 0.25);
-  border-radius: 999px;
-  cursor: pointer;
-  transition: background 0.15s ease, border-color 0.15s ease, transform 0.1s ease;
+  border-color: rgba(47, 134, 214, 0.25);
 }
-
-.lang-toggle:hover  { background: rgba(47, 134, 214, 0.15); border-color: rgba(47, 134, 214, 0.4); }
-.lang-toggle:active { transform: scale(0.96); }
+.lang-toggle:hover {
+  background: rgba(47, 134, 214, 0.16);
+  border-color: rgba(47, 134, 214, 0.4);
+}
 
 /* ===== MOBILE MENU BUTTON ===== */
 .menu-toggle {
@@ -132,7 +161,7 @@
 /* ===== MOBILE NAVIGATION ===== */
 @media (max-width: 768px) {
   .header {
-    padding: 0.75rem 1rem;
+    padding: 0.7rem 1rem;
   }
 
   .menu-toggle {
@@ -146,14 +175,14 @@
     right: 0;
     background: linear-gradient(
       100deg,
-      rgba(143, 179, 224, 0.92),
-      rgba(150, 205, 210, 0.92),
-      rgba(176, 222, 206, 0.92)
+      rgba(143, 179, 224, 0.96),
+      rgba(150, 205, 210, 0.96),
+      rgba(176, 222, 206, 0.96)
     );
     backdrop-filter: blur(10px);
-    padding: 1rem 1.5rem;
+    padding: 1rem 1.25rem 1.25rem;
     border-bottom: 1px solid rgba(255, 255, 255, 0.4);
-    box-shadow: 0 4px 12px rgba(0, 0, 0, 0.05);
+    box-shadow: 0 8px 20px rgba(28, 58, 69, 0.12);
     transform: translateY(-100%);
     opacity: 0;
     visibility: hidden;
@@ -169,18 +198,22 @@
   .nav ul {
     flex-direction: column;
     align-items: stretch;
-    gap: 0.75rem;
+    gap: 0.5rem;
   }
 
-  .nav a,
-  .welcome {
-    display: block;
-    padding: 0.5rem 0;
-  }
-
-  .logout-btn {
+  /* Every control fills the row and centres on mobile for easy tapping */
+  .nav-link,
+  .icon-btn,
+  .nav-cta,
+  .user-chip {
     width: 100%;
     justify-content: center;
-    margin-top: 0.5rem;
+    max-width: none;
+  }
+
+  /* the name chip sits at the top as a header for the menu */
+  .user-chip {
+    margin-bottom: 0.25rem;
+    background: rgba(255, 255, 255, 0.6);
   }
 }
