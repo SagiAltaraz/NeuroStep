@@ -4,6 +4,7 @@ import { signInWithPopup } from "firebase/auth";
 import { auth, googleProvider } from "../config/firebase";
 import * as authAPI from "../api/auth";
 import { useLang } from "./LanguageContext";
+import { resetStoredChatSession } from "../components/chat-assistant/chatSessionStorage";
 
 export type UserRole = "user" | "admin";
 
@@ -55,12 +56,17 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
     }
   }, [user?.language, setLang]);
 
+  const resetClientSession = useCallback(() => {
+    resetStoredChatSession();
+  }, []);
+
   const logout = useCallback(() => {
     setUser(null);
     setToken(null);
     localStorage.removeItem("token");
     localStorage.removeItem("user");
-  }, []);
+    resetClientSession();
+  }, [resetClientSession]);
 
   // Auto-logout when token is expired — intercept 401 responses globally
   useEffect(() => {
@@ -78,6 +84,7 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
     const data = await authAPI.login(email, password);
 
     if (data.token && data.user) {
+      resetClientSession();
       setUser(data.user);
       setToken(data.token);
       localStorage.setItem("token", data.token);
@@ -91,6 +98,7 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
     const data = await authAPI.signup(name, email, password, language);
 
     if (data.token && data.user) {
+      resetClientSession();
       setUser(data.user);
       setToken(data.token);
       localStorage.setItem("token", data.token);
@@ -112,6 +120,7 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
       const data = await authAPI.googleAuth(idToken);
 
       if (data.token && data.user) {
+        resetClientSession();
         setUser(data.user);
         setToken(data.token);
         localStorage.setItem("token", data.token);

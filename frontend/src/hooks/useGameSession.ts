@@ -127,6 +127,15 @@ export function useGameSession(gameId: GameId) {
   const [sessionResult,  setSessionResult]  = useState<SessionResult>(INITIAL_RESULT);
 
   useEffect(() => {
+    sessionId.current = `${gameId}-${crypto.randomUUID()}`;
+    adjustCount.current = 0;
+    endedRef.current = false;
+    setAdjustment(null);
+    setCoachingMessage(null);
+    setTelemetry(null);
+    setLastAdjustment(null);
+    setSessionResult(INITIAL_RESULT);
+
     const ws = new WebSocket(WS_URL);
     wsRef.current = ws;
 
@@ -201,7 +210,7 @@ export function useGameSession(gameId: GameId) {
       if (reportTimerRef.current) clearTimeout(reportTimerRef.current);
       ws.close();
     };
-  }, [gameId]);
+  }, [gameId, userId]);
 
   const sendEvent = useCallback((action: object) => {
     const ws = wsRef.current;

@@ -3,19 +3,17 @@ import { useNavigate } from 'react-router-dom';
 import './ChatAssistant.css';
 import axios from 'axios';
 import { useAuth } from '../../context/AuthContext';
+import {
+   CHAT_RESET_EVENT,
+   CHAT_STORAGE_KEY,
+   type StoredChatSession,
+} from './chatSessionStorage';
 
-type Message = {
+export type Message = {
    sender: 'ai' | 'user';
    text: string;
 };
 
-type StoredChatSession = {
-   sessionId: string;
-   lastMessageAt: number;
-   messages: Message[];
-};
-
-const CHAT_STORAGE_KEY = 'neurostep.chat.session.v1';
 const CHAT_SESSION_TTL_MS = 10 * 60 * 1000;
 const INITIAL_MESSAGE: Message = {
    sender: 'ai',
@@ -101,6 +99,20 @@ const ChatAssistant = () => {
    useEffect(() => {
       persistChatSession({ sessionId, lastMessageAt, messages });
    }, [sessionId, lastMessageAt, messages]);
+
+   useEffect(() => {
+      const resetChatState = () => {
+         const fresh = createChatSession();
+         setSessionId(fresh.sessionId);
+         setLastMessageAt(fresh.lastMessageAt);
+         setMessages(fresh.messages);
+         setInput('');
+         setIsLoading(false);
+      };
+
+      window.addEventListener(CHAT_RESET_EVENT, resetChatState);
+      return () => window.removeEventListener(CHAT_RESET_EVENT, resetChatState);
+   }, []);
 
    useEffect(() => {
       if (!isOpen) return;
