@@ -25,6 +25,7 @@ import {
    type ProgressionResponse,
    type DomainProfile,
    type TrainingPlan,
+   type CompanionContext,
 } from '../../api/me';
 import AnimatedAvatar from '../../components/companion/AnimatedAvatar';
 import './JourneyMap.css';
@@ -83,8 +84,7 @@ export default function JourneyPage() {
       Promise.all([
          getMyProgression(token),
          getMyProfile(token),
-         getMyCompanion(token),
-      ]).then(([p, pr, companion]) => {
+      ]).then(([p, pr]) => {
          if (cancelled) return;
          if (isApiError(p)) {
             setStatus('error');
@@ -98,9 +98,6 @@ export default function JourneyPage() {
             });
             setProfiles(map);
          }
-         if (!isApiError(companion)) {
-            setTrainingPlan(companion.plan ?? null);
-         }
          setStatus('ready');
       });
       return () => {
@@ -108,6 +105,29 @@ export default function JourneyPage() {
       };
    }, [token]);
 
+   const companionContext: CompanionContext =
+      activeTab === 'plan' ? 'journey-plan' : 'journey-map';
+
+   useEffect(() => {
+      if (!token) return;
+      let cancelled = false;
+      const requestedContext = companionContext;
+
+      getMyCompanion(token, requestedContext).then((companion) => {
+         if (
+            cancelled ||
+            isApiError(companion) ||
+            companion.context !== requestedContext
+         ) {
+            return;
+         }
+         setTrainingPlan(companion.plan ?? null);
+      });
+
+      return () => {
+         cancelled = true;
+      };
+   }, [token, companionContext]);
    const levelOf = (id: ProblemId) => Math.round(profiles[id]?.level ?? 0);
 
    // default the selected ability to the one the player has progressed furthest in

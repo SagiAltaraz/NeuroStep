@@ -203,6 +203,47 @@ const TRANSLATIONS = {
   },
   'companion.recommended': { he: 'ההמלצה הנוכחית שלך:', en: 'Your current recommendation:' },
   'companion.play':        { he: 'התחל',                 en: 'Start' },
+  // Structured companion suggestions
+  'companion.suggestion.plan-game': {
+    he: 'תוכנית האימון הנוכחית שלך כוללת את {game}.',
+    en: 'Your current training plan includes {game}.',
+  },
+  'companion.suggestion.open-assistant': {
+    he: 'אפשר לפתוח את עוזר ה-AI כדי לשאול שאלה.',
+    en: 'You can open the AI assistant to ask a question.',
+  },
+  'companion.suggestion.browse-games': {
+    he: 'אפשר לעיין במשחקים הזמינים ולבחור פעילות.',
+    en: 'Browse the available games and choose an activity.',
+  },
+  'companion.suggestion.recorded-level': {
+    he: 'הרמה המתועדת שלך במסע היא {level}.',
+    en: 'Your recorded journey level is {level}.',
+  },
+  'companion.suggestion.journey-map': {
+    he: 'אפשר לעיין במפת המסע או לבחור פעילות אימון.',
+    en: 'View your journey map or choose a training activity.',
+  },
+  'companion.suggestion.weekly-plan': {
+    he: 'התוכנית השבועית שלך כוללת {sessionsPerWeek} אימונים ב{game}.',
+    en: 'Your weekly plan includes {sessionsPerWeek} sessions of {game}.',
+  },
+  'companion.suggestion.next-activity': {
+    he: 'הפעילות הבאה שמוצעת לך היא {game}.',
+    en: 'Your next suggested activity is {game}.',
+  },
+  'companion.action.start-game': {
+    he: 'התחל את {game}',
+    en: 'Start {game}',
+  },
+  'companion.action.open-assistant': {
+    he: 'פתח את עוזר ה-AI',
+    en: 'Open AI assistant',
+  },
+  'companion.action.browse-games': {
+    he: 'עיין במשחקים',
+    en: 'Browse games',
+  },
   // Cognitive-domain trend
   'trend.up':     { he: 'עולה',  en: 'Improving' },
   'trend.stable': { he: 'יציב',  en: 'Steady' },

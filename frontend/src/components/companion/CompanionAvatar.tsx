@@ -12,8 +12,15 @@ import { useAuth } from '../../context/AuthContext';
 import { useChatController } from '../../context/ChatControllerContext';
 import { useCompanionPresentation } from '../../context/CompanionPresentationContext';
 import { useLang, type Lang, type TKey } from '../../context/LanguageContext';
-import { getMyCompanion, isApiError, type CompanionResponse } from '../../api/me';
+import {
+  getMyCompanion,
+  isApiError,
+  type CompanionContext,
+  type CompanionResponse,
+  type CompanionSuggestion,
+} from '../../api/me';
 import { GAME_INSTRUCTIONS } from '../../data/gameInstructions';
+import { COGNITIVE_PROBLEMS } from '../../data/cognitiveProblems';
 import AvatarClip, { type ClipName } from './AvatarClip';
 import { CELEBRATE_EVENT } from './celebrate';
 import './CompanionAvatar.css';
@@ -58,7 +65,7 @@ type Ctx = 'home' | 'journey' | 'games' | 'game' | 'other';
 interface Reply { label: string; gameId: string }
 interface Msg {
   text: string;
-  cta?: { label: string; gameId: string };
+  cta?: { label: string; gameId?: string; action?: 'open-chat' | 'browse-games' };
   replies?: Reply[];
   dir?: 'rtl' | 'ltr';
 }
@@ -110,7 +117,7 @@ function buildMessages(ctx: Ctx, data: CompanionResponse | null): Msg[] {
   ];
 }
 
-function buildSuggestions(
+function buildFallbackSuggestions(
   ctx: Ctx,
   data: CompanionResponse | null,
   lang: Lang,
@@ -163,6 +170,137 @@ function buildSuggestions(
 
   return [];
 }
+
+const SUGGESTION_MESSAGE_KEYS: Record<string, TKey> = {
+  'companion.suggestion.plan-game': 'companion.suggestion.plan-game',
+  'companion.suggestion.open-assistant': 'companion.suggestion.open-assistant',
+  'companion.suggestion.browse-games': 'companion.suggestion.browse-games',
+  'companion.suggestion.recorded-level': 'companion.suggestion.recorded-level',
+  'companion.suggestion.journey-map': 'companion.suggestion.journey-map',
+  'companion.suggestion.weekly-plan': 'companion.suggestion.weekly-plan',
+  'companion.suggestion.next-activity': 'companion.suggestion.next-activity',
+};
+
+const SUGGESTION_ACTION_KEYS: Record<string, TKey> = {
+  'companion.action.start-game': 'companion.action.start-game',
+  'companion.action.open-assistant': 'companion.action.open-assistant',
+  'companion.action.browse-games': 'companion.action.browse-games',
+};
+
+function formatSuggestionText(
+  template: string,
+  params: Record<string, string>,
+): string | null {
+  const text = template.replace(/\{(\w+)\}/g, (placeholder, key: string) =>
+    params[key] ?? placeholder
+  );
+  return text.includes('{') ? null : text;
+}
+
+function suggestionParams(
+  suggestion: CompanionSuggestion,
+  lang: Lang,
+  t: Translate,
+): Record<string, string> | null {
+  const params: Record<string, string> = {};
+  const raw = suggestion.messageParams ?? {};
+  const gameId = suggestion.action?.gameId ?? raw.gameId;
+
+  if (gameId !== undefined) {
+    if (typeof gameId !== 'string') return null;
+    const gameKey = GAME_ROUTE[gameId];
+    const game = gameKey ? GAME_INSTRUCTIONS[gameKey] : undefined;
+    if (!game) return null;
+    params.game = game.title[lang];
+  }
+
+  if (raw.domainId !== undefined) {
+    if (
+      typeof raw.domainId !== 'string' ||
+      !COGNITIVE_PROBLEMS.some((problem) => problem.id === raw.domainId)
+    ) {
+      return null;
+    }
+    params.domain = t(('problem.' + raw.domainId + '.title') as TKey);
+  }
+
+  for (const key of ['level', 'sessionsPerWeek', 'weeklySessions']) {
+    const value = raw[key];
+    if (value !== undefined) {
+      if (typeof value !== 'number' || !Number.isFinite(value)) return null;
+      params[key] = String(Math.round(value));
+    }
+  }
+
+  return params;
+}
+
+function backendSuggestionMessage(
+  suggestion: CompanionSuggestion,
+  lang: Lang,
+  t: Translate,
+): Msg | null {
+  const messageKey = SUGGESTION_MESSAGE_KEYS[suggestion.messageKey];
+  if (!messageKey) return null;
+
+  const params = suggestionParams(suggestion, lang, t);
+  if (!params) return null;
+  const text = formatSuggestionText(t(messageKey), params);
+  if (!text) return null;
+
+  let cta: Msg['cta'];
+  if (suggestion.action) {
+    const labelKey = SUGGESTION_ACTION_KEYS[suggestion.action.labelKey];
+    if (!labelKey) return null;
+    const label = formatSuggestionText(t(labelKey), params);
+    if (!label) return null;
+
+    if (suggestion.action.type === 'open-game') {
+      const gameId = suggestion.action.gameId;
+      const gameKey = gameId ? GAME_ROUTE[gameId] : undefined;
+      if (!gameId || !gameKey || suggestion.action.route !== '/games/' + gameKey) {
+        return null;
+      }
+      cta = { label, gameId };
+    } else if (suggestion.action.type === 'open-chat') {
+      cta = { label, action: 'open-chat' };
+    } else if (
+      suggestion.action.type === 'open-route' &&
+      suggestion.action.route === '/games'
+    ) {
+      cta = { label, action: 'browse-games' };
+    } else {
+      return null;
+    }
+  }
+
+  return { text, cta, dir: lang === 'he' ? 'rtl' : 'ltr' };
+}
+
+function buildBackendMessages(
+  data: CompanionResponse,
+  expectedContext: CompanionContext,
+  lang: Lang,
+  t: Translate,
+): Msg[] | null {
+  if (
+    data.dataVersion !== 'companion-suggestions-v1' ||
+    data.context !== expectedContext ||
+    !Array.isArray(data.suggestions) ||
+    data.suggestions.length === 0
+  ) {
+    return null;
+  }
+
+  const messages: Msg[] = [];
+  for (const suggestion of data.suggestions) {
+    const message = backendSuggestionMessage(suggestion, lang, t);
+    if (!message) return null;
+    messages.push(message);
+  }
+  return messages;
+}
+
 export default function CompanionAvatar() {
   const { token } = useAuth();
   const { lang, t } = useLang();
@@ -171,7 +309,11 @@ export default function CompanionAvatar() {
   const navigate = useNavigate();
   const loc = useLocation();
 
-  const [data, setData] = useState<CompanionResponse | null>(null);
+  const [companionResult, setCompanionResult] = useState<{
+    token: string;
+    context: CompanionContext;
+    response: CompanionResponse;
+  } | null>(null);
   const [pose, setPose] = useState<Pose>('idle');
   const [broken, setBroken] = useState<Record<string, boolean>>({});
   const [open, setOpen] = useState(true);
@@ -199,6 +341,19 @@ export default function CompanionAvatar() {
     return 'other';
   }, [loc.pathname]);
 
+  const backendContext = useMemo<CompanionContext | null>(() => {
+    if (ctx === 'home') return 'home';
+    if (ctx === 'games') return 'games';
+    return null;
+  }, [ctx]);
+
+  const data =
+    token &&
+    backendContext &&
+    companionResult?.token === token &&
+    companionResult.context === backendContext
+      ? companionResult.response
+      : null;
   const isJourneyRoute = loc.pathname === '/journey';
   const suppressCompanion =
     isAiChatOpen || isInstructionAvatarVisible || isResultAvatarVisible || isJourneyRoute;
@@ -234,33 +389,53 @@ export default function CompanionAvatar() {
 
   useEffect(() => () => cancelContextResetTimer(), [cancelContextResetTimer]);
 
-  // personalised data (once we have a token); silent fallback otherwise
+  // Fetch only for supported global-companion contexts. The token/context pair
+  // stored with the response prevents a late request from replacing newer data.
   useEffect(() => {
-    if (!token) return;
+    if (!token || !backendContext) return;
     let cancelled = false;
-    getMyCompanion(token).then((r) => {
-      if (!cancelled && !isApiError(r)) setData(r);
+    const requestedToken = token;
+    const requestedContext = backendContext;
+
+    getMyCompanion(requestedToken, requestedContext).then((response) => {
+      if (
+        cancelled ||
+        isApiError(response) ||
+        response.context !== requestedContext
+      ) {
+        return;
+      }
+      setCompanionResult({
+        token: requestedToken,
+        context: requestedContext,
+        response,
+      });
     });
-    return () => { cancelled = true; };
-  }, [token]);
+
+    return () => {
+      cancelled = true;
+    };
+  }, [token, backendContext]);
 
   const messages = useMemo(() => {
-    const baseMessages = buildMessages(ctx, data);
-    const suggestions = buildSuggestions(ctx, data, lang, t);
+    if (data && backendContext) {
+      const backendMessages = buildBackendMessages(data, backendContext, lang, t);
+      if (backendMessages) return backendMessages;
+    }
+
+    const baseMessages = buildMessages(ctx, null);
+    const suggestions = buildFallbackSuggestions(ctx, null, lang, t);
     if (ctx === 'home') {
       return [...baseMessages.slice(0, 2), ...suggestions, ...baseMessages.slice(2)];
     }
     if (ctx === 'games') {
-      return data
-        ? [baseMessages[0], ...suggestions, baseMessages[1]]
-        : [...baseMessages, ...suggestions];
+      return [...baseMessages, ...suggestions];
     }
     if (ctx === 'journey') {
       return [baseMessages[0], ...suggestions, ...baseMessages.slice(1)];
     }
     return baseMessages;
-  }, [ctx, data, lang, t]);
-
+  }, [ctx, data, backendContext, lang, t]);
   // Route/data changes reset immediately unless AI chat temporarily owns the surface.
   useEffect(() => {
     if (suppressCompanionRef.current) {
@@ -420,6 +595,19 @@ export default function CompanionAvatar() {
   };
 
   const msg = messages[Math.min(idx, messages.length - 1)];
+
+  const activateMessageCta = () => {
+    const cta = msg?.cta;
+    if (!cta) return;
+    if (cta.gameId) {
+      goGame(cta.gameId);
+    } else if (cta.action === 'open-chat') {
+      openChat('avatar');
+    } else if (cta.action === 'browse-games') {
+      setOpen(false);
+      navigate('/games');
+    }
+  };
   const resolvedPose: Pose = broken[pose] ? 'idle' : pose;
 
   // The clip the state machine wants right now. A level-up celebration wins
@@ -468,7 +656,7 @@ export default function CompanionAvatar() {
           <button className="companion-close" onClick={() => { setOpen(false); setDismissed(true); }} aria-label="סגור">×</button>
           <p className="companion-greet">{msg.text}</p>
           {msg.cta && (
-            <button className="companion-cta" onClick={() => goGame(msg.cta!.gameId)}>
+            <button className="companion-cta" onClick={activateMessageCta}>
               {msg.cta.label} ←
             </button>
           )}

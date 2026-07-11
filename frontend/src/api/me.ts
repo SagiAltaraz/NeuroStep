@@ -72,6 +72,49 @@ export interface TrainingPlan {
    isColdStart: boolean;
 }
 
+export type CompanionContext = 'home' | 'games' | 'journey-map' | 'journey-plan';
+
+export type CompanionSuggestionKind =
+   | 'open-assistant'
+   | 'recommended-game'
+   | 'start-training'
+   | 'journey-progress'
+   | 'training-plan'
+   | 'general';
+
+export type CompanionSuggestionSource =
+   | 'profile'
+   | 'recent-session'
+   | 'training-plan'
+   | 'progression'
+   | 'fallback';
+
+export interface CompanionSuggestionAction {
+   type: 'open-chat' | 'open-game' | 'open-route';
+   labelKey: string;
+   gameId?: string;
+   route?: string;
+}
+
+export interface CompanionSuggestionEvidence {
+   domainId?: string;
+   gameId?: string;
+   sessionId?: string;
+   planUpdatedAt?: number;
+}
+
+export interface CompanionSuggestion {
+   id: string;
+   kind: CompanionSuggestionKind;
+   priority: number;
+   messageKey: string;
+   messageParams?: Record<string, string | number>;
+   action?: CompanionSuggestionAction;
+   source: CompanionSuggestionSource;
+   evidence?: CompanionSuggestionEvidence;
+   generatedAt: number;
+   expiresAt: number;
+}
 // The proactive companion's next message, derived from the caller's own data.
 export interface CompanionResponse {
    greetingHe: string;
@@ -80,6 +123,11 @@ export interface CompanionResponse {
    suggestedGameHe: string;
    mood: 'welcome' | 'nudge' | 'praise';
    plan?: TrainingPlan;
+   context?: CompanionContext;
+   suggestions?: CompanionSuggestion[];
+   generatedAt?: number;
+   expiresAt?: number;
+   dataVersion?: string;
 }
 
 export type ApiResult<T> = T | { error: string };
@@ -131,6 +179,9 @@ export function getMyGameStats(token: string, gameId: string) {
 }
 
 /** GET /api/me/companion — the proactive companion's data-driven next message. */
-export function getMyCompanion(token: string) {
-   return authedGet<CompanionResponse>('/api/me/companion', token);
+export function getMyCompanion(token: string, context?: CompanionContext) {
+   const query = context
+      ? '?context=' + encodeURIComponent(context)
+      : '';
+   return authedGet<CompanionResponse>('/api/me/companion' + query, token);
 }
