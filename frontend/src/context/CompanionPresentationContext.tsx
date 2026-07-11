@@ -11,17 +11,37 @@ interface CompanionPresentationValue {
   isInstructionAvatarVisible: boolean;
   showInstructionAvatar: () => void;
   hideInstructionAvatar: () => void;
+  isResultAvatarVisible: boolean;
+  showResultAvatar: () => void;
+  hideResultAvatar: () => void;
 }
 
 const CompanionPresentationContext = createContext<CompanionPresentationValue | undefined>(undefined);
 
 export function CompanionPresentationProvider({ children }: { children: ReactNode }) {
   const [isInstructionAvatarVisible, setIsInstructionAvatarVisible] = useState(false);
+  const [isResultAvatarVisible, setIsResultAvatarVisible] = useState(false);
   const showInstructionAvatar = useCallback(() => setIsInstructionAvatarVisible(true), []);
   const hideInstructionAvatar = useCallback(() => setIsInstructionAvatarVisible(false), []);
+  const showResultAvatar = useCallback(() => setIsResultAvatarVisible(true), []);
+  const hideResultAvatar = useCallback(() => setIsResultAvatarVisible(false), []);
   const value = useMemo(
-    () => ({ isInstructionAvatarVisible, showInstructionAvatar, hideInstructionAvatar }),
-    [isInstructionAvatarVisible, showInstructionAvatar, hideInstructionAvatar],
+    () => ({
+      isInstructionAvatarVisible,
+      showInstructionAvatar,
+      hideInstructionAvatar,
+      isResultAvatarVisible,
+      showResultAvatar,
+      hideResultAvatar,
+    }),
+    [
+      isInstructionAvatarVisible,
+      showInstructionAvatar,
+      hideInstructionAvatar,
+      isResultAvatarVisible,
+      showResultAvatar,
+      hideResultAvatar,
+    ],
   );
 
   return (

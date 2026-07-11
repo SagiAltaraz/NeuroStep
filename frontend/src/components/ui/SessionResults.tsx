@@ -14,11 +14,12 @@
  * empty), so semantic tokens like `bg-background`/`bg-primary` render colourless.
  * We use concrete palette colours (white / slate / indigo) for guaranteed contrast.
  */
-import { useEffect, useState, type ReactNode } from 'react';
+import { useEffect, useLayoutEffect, useState, type ReactNode } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { AnimatePresence, motion } from 'framer-motion';
 import { useLang, type TKey } from '../../context/LanguageContext';
-import Avatar from '../journey/Avatar';
+import { useCompanionPresentation } from '../../context/CompanionPresentationContext';
+import AnimatedAvatar from '../companion/AnimatedAvatar';
 import { emitCelebrate } from '../companion/celebrate';
 import type { SessionResult } from '../../hooks/useGameSession';
 
@@ -42,8 +43,16 @@ const fmtPct = (v: number | null) => (v === null ? '—' : `${Math.round(v * 100
 export default function SessionResults({ result, active = false }: Props) {
   const { t } = useLang();
   const navigate = useNavigate();
+  const { showResultAvatar, hideResultAvatar } = useCompanionPresentation();
 
   const [timedOut, setTimedOut] = useState(false);
+  const ended = active || result.phase !== 'none';
+
+  useLayoutEffect(() => {
+    if (!ended) return;
+    showResultAvatar();
+    return hideResultAvatar;
+  }, [ended, showResultAvatar, hideResultAvatar]);
 
   // Fallback: if the exit flow started but no summary/report ever arrives
   // (trivial sub-5-event session, or a stalled pipeline), stop spinning.
@@ -61,7 +70,6 @@ export default function SessionResults({ result, active = false }: Props) {
     }
   }, [result.phase, result.levelChanges]);
 
-  const ended = active || result.phase !== 'none';
   if (!ended) return null;
 
   const { phase, stats, report } = result;
@@ -206,8 +214,7 @@ function List({ title, items }: { title: string; items: string[] }) {
 
 function LevelUpBanner({ result, t }: { result: SessionResult; t: (k: TKey) => string }) {
   const promoted = (result.levelChanges ?? []).filter((c) => c.delta > 0);
-  // A level-up is always a 'climb' or 'celebrate' cue; default to 'celebrate'.
-  const avatarState = result.avatarState === 'climb' ? 'climb' : 'celebrate';
+  const avatarState = result.avatarState ?? 'celebrate';
   return (
     <motion.div
       initial={{ scale: 0.8, opacity: 0 }}
@@ -216,7 +223,7 @@ function LevelUpBanner({ result, t }: { result: SessionResult; t: (k: TKey) => s
       className="flex flex-col items-center gap-2 rounded-2xl bg-gradient-to-b from-amber-100 to-amber-50
                  p-4 pt-6 text-center text-amber-900 ring-1 ring-amber-200"
     >
-      <Avatar state={avatarState} size={64} />
+      <AnimatedAvatar mode={avatarState} size={96} />
       <div className="text-lg font-bold">{t('results.levelup')}</div>
       <div className="text-sm">
         {t('results.rank')}: <strong>{t(`rank.${result.rank}` as TKey)}</strong>

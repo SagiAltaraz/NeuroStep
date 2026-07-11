@@ -104,7 +104,7 @@ function buildMessages(ctx: Ctx, data: CompanionResponse | null): Msg[] {
 export default function CompanionAvatar() {
   const { token } = useAuth();
   const { isOpen: isAiChatOpen, openChat } = useChatController();
-  const { isInstructionAvatarVisible } = useCompanionPresentation();
+  const { isInstructionAvatarVisible, isResultAvatarVisible } = useCompanionPresentation();
   const navigate = useNavigate();
   const loc = useLocation();
 
@@ -137,7 +137,8 @@ export default function CompanionAvatar() {
   }, [loc.pathname]);
 
   const isJourneyRoute = loc.pathname === '/journey';
-  const suppressCompanion = isAiChatOpen || isInstructionAvatarVisible || isJourneyRoute;
+  const suppressCompanion =
+    isAiChatOpen || isInstructionAvatarVisible || isResultAvatarVisible || isJourneyRoute;
 
   useEffect(() => {
     suppressCompanionRef.current = suppressCompanion;
@@ -374,7 +375,7 @@ export default function CompanionAvatar() {
     setOpen((o) => !o);
   };
 
-  if (isInstructionAvatarVisible || isJourneyRoute) return null;
+  if (isInstructionAvatarVisible || isResultAvatarVisible || isJourneyRoute) return null;
 
   return (
     <div
