@@ -75,6 +75,9 @@
 .companion.companion--flying {
   animation: cm-fly 18s ease-in-out infinite alternate;
 }
+.companion.companion--ai-chat-open {
+  animation: none;
+}
 @keyframes cm-fly {
   0%   { transform: translate(0px, 0vh); }
   25%  { transform: translate(-14px, -26vh); }

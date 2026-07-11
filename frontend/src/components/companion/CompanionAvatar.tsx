@@ -6,9 +6,10 @@
  * encouraging tips inside games. Always visible; the bottom chat can later take
  * over the conversation via a professional LLM.
  */
-import { useEffect, useMemo, useRef, useState } from 'react';
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { useNavigate, useLocation } from 'react-router-dom';
 import { useAuth } from '../../context/AuthContext';
+import { useChatController } from '../../context/ChatControllerContext';
 import { getMyCompanion, isApiError, type CompanionResponse } from '../../api/me';
 import AvatarClip, { type ClipName } from './AvatarClip';
 import { CELEBRATE_EVENT } from './celebrate';
@@ -101,6 +102,7 @@ function buildMessages(ctx: Ctx, data: CompanionResponse | null): Msg[] {
 
 export default function CompanionAvatar() {
   const { token } = useAuth();
+  const { isOpen: isAiChatOpen, openChat } = useChatController();
   const navigate = useNavigate();
   const loc = useLocation();
 
@@ -115,6 +117,9 @@ export default function CompanionAvatar() {
   const [celebrating, setCelebrating] = useState(false); // level-up → plays the celebrate clip
   const openAfterLand = useRef(false);                // land was triggered by a click/re-engage
   const rootRef = useRef<HTMLDivElement>(null);
+  const suppressCompanionRef = useRef(false);
+  const pendingContextResetRef = useRef(false);
+  const contextResetTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const reducedMotion = useMemo(
     () => window.matchMedia?.('(prefers-reduced-motion: reduce)').matches ?? false,
     [],
@@ -129,6 +134,39 @@ export default function CompanionAvatar() {
     return 'other';
   }, [loc.pathname]);
 
+  const suppressCompanion = isAiChatOpen;
+
+  useEffect(() => {
+    suppressCompanionRef.current = suppressCompanion;
+  }, [suppressCompanion]);
+
+  const cancelContextResetTimer = useCallback(() => {
+    if (!contextResetTimerRef.current) return;
+    clearTimeout(contextResetTimerRef.current);
+    contextResetTimerRef.current = null;
+  }, []);
+
+  const resetCompanionContext = useCallback(() => {
+    cancelContextResetTimer();
+    setIdx(0);
+    setOpen(true);
+    setDismissed(false);
+    setPose('wave');
+    setFlight(null);
+    openAfterLand.current = false;
+    if (rootRef.current) {
+      rootRef.current.style.transform = '';
+      rootRef.current.style.transition = '';
+      rootRef.current.style.animation = '';
+    }
+    contextResetTimerRef.current = setTimeout(() => {
+      setPose('idle');
+      contextResetTimerRef.current = null;
+    }, 2600);
+  }, [cancelContextResetTimer]);
+
+  useEffect(() => () => cancelContextResetTimer(), [cancelContextResetTimer]);
+
   // personalised data (once we have a token); silent fallback otherwise
   useEffect(() => {
     if (!token) return;
@@ -141,22 +179,26 @@ export default function CompanionAvatar() {
 
   const messages = useMemo(() => buildMessages(ctx, data), [ctx, data]);
 
-  // new page (or data arrived) → restart the conversation with a wave
+  // Route/data changes reset immediately unless AI chat temporarily owns the surface.
   useEffect(() => {
-    setIdx(0);
-    setOpen(true);
-    setDismissed(false);
-    setPose('wave');
-    setFlight(null);
-    openAfterLand.current = false;
-    if (rootRef.current) {
-      rootRef.current.style.transform = '';
-      rootRef.current.style.transition = '';
-      rootRef.current.style.animation = '';
+    if (suppressCompanionRef.current) {
+      pendingContextResetRef.current = true;
+      cancelContextResetTimer();
+      return;
     }
-    const t = setTimeout(() => setPose('idle'), 2600);
-    return () => clearTimeout(t);
-  }, [ctx, data]);
+
+    pendingContextResetRef.current = false;
+    // eslint-disable-next-line react-hooks/set-state-in-effect -- Route/data changes intentionally reset presentation state.
+    resetCompanionContext();
+  }, [ctx, data, cancelContextResetTimer, resetCompanionContext]);
+
+  // Apply a deferred route/data reset once, when AI chat releases the surface.
+  useEffect(() => {
+    if (suppressCompanion || !pendingContextResetRef.current) return;
+    pendingContextResetRef.current = false;
+    // eslint-disable-next-line react-hooks/set-state-in-effect -- A deferred context change resets once after chat closes.
+    resetCompanionContext();
+  }, [suppressCompanion, resetCompanionContext]);
 
   // Quiet (chat closed or dismissed) → glide back to the anchor if the mascot
   // is still parked where it last landed, then after a short beat the jetpack
@@ -190,7 +232,22 @@ export default function CompanionAvatar() {
   }, [celebrating, videoOk]);
 
   useEffect(() => {
-    if (open || flight || celebrating || !videoOk || reducedMotion) return;
+    if (!suppressCompanion) return;
+    openAfterLand.current = false;
+    /* eslint-disable react-hooks/set-state-in-effect -- AI chat intentionally moves the companion to quiet state. */
+    if (open) setOpen(false);
+    if (flight) setFlight(null);
+    /* eslint-enable react-hooks/set-state-in-effect */
+    const el = rootRef.current;
+    if (el) {
+      el.style.animation = '';
+      el.style.transition = '';
+      el.style.transform = '';
+    }
+  }, [suppressCompanion, open, flight]);
+
+  useEffect(() => {
+    if (suppressCompanion || open || flight || celebrating || !videoOk || reducedMotion) return;
     const el = rootRef.current;
     if (el && el.style.transform) {
       // drift home during the quiet gap — done well before the launch fires
@@ -209,7 +266,7 @@ export default function CompanionAvatar() {
       setFlight('launch');
     }, FLIGHT_DELAY_MS);
     return () => clearTimeout(t);
-  }, [open, flight, videoOk, reducedMotion]);
+  }, [open, flight, celebrating, videoOk, reducedMotion, suppressCompanion]);
 
   // Pin the mascot exactly where it is RIGHT NOW, synchronously, and start the
   // landing there. Must run BEFORE the `companion--flying` class is removed:
@@ -229,6 +286,7 @@ export default function CompanionAvatar() {
   // One-shot clips chain here: launch → cruise loop; land → grounded in place
   // (and open the chat if the landing was user-initiated); celebrate → idle.
   const handleClipEnd = (clip: ClipName) => {
+    if (suppressCompanion && clip.startsWith('jet-')) return;
     if (clip === 'jet-launch') setFlight('cruise');
     else if (clip === 'jet-land') {
       setFlight(null);
@@ -248,7 +306,7 @@ export default function CompanionAvatar() {
   // once the page's queue is done, go quiet — and only re-engage gently after a
   // long pause. If the user dismissed it, stay quiet until the next page.
   useEffect(() => {
-    if (dismissed) return;
+    if (dismissed || suppressCompanion) return;
     if (open) {
       const cur = messages[Math.min(idx, messages.length - 1)];
       const t = setTimeout(() => {
@@ -270,8 +328,7 @@ export default function CompanionAvatar() {
     }, QUIET_MS);
     return () => clearTimeout(t);
     // landInPlace reads refs only; excluding it keeps this from re-firing.
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [open, idx, dismissed, messages, flight]);
+  }, [open, idx, dismissed, messages, flight, suppressCompanion]);
 
   const goGame = (gameId: string) => {
     setOpen(false);
@@ -284,23 +341,43 @@ export default function CompanionAvatar() {
   // The clip the state machine wants right now. A level-up celebration wins
   // over everything; then flight owns the jet clips; otherwise an open chat
   // talks, and the pose drives the rest.
+  const activeFlight = suppressCompanion ? null : flight;
   const clip: ClipName = celebrating
     ? 'celebrate'
-    : flight
-      ? (`jet-${flight}` as ClipName)
-      : open && msg
+    : activeFlight
+      ? (`jet-${activeFlight}` as ClipName)
+      : open && !suppressCompanion && msg
         ? 'talk'
         : POSE_CLIP[resolvedPose];
 
-  const flying = flight === 'launch' || flight === 'cruise';
+  const flying = activeFlight === 'launch' || activeFlight === 'cruise';
+
+  const handleAvatarActivation = () => {
+    if (suppressCompanion) return;
+
+    if (ctx === 'home') {
+      openChat('avatar');
+      return;
+    }
+
+    // Non-home routes keep the existing land/toggle behavior.
+    if (flying) {
+      openAfterLand.current = true;
+      landInPlace();
+      return;
+    }
+    if (flight === 'land') return;
+    setDismissed(false);
+    setOpen((o) => !o);
+  };
 
   return (
     <div
       ref={rootRef}
-      className={`companion companion--${ctx} ${open ? 'is-talking' : ''} ${flying ? 'companion--flying' : ''}`}
+      className={`companion companion--${ctx} ${open && !suppressCompanion ? 'is-talking' : ''} ${flying ? 'companion--flying' : ''} ${suppressCompanion ? 'companion--ai-chat-open' : ''}`}
       dir="rtl"
     >
-      {open && msg && (
+      {open && msg && !suppressCompanion && (
         <div className="companion-bubble" role="status">
           <button className="companion-close" onClick={() => { setOpen(false); setDismissed(true); }} aria-label="סגור">×</button>
           <p className="companion-greet">{msg.text}</p>
@@ -323,19 +400,9 @@ export default function CompanionAvatar() {
 
       <button
         className="companion-char"
-        onClick={() => {
-          // clicking mid-flight lands it ON THE SPOT, then the chat opens
-          if (flying) {
-            openAfterLand.current = true;
-            landInPlace();
-            return;
-          }
-          if (flight === 'land') return; // already on approach
-          setDismissed(false);
-          setOpen((o) => !o);
-        }}
-        aria-label="המאמן שלי"
-        title="המאמן שלי"
+        onClick={handleAvatarActivation}
+        aria-label={ctx === 'home' ? 'Open AI assistant' : 'המאמן שלי'}
+        title={ctx === 'home' ? 'Open AI assistant' : 'המאמן שלי'}
       >
         {videoOk ? (
           <AvatarClip
