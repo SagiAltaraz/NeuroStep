@@ -106,22 +106,22 @@ Proposed interface:
 
 ```ts
 export type AvatarMode =
-  | 'idle'
-  | 'talk'
-  | 'think'
-  | 'celebrate'
-  | 'climb'
-  | 'drop';
+   | 'idle'
+   | 'talk'
+   | 'think'
+   | 'celebrate'
+   | 'climb'
+   | 'drop';
 
 export interface AnimatedAvatarProps {
-  mode?: AvatarMode;
-  size?: 'small' | 'medium' | 'large' | number;
-  interactive?: boolean;
-  label?: string;
-  className?: string;
-  onActivate?: () => void;
-  onAnimationEnd?: (mode: AvatarMode) => void;
-  reducedMotionBehavior?: 'static' | 'minimal';
+   mode?: AvatarMode;
+   size?: 'small' | 'medium' | 'large' | number;
+   interactive?: boolean;
+   label?: string;
+   className?: string;
+   onActivate?: () => void;
+   onAnimationEnd?: (mode: AvatarMode) => void;
+   reducedMotionBehavior?: 'static' | 'minimal';
 }
 ```
 
@@ -139,9 +139,11 @@ The shared chat API should be deliberately small:
 
 ```ts
 interface ChatControllerValue {
-  isOpen: boolean;
-  openChat: (source?: 'button' | 'avatar' | 'instructions' | 'journey') => void;
-  closeChat: () => void;
+   isOpen: boolean;
+   openChat: (
+      source?: 'button' | 'avatar' | 'instructions' | 'journey'
+   ) => void;
+   closeChat: () => void;
 }
 ```
 
@@ -352,3 +354,15 @@ There is no declared backend test, lint, or build script. Backend behavior shoul
 - Journey tab state remains local unless direct-link requirements are explicitly added.
 - Admin and authentication pages are outside the initial avatar rollout unless later requested.
 - No new global state library is necessary; a small React Context provides the required coordination.
+
+### SessionResults integration deferred
+
+`SessionResults` is mounted by all eight game pages, but normal gameplay
+currently reaches it only from Shapes Click.
+
+The other games navigate directly to `/games` without explicitly ending the
+active session while the page remains mounted. As a result, the server may
+finalize the session after the results UI has already been unmounted.
+
+Replacing the results avatar is deferred until the games share a consistent
+session-ending and results-display flow.
