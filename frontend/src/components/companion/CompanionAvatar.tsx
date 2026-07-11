@@ -136,7 +136,8 @@ export default function CompanionAvatar() {
     return 'other';
   }, [loc.pathname]);
 
-  const suppressCompanion = isAiChatOpen || isInstructionAvatarVisible;
+  const isJourneyRoute = loc.pathname === '/journey';
+  const suppressCompanion = isAiChatOpen || isInstructionAvatarVisible || isJourneyRoute;
 
   useEffect(() => {
     suppressCompanionRef.current = suppressCompanion;
@@ -373,7 +374,7 @@ export default function CompanionAvatar() {
     setOpen((o) => !o);
   };
 
-  if (isInstructionAvatarVisible) return null;
+  if (isInstructionAvatarVisible || isJourneyRoute) return null;
 
   return (
     <div

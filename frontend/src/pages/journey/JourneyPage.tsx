@@ -26,7 +26,7 @@ import {
    type DomainProfile,
    type TrainingPlan,
 } from '../../api/me';
-import Avatar from '../../components/journey/Avatar';
+import AnimatedAvatar from '../../components/companion/AnimatedAvatar';
 import './JourneyMap.css';
 
 // ── path geometry ──────────────────────────────────────────────
@@ -62,7 +62,7 @@ function hexA(hex: string, a: number): string {
 
 export default function JourneyPage() {
    const { token } = useAuth();
-   const { t } = useLang();
+   const { t, dir } = useLang();
    const navigate = useNavigate();
 
    const [prog, setProg] = useState<ProgressionResponse | null>(null);
@@ -188,6 +188,18 @@ export default function JourneyPage() {
    const primaryGame = gamesForProblem(problem.id)[0];
    const planItems = trainingPlan?.items ?? [];
    const focusItem = planItems[0];
+   const avatarMessage =
+      activeTab === 'map'
+         ? `${t(`problem.${problem.id}.title` as TKey)} · ${t(
+              'journey.node'
+           )} ${cur} ${t('journey.of')} ${N}`
+         : focusItem
+           ? `${t('journey.avatar.plan.focus')}: ${t(
+                `problem.${focusItem.domainId}.title` as TKey
+             )} · ${focusItem.sessionsPerWeek} ${t(
+                'journey.avatar.plan.sessions'
+             )}`
+           : t('journey.avatar.plan.pending');
    const routeForGame = (gameId: string, explicitRoute?: string) =>
       explicitRoute ?? GAME_ROUTES[gameId] ?? '/games';
    const mapStyle = {
@@ -197,10 +209,18 @@ export default function JourneyPage() {
    } as React.CSSProperties;
 
    return (
-      <div className="mx-auto max-w-2xl px-4 pb-28 pt-6" dir="rtl">
+      <div className="mx-auto max-w-2xl px-4 pb-28 pt-6" dir={dir}>
+         <div className="jm-avatar-rail">
+            <p className="jm-avatar-bubble">{avatarMessage}</p>
+            <AnimatedAvatar
+               mode={prog.avatarState}
+               size={80}
+               className="jm-avatar-figure"
+            />
+         </div>
+
          {/* ── Hero ──────────────────────────────────────────────── */}
          <div className="mb-4 flex flex-col items-center gap-1 text-center">
-            <Avatar state={prog.avatarState} size={56} />
             <h1 className="text-2xl font-bold text-slate-900">
                {t('journey.title')}
             </h1>

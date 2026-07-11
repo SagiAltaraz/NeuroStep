@@ -181,6 +181,12 @@ const TRANSLATIONS = {
   'journey.of':       { he: 'מתוך',                      en: 'of' },
   'journey.you':      { he: 'אתה כאן',                   en: 'You are here' },
   'journey.play':     { he: 'אימון',                     en: 'Train' },
+  'journey.avatar.plan.focus':    { he: 'מוקד התוכנית', en: 'Plan focus' },
+  'journey.avatar.plan.sessions': { he: 'אימונים השבוע', en: 'sessions this week' },
+  'journey.avatar.plan.pending':  {
+    he: 'עדיין אין מספיק נתוני אימון לבניית תוכנית אישית.',
+    en: 'There is not enough training data to build a personalized plan yet.',
+  },
 
   // Cognitive-domain trend
   'trend.up':     { he: 'עולה',  en: 'Improving' },

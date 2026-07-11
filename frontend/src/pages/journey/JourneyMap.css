@@ -3,6 +3,85 @@
  * Frosted/blue-teal language (Lian's tokens). Accent (--jm-accent) is set
  * inline per selected domain. Scoped under .jm-* to avoid global bleed.
  */
+.jm-avatar-rail {
+   --jm-avatar-edge: max(1.5rem, env(safe-area-inset-right, 0px));
+   position: fixed;
+   inset-block-end: max(9rem, calc(env(safe-area-inset-bottom, 0px) + 8rem));
+   inset-inline-end: var(--jm-avatar-edge);
+   z-index: 40;
+   display: flex;
+   flex-direction: column;
+   align-items: center;
+   gap: 12px;
+   max-inline-size: calc(100vw - var(--jm-avatar-edge) - 0.75rem);
+   pointer-events: none;
+}
+
+[dir='rtl'] .jm-avatar-rail {
+   inset-inline-start: var(--jm-avatar-edge);
+   inset-inline-end: auto;
+}
+
+.jm-avatar-rail > .jm-avatar-figure {
+   width: 132px;
+   height: 132px;
+}
+
+.jm-avatar-bubble {
+   box-sizing: border-box;
+   inline-size: min(13.75rem, calc(100vw - var(--jm-avatar-edge) - 0.75rem));
+   max-inline-size: 100%;
+   margin: 0;
+   padding: 11px 13px;
+   overflow-wrap: anywhere;
+   border: 1px solid var(--ns-cardline, rgba(47, 134, 214, 0.18));
+   border-radius: 16px;
+   background: var(--ns-card, rgba(255, 255, 255, 0.94));
+   box-shadow: var(--ns-soft-sm, 0 8px 24px -12px rgba(28, 58, 69, 0.35));
+   color: var(--ns-slate, #5a7fa8);
+   direction: inherit;
+   font-size: 12px;
+   font-weight: 700;
+   line-height: 1.45;
+   text-align: start;
+}
+
+@media (max-width: 1279px) {
+   .jm-avatar-rail {
+      --jm-avatar-edge: max(1rem, env(safe-area-inset-right, 0px));
+      inset-block-end: max(8rem, calc(env(safe-area-inset-bottom, 0px) + 7rem));
+      gap: 10px;
+   }
+
+   .jm-avatar-rail > .jm-avatar-figure {
+      width: 96px;
+      height: 96px;
+   }
+
+   .jm-avatar-bubble {
+      inline-size: min(10rem, calc(100vw - var(--jm-avatar-edge) - 0.75rem));
+      padding: 9px 11px;
+      font-size: 11px;
+   }
+}
+
+@media (max-width: 640px) {
+   .jm-avatar-rail {
+      --jm-avatar-edge: max(0.75rem, env(safe-area-inset-right, 0px));
+      inset-block-end: max(7.5rem, calc(env(safe-area-inset-bottom, 0px) + 7rem));
+      gap: 8px;
+   }
+
+   .jm-avatar-rail > .jm-avatar-figure {
+      width: 72px;
+      height: 72px;
+   }
+
+   .jm-avatar-bubble {
+      inline-size: min(8.75rem, calc(100vw - var(--jm-avatar-edge) - 0.75rem));
+   }
+}
+
 .jm-wrap {
    display: flex;
    justify-content: center;
