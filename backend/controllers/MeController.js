@@ -5,6 +5,13 @@
 // read another user's data here (that's what the admin routes are for).
 import { firestore } from '../config/firebase.js';
 import { buildTrainingPlan } from '../services/trainingPlan.js';
+import {
+   buildCompanionSuggestions,
+   COMPANION_CONTEXTS,
+   COMPANION_DATA_VERSION,
+   COMPANION_TTL_MS,
+   parseCompanionContext,
+} from '../services/companionSuggestions.js';
 
 // ── Companion data maps ──────────────────────────────────────────────────────
 // Domain → the game whose PRIMARY domain it is (inverse of the game-server's
@@ -132,11 +139,22 @@ export const getMyGameStats = async (req, res) => {
 // wording — cached per session to stay token-cheap).
 export const getMyCompanion = async (req, res) => {
    try {
+      const context = parseCompanionContext(req.query.context);
+      if (!context) {
+         return res.status(400).json({
+            message: 'Unsupported companion context',
+            supportedContexts: COMPANION_CONTEXTS,
+         });
+      }
+
       const userId = req.user.id;
       const userRef = firestore.collection('users').doc(userId);
-      const [userSnap, profSnap] = await Promise.all([
+      const [userSnap, profSnap, progressionSnap] = await Promise.all([
          userRef.get(),
          userRef.collection('cognitiveProfile').get(),
+         context === 'journey-map'
+            ? userRef.collection('progression').doc('current').get()
+            : Promise.resolve(null),
       ]);
 
       const name = (userSnap.exists && userSnap.data().name) || '';
@@ -176,6 +194,14 @@ export const getMyCompanion = async (req, res) => {
            ]);
 
       const plan = buildTrainingPlan(domains);
+      const generatedAt = Date.now();
+      const suggestions = buildCompanionSuggestions({
+         context,
+         domains,
+         plan,
+         progression: progressionSnap?.exists ? progressionSnap.data() : null,
+         now: generatedAt,
+      });
 
       // Persist the derived plan so it lives in the DB (queryable, auditable),
       // not only in the dashboard/companion view. Fire-and-forget — a write
@@ -198,6 +224,11 @@ export const getMyCompanion = async (req, res) => {
          suggestedGameHe,
          mood: isNew ? 'welcome' : 'nudge',
          plan,
+         context,
+         suggestions,
+         generatedAt,
+         expiresAt: generatedAt + COMPANION_TTL_MS,
+         dataVersion: COMPANION_DATA_VERSION,
       });
    } catch (err) {
       console.error('[me/companion]', err.message);
