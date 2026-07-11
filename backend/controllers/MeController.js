@@ -5,6 +5,7 @@
 // read another user's data here (that's what the admin routes are for).
 import { firestore } from '../config/firebase.js';
 import { buildTrainingPlan } from '../services/trainingPlan.js';
+import { chatSessionRepository } from '../repositories/chatSessionRepository.ts';
 import {
    buildCompanionSuggestions,
    COMPANION_CONTEXTS,
@@ -48,6 +49,72 @@ const GAME_HE = {
    'where-was-it': 'איפה זה היה',
 };
 const pick = (arr) => arr[Math.floor(Math.random() * arr.length)];
+const CHAT_SESSION_ID_PATTERN = /^[A-Za-z0-9_-]{6,120}$/;
+const MOOD_RECOMMENDATIONS = {
+   alert: {
+      patch: { alertness: 'high', recommendedSessionLengthMin: 20 },
+      recommendedSessionLengthMin: 20,
+   },
+   tired: {
+      patch: { alertness: 'low', mood: 'tired', recommendedSessionLengthMin: 10 },
+      recommendedSessionLengthMin: 10,
+   },
+};
+
+export const updateMyChatSessionMood = async (req, res) => {
+   try {
+      const sessionId = typeof req.body?.sessionId === 'string'
+         ? req.body.sessionId.trim()
+         : '';
+      const selection = req.body?.selection;
+      const recommendation = MOOD_RECOMMENDATIONS[selection];
+
+      if (!CHAT_SESSION_ID_PATTERN.test(sessionId) || !recommendation) {
+         return res.status(400).json({ message: 'Invalid chat-session mood update' });
+      }
+
+      await chatSessionRepository.saveStatePatch({
+         userId: req.user.id,
+         sessionId,
+         prompt: `companion:mood:${selection}`,
+         patch: recommendation.patch,
+      });
+
+      return res.json({
+         sessionId,
+         recommendedSessionLengthMin: recommendation.recommendedSessionLengthMin,
+      });
+   } catch (err) {
+      console.error('[me/chat-session/mood]', err.message);
+      return res.status(500).json({ message: 'Failed to update chat session' });
+   }
+};
+
+export const getMyChatSessionRecommendation = async (req, res) => {
+   try {
+      const sessionId = req.params.sessionId?.trim() ?? '';
+      if (!CHAT_SESSION_ID_PATTERN.test(sessionId)) {
+         return res.status(400).json({ message: 'Invalid chat session' });
+      }
+
+      const snap = await firestore
+         .collection('users')
+         .doc(req.user.id)
+         .collection('chatSession')
+         .doc(sessionId)
+         .get();
+      const minutes = snap.exists ? snap.data().recommendedSessionLengthMin : null;
+
+      return res.json({
+         sessionId,
+         recommendedSessionLengthMin:
+            typeof minutes === 'number' && Number.isFinite(minutes) ? minutes : null,
+      });
+   } catch (err) {
+      console.error('[me/chat-session/recommendation]', err.message);
+      return res.status(500).json({ message: 'Failed to load chat-session recommendation' });
+   }
+};
 
 // GET /api/me/profile — the caller's per-domain cognitive profile (up to 8 docs)
 export const getMyProfile = async (req, res) => {

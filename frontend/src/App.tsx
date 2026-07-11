@@ -63,7 +63,11 @@ function SharedChatAssistant() {
       if (!isSupported) closeChat();
    }, [isSupported, closeChat]);
 
-   return isSupported ? <ChatAssistant showLauncher={pathname !== '/'} /> : null;
+   return isSupported
+      ? <ChatAssistant
+           showLauncher={pathname !== '/' && pathname !== '/journey' && pathname !== '/games'}
+        />
+      : null;
 }
 
 function AppContent() {

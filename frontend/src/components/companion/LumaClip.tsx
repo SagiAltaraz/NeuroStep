@@ -49,11 +49,12 @@ function compile(gl: WebGLRenderingContext, type: number, src: string) {
 interface Props {
    clip: ClipName;
    className?: string;
+   playbackRate?: number;
    onEnded?: (clip: ClipName) => void;
    onFail?: () => void;
 }
 
-export default function LumaClip({ clip, className, onEnded, onFail }: Props) {
+export default function LumaClip({ clip, className, playbackRate = 1, onEnded, onFail }: Props) {
    const canvasRef = useRef<HTMLCanvasElement>(null);
    const videoRef = useRef<HTMLVideoElement | null>(null);
    const rafRef = useRef<number>(0);
@@ -145,16 +146,18 @@ export default function LumaClip({ clip, className, onEnded, onFail }: Props) {
       canvas.style.opacity = '0';
       video.dataset.clip = clip;
       video.loop = LOOPING[clip];
+      video.playbackRate = playbackRate;
       video.src = `/companion/anim/${clip}.mp4`;
       video.currentTime = 0;
       const onReady = () => {
+         video.playbackRate = playbackRate;
          video.play().catch(() => {});
          canvas.style.opacity = '1';
       };
       video.addEventListener('loadeddata', onReady, { once: true });
       video.load();
       return () => video.removeEventListener('loadeddata', onReady);
-   }, [clip]);
+   }, [clip, playbackRate]);
 
    return (
       <div className={className}>

@@ -12,6 +12,7 @@ import { useEffect, useMemo, useRef, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { useAuth } from '../../context/AuthContext';
 import { useLang, type TKey } from '../../context/LanguageContext';
+import { useChatController } from '../../context/ChatControllerContext';
 import {
    COGNITIVE_PROBLEMS,
    gamesForProblem,
@@ -64,6 +65,7 @@ function hexA(hex: string, a: number): string {
 export default function JourneyPage() {
    const { token } = useAuth();
    const { t, dir } = useLang();
+   const { openChat } = useChatController();
    const navigate = useNavigate();
 
    const [prog, setProg] = useState<ProgressionResponse | null>(null);
@@ -231,10 +233,18 @@ export default function JourneyPage() {
    return (
       <div className="mx-auto max-w-2xl px-4 pb-28 pt-6" dir={dir}>
          <div className="jm-avatar-rail">
-            <p className="jm-avatar-bubble">{avatarMessage}</p>
+            <p className='jm-avatar-bubble'>
+               <span>{avatarMessage}</span>
+               <span className='jm-avatar-bubble-cta'>
+                  {t('journey.avatar.consult')}
+               </span>
+            </p>
             <AnimatedAvatar
                mode={prog.avatarState}
                size={80}
+               interactive
+               label={t('journey.avatar.openChat')}
+               onActivate={() => openChat('journey')}
                className="jm-avatar-figure"
             />
          </div>

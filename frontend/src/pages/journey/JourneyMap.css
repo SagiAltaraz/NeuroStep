@@ -25,6 +25,13 @@
 .jm-avatar-rail > .jm-avatar-figure {
    width: 132px;
    height: 132px;
+   pointer-events: auto;
+}
+
+.jm-avatar-rail > .jm-avatar-figure:focus-visible {
+   outline: 3px solid var(--ns-blue, #2f86d6);
+   outline-offset: 3px;
+   border-radius: 50%;
 }
 
 .jm-avatar-bubble {
@@ -44,6 +51,13 @@
    font-weight: 700;
    line-height: 1.45;
    text-align: start;
+}
+
+.jm-avatar-bubble-cta {
+   display: block;
+   margin-block-start: 4px;
+   color: var(--ns-blue, #2f86d6);
+   font-weight: 800;
 }
 
 @media (max-width: 1279px) {

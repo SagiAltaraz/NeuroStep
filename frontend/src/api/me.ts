@@ -130,6 +130,13 @@ export interface CompanionResponse {
    dataVersion?: string;
 }
 
+export type CompanionMoodSelection = 'alert' | 'tired';
+
+export interface ChatSessionRecommendationResponse {
+   sessionId: string;
+   recommendedSessionLengthMin: number | null;
+}
+
 export type ApiResult<T> = T | { error: string };
 
 export function isApiError<T>(r: ApiResult<T>): r is { error: string } {
@@ -143,6 +150,29 @@ async function authedGet<T>(
    try {
       const res = await fetch(path, {
          headers: { Authorization: `Bearer ${token}` },
+      });
+      const data = await res.json();
+      if (!res.ok) return { error: data?.message || 'Request failed' };
+      return data as T;
+   } catch {
+      return { error: 'Network error' };
+   }
+}
+
+async function authedJson<T>(
+   path: string,
+   token: string,
+   method: 'PATCH',
+   body: unknown
+): Promise<ApiResult<T>> {
+   try {
+      const res = await fetch(path, {
+         method,
+         headers: {
+            Authorization: `Bearer ${token}`,
+            'Content-Type': 'application/json',
+         },
+         body: JSON.stringify(body),
       });
       const data = await res.json();
       if (!res.ok) return { error: data?.message || 'Request failed' };
@@ -184,4 +214,24 @@ export function getMyCompanion(token: string, context?: CompanionContext) {
       ? '?context=' + encodeURIComponent(context)
       : '';
    return authedGet<CompanionResponse>('/api/me/companion' + query, token);
+}
+
+export function getMyChatSessionRecommendation(token: string, sessionId: string) {
+   return authedGet<ChatSessionRecommendationResponse>(
+      `/api/me/chat-session/${encodeURIComponent(sessionId)}/recommendation`,
+      token
+   );
+}
+
+export function updateMyChatSessionMood(
+   token: string,
+   sessionId: string,
+   selection: CompanionMoodSelection
+) {
+   return authedJson<ChatSessionRecommendationResponse>(
+      '/api/me/chat-session/mood',
+      token,
+      'PATCH',
+      { sessionId, selection }
+   );
 }

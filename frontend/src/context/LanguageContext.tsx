@@ -188,10 +188,55 @@ const TRANSLATIONS = {
     en: 'There is not enough training data to build a personalized plan yet.',
   },
 
+  'journey.avatar.openChat': {
+    he: '\u05e4\u05ea\u05d7 \u05d0\u05ea \u05d4\u05e2\u05d5\u05d6\u05e8 \u05d4\u05d7\u05db\u05dd',
+    en: 'Open the smart assistant',
+  },
+  'journey.avatar.consult': {
+    he: '\u05dc\u05d7\u05e5 \u05e2\u05dc\u05d9\u05d9 \u05dc\u05d4\u05ea\u05d9\u05d9\u05e2\u05e6\u05d5\u05ea',
+    en: 'Activate me for advice',
+  },
+
   // Contextual companion suggestions
   'companion.home.openAssistant': {
     he: 'אפשר ללחוץ עליי כדי לפתוח את עוזר ה-AI.',
     en: 'Activate me to open the AI assistant.',
+  },
+  'companion.home.loadingChat': {
+    he: '\u05d8\u05d5\u05e2\u05df \u05e6\u05f3\u05d0\u05d8\u2026',
+    en: 'Loading chat\u2026',
+  },
+  'companion.home.hello': {
+    he: '\u05e9\u05dc\u05d5\u05dd',
+    en: 'Hello',
+  },
+  'companion.home.introduction': {
+    he: '\u05d0\u05e0\u05d9 \u05d4\u05e2\u05d5\u05d6\u05e8 \u05d4\u05d7\u05db\u05dd, \u05dc\u05d7\u05e5 \u05e2\u05dc\u05d9\u05d9 \u05dc\u05e2\u05d6\u05e8\u05d4',
+    en: 'I am the smart assistant. Activate me for help.',
+  },
+  'companion.home.moodTitle': {
+    he: '\u05de\u05d4 \u05de\u05e6\u05d1 \u05d4\u05e8\u05d5\u05d7 \u05e9\u05dc\u05da?',
+    en: 'How are you feeling?',
+  },
+  'companion.home.moodAlert': {
+    he: '\u05e2\u05d9\u05e8\u05e0\u05d9 \u26a1',
+    en: 'Alert \u26a1',
+  },
+  'companion.home.moodTired': {
+    he: '\u05e2\u05d9\u05d9\u05e3 \ud83d\ude34',
+    en: 'Tired \ud83d\ude34',
+  },
+  'companion.home.planRecommendation': {
+    he: '\u05dc\u05e4\u05d9 \u05ea\u05d5\u05db\u05e0\u05d9\u05ea \u05d4\u05d0\u05d9\u05de\u05d5\u05e0\u05d9\u05dd \u05e9\u05dc\u05da \u05db\u05d3\u05d0\u05d9 \u05dc\u05d4\u05ea\u05d0\u05de\u05df \u05e2\u05dc: {domains}',
+    en: 'Based on your training plan, you should practice: {domains}',
+  },
+  'companion.home.recommendedTrainingTime': {
+    he: '\u05de\u05d5\u05de\u05dc\u05e5 \u05dc\u05d4\u05ea\u05d0\u05de\u05df {minutes} \u05d3\u05e7\u05d5\u05ea',
+    en: 'Recommended training time: {minutes} minutes',
+  },
+  'companion.game.timeRemaining': {
+    he: '\u05d6\u05de\u05df \u05d0\u05d9\u05de\u05d5\u05df \u05e0\u05d5\u05ea\u05e8',
+    en: 'Training time remaining',
   },
   'companion.home.startTraining': {
     he: 'אפשר להתחיל באימון זמין כבר עכשיו.',
