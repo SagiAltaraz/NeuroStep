@@ -29,6 +29,7 @@ import {
    ChatControllerProvider,
    useChatController,
 } from './context/ChatControllerContext';
+import { CompanionPresentationProvider } from './context/CompanionPresentationContext';
 
 // Admin pages are lazy-loaded so they only weigh on the bundle when the panel
 // is enabled (see isAdminPanelEnabled in config/features).
@@ -194,7 +195,9 @@ function AppContent() {
 function App() {
    return (
       <ChatControllerProvider>
-         <AppContent />
+         <CompanionPresentationProvider>
+            <AppContent />
+         </CompanionPresentationProvider>
       </ChatControllerProvider>
    );
 }

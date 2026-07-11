@@ -10,6 +10,7 @@ import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { useNavigate, useLocation } from 'react-router-dom';
 import { useAuth } from '../../context/AuthContext';
 import { useChatController } from '../../context/ChatControllerContext';
+import { useCompanionPresentation } from '../../context/CompanionPresentationContext';
 import { getMyCompanion, isApiError, type CompanionResponse } from '../../api/me';
 import AvatarClip, { type ClipName } from './AvatarClip';
 import { CELEBRATE_EVENT } from './celebrate';
@@ -103,6 +104,7 @@ function buildMessages(ctx: Ctx, data: CompanionResponse | null): Msg[] {
 export default function CompanionAvatar() {
   const { token } = useAuth();
   const { isOpen: isAiChatOpen, openChat } = useChatController();
+  const { isInstructionAvatarVisible } = useCompanionPresentation();
   const navigate = useNavigate();
   const loc = useLocation();
 
@@ -134,7 +136,7 @@ export default function CompanionAvatar() {
     return 'other';
   }, [loc.pathname]);
 
-  const suppressCompanion = isAiChatOpen;
+  const suppressCompanion = isAiChatOpen || isInstructionAvatarVisible;
 
   useEffect(() => {
     suppressCompanionRef.current = suppressCompanion;
@@ -370,6 +372,8 @@ export default function CompanionAvatar() {
     setDismissed(false);
     setOpen((o) => !o);
   };
+
+  if (isInstructionAvatarVisible) return null;
 
   return (
     <div
