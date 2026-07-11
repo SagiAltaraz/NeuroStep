@@ -500,9 +500,10 @@ interface MemoryProps {
   config?:     Partial<GameConfig>;
   onAction?:   (action: GameAction) => void;
   adjustment?: GameAdjustment;
+  onExit?:     () => void;
 }
 
-export default function Memory({ config, onAction, adjustment }: MemoryProps) {
+export default function Memory({ config, onAction, adjustment, onExit }: MemoryProps) {
   const navigate     = useNavigate();
   const containerRef = useRef<HTMLDivElement>(null);
   const gameRef      = useRef<Phaser.Game | null>(null);
@@ -550,7 +551,7 @@ export default function Memory({ config, onAction, adjustment }: MemoryProps) {
     <div className="memory-game">
       <div className="game-back-row" dir="rtl">
         <button
-          onClick={() => navigate('/games')}
+          onClick={() => (onExit ? onExit() : navigate('/games'))}
           className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-full text-sm font-medium text-blue-600 bg-blue-50 hover:bg-blue-100 border border-blue-100 transition-colors duration-200"
         >
           <ChevronRight size={14} />
