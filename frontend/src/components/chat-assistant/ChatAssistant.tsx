@@ -15,6 +15,10 @@ export type Message = {
    text: string;
 };
 
+interface ChatAssistantProps {
+   showLauncher?: boolean;
+}
+
 const CHAT_SESSION_TTL_MS = 10 * 60 * 1000;
 const INITIAL_MESSAGE: Message = {
    sender: 'ai',
@@ -84,7 +88,7 @@ const recentHistory = (messages: Message[]) =>
       .filter((message) => message.text.trim().length > 0)
       .slice(-12);
 
-const ChatAssistant = () => {
+const ChatAssistant = ({ showLauncher = true }: ChatAssistantProps) => {
    const { token } = useAuth();
    const { isOpen, openChat, closeChat } = useChatController();
    const navigate = useNavigate();
@@ -275,6 +279,10 @@ const ChatAssistant = () => {
          setIsClosing(false);
       }, 220);
    };
+
+   if (!isOpen && !showLauncher) {
+      return <div className="chat-assistant" />;
+   }
 
    return (
       <div className="chat-assistant">
