@@ -188,6 +188,21 @@ const TRANSLATIONS = {
     en: 'There is not enough training data to build a personalized plan yet.',
   },
 
+  // Contextual companion suggestions
+  'companion.home.openAssistant': {
+    he: 'אפשר ללחוץ עליי כדי לפתוח את עוזר ה-AI.',
+    en: 'Activate me to open the AI assistant.',
+  },
+  'companion.home.startTraining': {
+    he: 'אפשר להתחיל באימון זמין כבר עכשיו.',
+    en: 'You can start an available training activity now.',
+  },
+  'companion.games.select': {
+    he: 'בחר משחק שמתאים למה שתרצה לתרגל היום.',
+    en: 'Choose a game for what you would like to practice today.',
+  },
+  'companion.recommended': { he: 'ההמלצה הנוכחית שלך:', en: 'Your current recommendation:' },
+  'companion.play':        { he: 'התחל',                 en: 'Start' },
   // Cognitive-domain trend
   'trend.up':     { he: 'עולה',  en: 'Improving' },
   'trend.stable': { he: 'יציב',  en: 'Steady' },

@@ -11,7 +11,9 @@ import { useNavigate, useLocation } from 'react-router-dom';
 import { useAuth } from '../../context/AuthContext';
 import { useChatController } from '../../context/ChatControllerContext';
 import { useCompanionPresentation } from '../../context/CompanionPresentationContext';
+import { useLang, type Lang, type TKey } from '../../context/LanguageContext';
 import { getMyCompanion, isApiError, type CompanionResponse } from '../../api/me';
+import { GAME_INSTRUCTIONS } from '../../data/gameInstructions';
 import AvatarClip, { type ClipName } from './AvatarClip';
 import { CELEBRATE_EVENT } from './celebrate';
 import './CompanionAvatar.css';
@@ -54,7 +56,14 @@ const GLIDE_HOME_MS = 1500;     // drift back to the anchor during the quiet gap
 
 type Ctx = 'home' | 'journey' | 'games' | 'game' | 'other';
 interface Reply { label: string; gameId: string }
-interface Msg { text: string; cta?: { label: string; gameId: string }; replies?: Reply[] }
+interface Msg {
+  text: string;
+  cta?: { label: string; gameId: string };
+  replies?: Reply[];
+  dir?: 'rtl' | 'ltr';
+}
+
+type Translate = (key: TKey) => string;
 
 // reading-time pacing: short lines linger less, long lines get time to read.
 const readMs = (t: string) => Math.min(11000, Math.max(4200, 2400 + t.length * 55));
@@ -101,8 +110,62 @@ function buildMessages(ctx: Ctx, data: CompanionResponse | null): Msg[] {
   ];
 }
 
+function buildSuggestions(
+  ctx: Ctx,
+  data: CompanionResponse | null,
+  lang: Lang,
+  t: Translate,
+): Msg[] {
+  const dir = lang === 'he' ? 'rtl' : 'ltr';
+  const suggestedGameId = data?.suggestedGameId ?? 'memory';
+  const gameKey = GAME_ROUTE[suggestedGameId] ?? 'memory';
+  const gameName = GAME_INSTRUCTIONS[gameKey]?.title[lang]
+    ?? (lang === 'he' ? data?.suggestedGameHe : undefined)
+    ?? GAME_INSTRUCTIONS.memory.title[lang];
+  const recommendation: Msg = {
+    text: `${t('companion.recommended')} ${gameName}`,
+    cta: { label: `${t('companion.play')} ${gameName}`, gameId: suggestedGameId },
+    dir,
+  };
+
+  if (ctx === 'home') {
+    return data
+      ? [recommendation, { text: t('companion.home.openAssistant'), dir }]
+      : [
+          { text: t('companion.home.openAssistant'), dir },
+          {
+            text: t('companion.home.startTraining'),
+            cta: recommendation.cta,
+            dir,
+          },
+        ];
+  }
+
+  if (ctx === 'games') {
+    return [
+      ...(data ? [recommendation] : []),
+      { text: t('companion.games.select'), dir },
+    ];
+  }
+
+  if (ctx === 'journey') {
+    const focusItem = data?.plan?.items[0];
+    if (!focusItem) {
+      return [{ text: t('journey.avatar.plan.pending'), dir }];
+    }
+    return [{
+      text: `${t('journey.avatar.plan.focus')}: ${t(
+        `problem.${focusItem.domainId}.title` as TKey,
+      )} · ${focusItem.sessionsPerWeek} ${t('journey.avatar.plan.sessions')}`,
+      dir,
+    }];
+  }
+
+  return [];
+}
 export default function CompanionAvatar() {
   const { token } = useAuth();
+  const { lang, t } = useLang();
   const { isOpen: isAiChatOpen, openChat } = useChatController();
   const { isInstructionAvatarVisible, isResultAvatarVisible } = useCompanionPresentation();
   const navigate = useNavigate();
@@ -153,7 +216,7 @@ export default function CompanionAvatar() {
   const resetCompanionContext = useCallback(() => {
     cancelContextResetTimer();
     setIdx(0);
-    setOpen(true);
+    setOpen(ctx !== 'game');
     setDismissed(false);
     setPose('wave');
     setFlight(null);
@@ -167,7 +230,7 @@ export default function CompanionAvatar() {
       setPose('idle');
       contextResetTimerRef.current = null;
     }, 2600);
-  }, [cancelContextResetTimer]);
+  }, [cancelContextResetTimer, ctx]);
 
   useEffect(() => () => cancelContextResetTimer(), [cancelContextResetTimer]);
 
@@ -181,7 +244,22 @@ export default function CompanionAvatar() {
     return () => { cancelled = true; };
   }, [token]);
 
-  const messages = useMemo(() => buildMessages(ctx, data), [ctx, data]);
+  const messages = useMemo(() => {
+    const baseMessages = buildMessages(ctx, data);
+    const suggestions = buildSuggestions(ctx, data, lang, t);
+    if (ctx === 'home') {
+      return [...baseMessages.slice(0, 2), ...suggestions, ...baseMessages.slice(2)];
+    }
+    if (ctx === 'games') {
+      return data
+        ? [baseMessages[0], ...suggestions, baseMessages[1]]
+        : [...baseMessages, ...suggestions];
+    }
+    if (ctx === 'journey') {
+      return [baseMessages[0], ...suggestions, ...baseMessages.slice(1)];
+    }
+    return baseMessages;
+  }, [ctx, data, lang, t]);
 
   // Route/data changes reset immediately unless AI chat temporarily owns the surface.
   useEffect(() => {
@@ -314,11 +392,13 @@ export default function CompanionAvatar() {
     if (open) {
       const cur = messages[Math.min(idx, messages.length - 1)];
       const t = setTimeout(() => {
-        if (idx < messages.length - 1) setIdx(idx + 1);   // next message
+        if (ctx === 'game') setOpen(false);               // no automatic game coaching rotation
+        else if (idx < messages.length - 1) setIdx(idx + 1); // next message
         else setOpen(false);                              // queue done → go quiet
       }, readMs(cur.text));
       return () => clearTimeout(t);
     }
+    if (ctx === 'game') return;
     // quiet → gentle re-engage after a long pause. If it's out flying, bring it
     // in for a landing first — the chat opens when the touchdown completes.
     const t = setTimeout(() => {
@@ -332,7 +412,7 @@ export default function CompanionAvatar() {
     }, QUIET_MS);
     return () => clearTimeout(t);
     // landInPlace reads refs only; excluding it keeps this from re-firing.
-  }, [open, idx, dismissed, messages, flight, suppressCompanion]);
+  }, [open, idx, dismissed, messages, flight, suppressCompanion, ctx]);
 
   const goGame = (gameId: string) => {
     setOpen(false);
@@ -384,7 +464,7 @@ export default function CompanionAvatar() {
       dir="rtl"
     >
       {open && msg && !suppressCompanion && (
-        <div className="companion-bubble" role="status">
+        <div className="companion-bubble" role="status" dir={msg.dir ?? 'rtl'}>
           <button className="companion-close" onClick={() => { setOpen(false); setDismissed(true); }} aria-label="סגור">×</button>
           <p className="companion-greet">{msg.text}</p>
           {msg.cta && (
