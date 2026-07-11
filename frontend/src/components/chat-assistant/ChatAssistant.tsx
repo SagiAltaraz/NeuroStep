@@ -1,8 +1,9 @@
-﻿import React, { useEffect, useRef, useState } from 'react';
+﻿import React, { useCallback, useEffect, useRef, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import './ChatAssistant.css';
 import axios from 'axios';
 import { useAuth } from '../../context/AuthContext';
+import { useChatController } from '../../context/ChatControllerContext';
 import {
    CHAT_RESET_EVENT,
    CHAT_STORAGE_KEY,
@@ -85,12 +86,12 @@ const recentHistory = (messages: Message[]) =>
 
 const ChatAssistant = () => {
    const { token } = useAuth();
+   const { isOpen, openChat, closeChat } = useChatController();
    const navigate = useNavigate();
    const [initialSession] = useState(loadChatSession);
    const [sessionId, setSessionId] = useState(initialSession.sessionId);
    const [lastMessageAt, setLastMessageAt] = useState(initialSession.lastMessageAt);
    const [messages, setMessages] = useState<Message[]>(initialSession.messages);
-   const [isOpen, setIsOpen] = useState(false);
    const [isClosing, setIsClosing] = useState(false);
    const [input, setInput] = useState('');
    const [isLoading, setIsLoading] = useState(false);
@@ -135,7 +136,7 @@ const ChatAssistant = () => {
                type="button"
                className="chat-inline-link"
                onClick={() => {
-                  setIsOpen(false);
+                  closeChat();
                   navigate(href);
                }}
             >
@@ -151,7 +152,7 @@ const ChatAssistant = () => {
       ));
    };
 
-   const ensureActiveSession = (): StoredChatSession => {
+   const ensureActiveSession = useCallback((): StoredChatSession => {
       if (Date.now() - lastMessageAt <= CHAT_SESSION_TTL_MS) {
          return { sessionId, lastMessageAt, messages };
       }
@@ -162,7 +163,16 @@ const ChatAssistant = () => {
       setMessages(fresh.messages);
       persistChatSession(fresh);
       return fresh;
-   };
+   }, [lastMessageAt, messages, sessionId]);
+
+   useEffect(() => {
+      if (!isOpen) return;
+      const activeSession = ensureActiveSession();
+      setSessionId(activeSession.sessionId);
+      setMessages(activeSession.messages);
+      setLastMessageAt(activeSession.lastMessageAt);
+      setIsClosing(false);
+   }, [isOpen, ensureActiveSession]);
 
    const appendMessages = (
       nextMessages: Message[],
@@ -244,13 +254,8 @@ const ChatAssistant = () => {
       }
    };
 
-   const openChat = () => {
-      const activeSession = ensureActiveSession();
-      setSessionId(activeSession.sessionId);
-      setMessages(activeSession.messages);
-      setLastMessageAt(activeSession.lastMessageAt);
-      setIsClosing(false);
-      setIsOpen(true);
+   const handleOpenChat = () => {
+      openChat('button');
    };
 
    const startNewChatSession = () => {
@@ -263,10 +268,10 @@ const ChatAssistant = () => {
       persistChatSession(fresh);
    };
 
-   const closeChat = () => {
+   const handleCloseChat = () => {
       setIsClosing(true);
       window.setTimeout(() => {
-         setIsOpen(false);
+         closeChat();
          setIsClosing(false);
       }, 220);
    };
@@ -274,7 +279,7 @@ const ChatAssistant = () => {
    return (
       <div className="chat-assistant">
          {!isOpen ? (
-            <button className="chat-toggle-button" onClick={openChat} aria-label="Open AI assistant">
+            <button className="chat-toggle-button" onClick={handleOpenChat} aria-label="Open AI assistant">
                <svg width="18" height="18" viewBox="0 0 24 24" fill="none" aria-hidden="true">
                   <path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z"
                      stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"/>
@@ -282,7 +287,7 @@ const ChatAssistant = () => {
                עוזר AI
             </button>
          ) : (
-            <div className="chat-overlay" onClick={closeChat}>
+            <div className="chat-overlay" onClick={handleCloseChat}>
                <div
                   className={`chat-container ${isClosing ? 'closing' : ''}`}
                   onClick={(e) => e.stopPropagation()}
@@ -304,7 +309,7 @@ const ChatAssistant = () => {
                         >
                            שיחה חדשה
                         </button>
-                        <button className="chat-close-button" onClick={closeChat} aria-label="סגור">
+                        <button className="chat-close-button" onClick={handleCloseChat} aria-label="סגור">
                            ×
                         </button>
                      </div>
