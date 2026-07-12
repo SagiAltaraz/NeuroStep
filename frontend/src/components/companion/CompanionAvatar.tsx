@@ -84,6 +84,14 @@ const readMs = (t: string) => Math.min(11000, Math.max(4200, 2400 + t.length * 5
 // after the page's queue is done, stay quiet this long before a gentle re-engage.
 const QUIET_MS = 32000;
 
+// The "how are you feeling?" check-in is asked at most once per calendar day.
+const MOOD_ASK_KEY = 'neurostep:moodAskedDate';
+const MOOD_PICK_KEY = 'neurostep:mood';
+const todayStr = () => new Date().toISOString().slice(0, 10);
+const askedMoodToday = () => {
+  try { return localStorage.getItem(MOOD_ASK_KEY) === todayStr(); } catch { return false; }
+};
+
 // quick "what to work on" chooser — routes straight into a matching game
 const CHOOSE: Msg = {
   text: 'על מה בא לך לעבוד עכשיו?',
@@ -95,18 +103,21 @@ const CHOOSE: Msg = {
 };
 
 // Build the message queue for the current page, weaving in the user's data.
-function buildMessages(ctx: Ctx, data: CompanionResponse | null): Msg[] {
+// `gameName` (when on a specific game) lets the in-game coaching speak to the
+// actual game the player is in, in a warm, personal voice.
+function buildMessages(ctx: Ctx, data: CompanionResponse | null, gameName?: string): Msg[] {
   if (ctx === 'game') {
+    const g = gameName ?? 'האימון הזה';
     return [
-      { text: 'אתה מתקדם יפה — תישאר ממוקד 💪' },
-      { text: 'טיפ קטן: קח נשימה לפני כל סבב, זה משפר דיוק 🙂' },
-      { text: 'כל תרגול קטן מחזק את המוח. כל הכבוד שאתה כאן!' },
-      { text: 'אם זה מאתגר — זה אומר שאתה לומד. תמשיך 🚀' },
+      { text: `בוא נתמקד ב${g} 💪 קח את הזמן שלך — אני כאן איתך לכל אורך הדרך.` },
+      { text: 'טיפ קטן: נשימה עמוקה לפני כל סבב מחדדת את הקשב ומרגיעה 🙂' },
+      { text: `כל סבב שאתה עושה מחזק אותך — ${g} זה בדיוק סוג האימון שהמוח שלך אוהב.` },
+      { text: 'אם זה מרגיש מאתגר, זה סימן שאתה לומד. אני גאה בך שאתה כאן 🚀' },
     ];
   }
   if (ctx === 'games') {
     return [
-      { text: 'בחר אתגר ואני אעזור להתאים לך את המשחק 👇' },
+      { text: 'איזה כיף שבאת להתאמן 🙌 בחר תחום ואני אתפור לך משחק שמתאים בול לרמה שלך.' },
       CHOOSE,
     ];
   }
@@ -332,7 +343,7 @@ function buildBackendMessages(
 export default function CompanionAvatar() {
   const { token, user } = useAuth();
   const { lang, t } = useLang();
-  const { isOpen: isAiChatOpen, openChat, status: chatStatus, setAnchor: setChatAnchor } = useChatController();
+  const { isOpen: isAiChatOpen, openChat, closeChat, status: chatStatus, setAnchor: setChatAnchor } = useChatController();
   const { isInstructionAvatarVisible, isResultAvatarVisible } = useCompanionPresentation();
   const navigate = useNavigate();
   const loc = useLocation();
@@ -347,6 +358,7 @@ export default function CompanionAvatar() {
   const [open, setOpen] = useState(true);
   const [idx, setIdx] = useState(0);
   const [dismissed, setDismissed] = useState(false);  // user closed it → stay quiet until next page
+  const [moodPicked, setMoodPicked] = useState<CompanionMoodSelection | null>(null);
   const [videoOk, setVideoOk] = useState(true);       // false → fall back to the PNG poses
   const [flight, setFlight] = useState<Flight>(null);
   const [celebrating, setCelebrating] = useState(false); // level-up → plays the celebrate clip
@@ -404,6 +416,9 @@ export default function CompanionAvatar() {
     setIdx(0);
     setOpen(ctx !== 'game');
     setDismissed(false);
+    // Drop any just-picked mood ack; whether we asked today is remembered in
+    // localStorage, so returning to home simply skips the check-in.
+    setMoodPicked(null);
     setPose(ctx === 'home' ? 'idle' : 'wave');
     setFlight(null);
     openAfterLand.current = false;
@@ -456,6 +471,12 @@ export default function CompanionAvatar() {
   }, [token, backendContext]);
 
   const messages = useMemo(() => {
+    // Which specific game are we in? Lets the in-game voice name it.
+    const gameKey = ctx === 'game'
+      ? Object.values(GAME_ROUTE).find((k) => loc.pathname === `/games/${k}`)
+      : undefined;
+    const gameName = gameKey ? GAME_INSTRUCTIONS[gameKey]?.title[lang] : undefined;
+
     const homeIntro: Msg = {
       title: user?.name
         ? `${t('companion.home.hello')} \u2068${user.name}\u2069`
@@ -473,9 +494,21 @@ export default function CompanionAvatar() {
       ],
       dir: lang === 'he' ? 'rtl' : 'ltr',
     };
-    // Home never shows the recommended play-time (spec: keep home practical and
-    // uncluttered). The per-game recommended time lives on the instructions page.
-    const homeMoodSlot: Msg = homeMood;
+    // Mood check-in flow:
+    //  • once the user picks, replace the question with a warm, human reply and
+    //    keep the conversation going (never stop after a mood pick);
+    //  • the question itself is asked at most once per calendar day.
+    const dir = lang === 'he' ? 'rtl' : 'ltr';
+    const moodAck: Msg | null = moodPicked
+      ? {
+          text: t(moodPicked === 'alert'
+            ? 'companion.home.moodAckAlert'
+            : 'companion.home.moodAckTired'),
+          dir,
+        }
+      : null;
+    const homeMoodSlot: Msg | null =
+      moodAck ?? (!askedMoodToday() ? homeMood : null);
     const planDomains = Array.from(new Set(
       (data?.plan?.items ?? [])
         .filter((item) => COGNITIVE_PROBLEMS.some((problem) => problem.id === item.domainId))
@@ -490,7 +523,11 @@ export default function CompanionAvatar() {
           dir: lang === 'he' ? 'rtl' : 'ltr',
         }
       : null;
-    const homeOpeningMessages = [homeIntro, homeMoodSlot, ...(homePlan ? [homePlan] : [])];
+    const homeOpeningMessages = [
+      homeIntro,
+      ...(homeMoodSlot ? [homeMoodSlot] : []),
+      ...(homePlan ? [homePlan] : []),
+    ];
     if (data && backendContext) {
       const backendMessages = buildBackendMessages(data, backendContext, lang, t);
       if (backendMessages) {
@@ -498,7 +535,7 @@ export default function CompanionAvatar() {
       }
     }
 
-    const baseMessages = buildMessages(ctx, null);
+    const baseMessages = buildMessages(ctx, null, gameName);
     const suggestions = buildFallbackSuggestions(ctx, null, lang, t);
     if (ctx === 'home') {
       return [...homeOpeningMessages, ...baseMessages.slice(0, 2), ...suggestions, ...baseMessages.slice(2)];
@@ -510,7 +547,7 @@ export default function CompanionAvatar() {
       return [baseMessages[0], ...suggestions, ...baseMessages.slice(1)];
     }
     return baseMessages;
-  }, [ctx, data, backendContext, lang, t, user]);
+  }, [ctx, data, backendContext, lang, t, user, moodPicked, loc.pathname]);
   // Route/data changes reset immediately unless AI chat temporarily owns the surface.
   useEffect(() => {
     if (suppressCompanionRef.current) {
@@ -779,12 +816,17 @@ export default function CompanionAvatar() {
     const sessionId = getStoredChatSessionId();
     if (!sessionId) return;
 
-    // Persist the mood so the game warm-up can go easier when the user is tired.
-    try { localStorage.setItem('neurostep:mood', selection); } catch { /* ignore */ }
+    // Persist the mood (game warm-up reads it) and mark that we asked today, so
+    // the check-in won't reappear on every visit to the main page.
+    try {
+      localStorage.setItem(MOOD_PICK_KEY, selection);
+      localStorage.setItem(MOOD_ASK_KEY, todayStr());
+    } catch { /* ignore */ }
 
-    // Optimistic: acknowledge instantly and close the prompt — never lock the UI
-    // while the request is in flight (a slow/failed call must not disable clicks).
-    setOpen(false);
+    // Keep the conversation going: swap the question for a warm, human reply and
+    // let the queue continue — never lock the UI or stop after a mood pick.
+    setMoodPicked(selection);
+    setOpen(true);
     updateMyChatSessionMood(token, sessionId, selection).catch(() => {
       /* mood is best-effort */
     });
@@ -823,6 +865,9 @@ export default function CompanionAvatar() {
   const flying = activeFlight === 'launch' || activeFlight === 'cruise';
 
   const handleAvatarActivation = () => {
+    // Clicking the mascot while the AI chat is open closes it (the chat has no
+    // × button — the avatar is the toggle).
+    if (isAiChatOpen) { closeChat(); return; }
     if (suppressCompanion) return;
 
     // Home & games: clicking the mascot opens the AI chat anchored to it.

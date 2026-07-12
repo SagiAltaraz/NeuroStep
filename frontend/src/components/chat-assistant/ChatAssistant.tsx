@@ -326,11 +326,7 @@ const ChatAssistant = ({ showLauncher = true }: ChatAssistantProps) => {
                >
                   <div className="chat-header">
                      <div className="chat-title">
-                        <div className="chat-avatar" aria-hidden="true">🧠</div>
-                        <div className="chat-title-text">
-                           <span className="chat-title-main">עוזר AI</span>
-                           <span className="chat-title-sub">מבוסס על הפרופיל שלך</span>
-                        </div>
+                        <span className="chat-title-main">עוזר AI</span>
                      </div>
                      <div className="chat-header-actions">
                         <button
@@ -340,9 +336,6 @@ const ChatAssistant = ({ showLauncher = true }: ChatAssistantProps) => {
                            disabled={isLoading}
                         >
                            שיחה חדשה
-                        </button>
-                        <button className="chat-close-button" onClick={handleCloseChat} aria-label="סגור">
-                           ×
                         </button>
                      </div>
                   </div>
