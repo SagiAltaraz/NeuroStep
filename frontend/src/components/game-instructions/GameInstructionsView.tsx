@@ -7,15 +7,18 @@
  * structurally identical and bilingual.
  */
 
+import { useLayoutEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { ChevronRight, ChevronLeft } from 'lucide-react';
 import {
-  Card, CardHeader, CardTitle, CardDescription, CardContent, CardFooter,
+  Card, CardHeader, CardTitle, CardContent, CardFooter,
 } from '../ui/card';
 import { Button } from '../ui/button';
+import AnimatedAvatar from '../companion/AnimatedAvatar';
 import CognitiveAreas from './CognitiveAreas';
 import { GAME_INSTRUCTIONS } from '../../data/gameInstructions';
 import { useLang } from '../../context/LanguageContext';
+import { useCompanionPresentation } from '../../context/CompanionPresentationContext';
 
 interface Props {
   gameId:  string;
@@ -25,7 +28,14 @@ interface Props {
 export default function GameInstructionsView({ gameId, onStart }: Props) {
   const navigate = useNavigate();
   const { lang, dir, t } = useLang();
+  const { showInstructionAvatar, hideInstructionAvatar } = useCompanionPresentation();
   const data = GAME_INSTRUCTIONS[gameId];
+
+  useLayoutEffect(() => {
+    if (!data) return;
+    showInstructionAvatar();
+    return hideInstructionAvatar;
+  }, [data, showInstructionAvatar, hideInstructionAvatar]);
 
   if (!data) {
     console.warn(`[GameInstructionsView] No instructions found for game "${gameId}"`);
@@ -53,10 +63,16 @@ export default function GameInstructionsView({ gameId, onStart }: Props) {
           <CardTitle className="text-2xl">
             {data.emoji} {data.title[lang]}
           </CardTitle>
-          <CardDescription>{data.desc[lang]}</CardDescription>
         </CardHeader>
 
         <CardContent className={`space-y-6 ${contentAlignClass}`}>
+          <div className="flex flex-col sm:flex-row items-center gap-3">
+            <AnimatedAvatar mode="talk" size="medium" className="shrink-0" />
+            <div className="w-full rounded-2xl border border-blue-100 bg-blue-50 px-4 py-3 shadow-sm">
+              <p className="m-0 text-sm text-gray-700">{data.desc[lang]}</p>
+            </div>
+          </div>
+
           <CognitiveAreas gameId={gameId} />
 
           <div>

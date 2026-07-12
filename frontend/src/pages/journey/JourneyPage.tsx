@@ -12,6 +12,7 @@ import { useEffect, useMemo, useRef, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { useAuth } from '../../context/AuthContext';
 import { useLang, type TKey } from '../../context/LanguageContext';
+import { useChatController } from '../../context/ChatControllerContext';
 import {
    COGNITIVE_PROBLEMS,
    gamesForProblem,
@@ -20,11 +21,14 @@ import {
 import {
    getMyProgression,
    getMyProfile,
+   getMyCompanion,
    isApiError,
    type ProgressionResponse,
    type DomainProfile,
+   type TrainingPlan,
+   type CompanionContext,
 } from '../../api/me';
-import Avatar from '../../components/journey/Avatar';
+import AnimatedAvatar from '../../components/companion/AnimatedAvatar';
 import './JourneyMap.css';
 
 // ── path geometry ──────────────────────────────────────────────
@@ -35,6 +39,19 @@ const N = 100,
    SP = 92,
    PAD = 70;
 const MAP_H = PAD * 2 + (N - 1) * SP;
+
+type JourneyTab = 'map' | 'plan';
+
+const GAME_ROUTES: Record<string, string> = {
+   memory: '/games/memory',
+   'find-letter': '/games/findLetter',
+   'color-trains': '/games/colorTracking',
+   'spot-difference': '/games/spotDifference',
+   'green-light': '/games/greenLight',
+   'shapes-click': '/games/shapesClick',
+   tictactoe: '/games/ticTacToe',
+   'where-was-it': '/games/whereWasIt',
+};
 const xy = (i: number) => ({
    x: CX + AMP * Math.sin(i * 0.55),
    y: PAD + (N - i) * SP,
@@ -47,11 +64,14 @@ function hexA(hex: string, a: number): string {
 
 export default function JourneyPage() {
    const { token } = useAuth();
-   const { t } = useLang();
+   const { t, dir } = useLang();
+   const { openChat } = useChatController();
    const navigate = useNavigate();
 
    const [prog, setProg] = useState<ProgressionResponse | null>(null);
    const [profiles, setProfiles] = useState<Record<string, DomainProfile>>({});
+   const [trainingPlan, setTrainingPlan] = useState<TrainingPlan | null>(null);
+   const [activeTab, setActiveTab] = useState<JourneyTab>('map');
    const [status, setStatus] = useState<'loading' | 'ready' | 'error'>(
       'loading'
    );
@@ -63,29 +83,53 @@ export default function JourneyPage() {
       if (!token) return;
       let cancelled = false;
       setStatus('loading');
-      Promise.all([getMyProgression(token), getMyProfile(token)]).then(
-         ([p, pr]) => {
-            if (cancelled) return;
-            if (isApiError(p)) {
-               setStatus('error');
-               return;
-            }
-            setProg(p);
-            if (!isApiError(pr)) {
-               const map: Record<string, DomainProfile> = {};
-               pr.domains.forEach((d) => {
-                  map[d.id] = d;
-               });
-               setProfiles(map);
-            }
-            setStatus('ready');
+      Promise.all([
+         getMyProgression(token),
+         getMyProfile(token),
+      ]).then(([p, pr]) => {
+         if (cancelled) return;
+         if (isApiError(p)) {
+            setStatus('error');
+            return;
          }
-      );
+         setProg(p);
+         if (!isApiError(pr)) {
+            const map: Record<string, DomainProfile> = {};
+            pr.domains.forEach((d) => {
+               map[d.id] = d;
+            });
+            setProfiles(map);
+         }
+         setStatus('ready');
+      });
       return () => {
          cancelled = true;
       };
    }, [token]);
 
+   const companionContext: CompanionContext =
+      activeTab === 'plan' ? 'journey-plan' : 'journey-map';
+
+   useEffect(() => {
+      if (!token) return;
+      let cancelled = false;
+      const requestedContext = companionContext;
+
+      getMyCompanion(token, requestedContext).then((companion) => {
+         if (
+            cancelled ||
+            isApiError(companion) ||
+            companion.context !== requestedContext
+         ) {
+            return;
+         }
+         setTrainingPlan(companion.plan ?? null);
+      });
+
+      return () => {
+         cancelled = true;
+      };
+   }, [token, companionContext]);
    const levelOf = (id: ProblemId) => Math.round(profiles[id]?.level ?? 0);
 
    // default the selected ability to the one the player has progressed furthest in
@@ -164,6 +208,22 @@ export default function JourneyPage() {
    })();
 
    const primaryGame = gamesForProblem(problem.id)[0];
+   const planItems = trainingPlan?.items ?? [];
+   const focusItem = planItems[0];
+   const avatarMessage =
+      activeTab === 'map'
+         ? `${t(`problem.${problem.id}.title` as TKey)} · ${t(
+              'journey.node'
+           )} ${cur} ${t('journey.of')} ${N}`
+         : focusItem
+           ? `${t('journey.avatar.plan.focus')}: ${t(
+                `problem.${focusItem.domainId}.title` as TKey
+             )} · ${focusItem.sessionsPerWeek} ${t(
+                'journey.avatar.plan.sessions'
+             )}`
+           : t('journey.avatar.plan.pending');
+   const routeForGame = (gameId: string, explicitRoute?: string) =>
+      explicitRoute ?? GAME_ROUTES[gameId] ?? '/games';
    const mapStyle = {
       height: MAP_H,
       ['--jm-accent' as string]: color,
@@ -171,10 +231,26 @@ export default function JourneyPage() {
    } as React.CSSProperties;
 
    return (
-      <div className="mx-auto max-w-2xl px-4 pb-28 pt-6" dir="rtl">
+      <div className="mx-auto max-w-2xl px-4 pb-28 pt-6" dir={dir}>
+         <div className="jm-avatar-rail">
+            <p className='jm-avatar-bubble'>
+               <span>{avatarMessage}</span>
+               <span className='jm-avatar-bubble-cta'>
+                  {t('journey.avatar.consult')}
+               </span>
+            </p>
+            <AnimatedAvatar
+               mode={prog.avatarState}
+               size={80}
+               interactive
+               label={t('journey.avatar.openChat')}
+               onActivate={() => openChat('journey')}
+               className="jm-avatar-figure"
+            />
+         </div>
+
          {/* ── Hero ──────────────────────────────────────────────── */}
          <div className="mb-4 flex flex-col items-center gap-1 text-center">
-            <Avatar state={prog.avatarState} size={56} />
             <h1 className="text-2xl font-bold text-slate-900">
                {t('journey.title')}
             </h1>
@@ -189,195 +265,282 @@ export default function JourneyPage() {
 
          {/* ── Ability chips — sticky, so you can switch abilities while
              scrolling the long path without jumping back to the top ───── */}
-         <div className="jm-chipbar">
-            <div className="jm-chips">
-               {COGNITIVE_PROBLEMS.map((p) => {
-                  const on = p.id === problem.id;
-                  return (
-                     <button
-                        key={p.id}
-                        ref={on ? activeChipRef : undefined}
-                        type="button"
-                        className={`jm-chip ${on ? 'jm-on' : ''}`}
-                        style={on ? { background: p.color } : undefined}
-                        onClick={() => setSelected(p.id)}
-                     >
-                        <span
-                           className="jm-dot"
-                           style={{ background: p.color }}
-                        />
-                        {t(`problem.${p.id}.title` as TKey)}
-                     </button>
-                  );
-               })}
-            </div>
+         <div className="jm-tabs" role="tablist" aria-label="תצוגת המסע שלי">
+            <button
+               type="button"
+               className={'jm-tab ' + (activeTab === 'map' ? 'jm-tab-on' : '')}
+               onClick={() => setActiveTab('map')}
+            >
+               מסע
+            </button>
+            <button
+               type="button"
+               className={'jm-tab ' + (activeTab === 'plan' ? 'jm-tab-on' : '')}
+               onClick={() => setActiveTab('plan')}
+            >
+               תוכנית אימונים
+            </button>
          </div>
 
-         {/* ── Ability header ────────────────────────────────────── */}
-         <div className="mb-3 text-center">
-            <div className="text-lg font-bold text-slate-900">
-               {t(`problem.${problem.id}.title` as TKey)}
-            </div>
-            <div className="text-sm font-semibold text-slate-500">
-               {t('journey.node')} {cur} {t('journey.of')} {N}
-            </div>
-         </div>
-
-         {/* ── Winding 1..100 path ───────────────────────────────── */}
-         <div className="jm-wrap">
-            <div className="jm-map" style={mapStyle}>
-               <svg
-                  className="jm-trail"
-                  viewBox={`0 0 ${W} ${MAP_H}`}
-                  preserveAspectRatio="none"
-               >
-                  <path
-                     d={trailD}
-                     fill="none"
-                     stroke="#ffffff"
-                     strokeWidth={11}
-                     strokeLinecap="round"
-                     strokeLinejoin="round"
-                     opacity={0.9}
-                  />
-                  <path
-                     d={trailD}
-                     className="jm-flow"
-                     fill="none"
-                     stroke={color}
-                     strokeWidth={4}
-                     strokeLinecap="round"
-                     opacity={0.6}
-                  />
-               </svg>
-
-               {Array.from({ length: N }, (_, idx) => {
-                  const i = idx + 1;
-                  const p = xy(i);
-                  const mile = i % 10 === 0;
-                  const isCur = i === cur,
-                     isPrev = i === cur - 1,
-                     isNext = i === cur + 1;
-                  const done = i < cur;
-                  const showNum = i % 5 === 0 || isCur || isPrev || isNext;
-                  const size = mile ? 46 : 34;
-                  const cls = [
-                     'jm-node',
-                     done ? 'jm-done' : 'jm-locked',
-                     isNext ? 'jm-next' : '',
-                     mile ? 'jm-mile' : '',
-                     showNum ? 'jm-num' : '',
-                  ].join(' ');
-                  const label = showNum ? String(i) : done ? '✓' : '🔒';
-                  return (
-                     <div
-                        key={i}
-                        className={cls}
-                        style={{
-                           left: p.x,
-                           top: p.y,
-                           width: size,
-                           height: size,
-                           fontSize: mile ? 15 : 13,
-                           opacity: isCur ? 0 : 1, // current is hidden — the character stands here
-                           background: done ? color : undefined,
-                        }}
-                     >
-                        {label}
-                        {mile && <span className="jm-mbadge">★</span>}
-                     </div>
-                  );
-               })}
-
-               {/* walking character on the current step */}
-               <div
-                  ref={charRef}
-                  className="jm-char"
-                  style={{ left: xy(cur).x, top: xy(cur).y }}
-               >
-                  <svg viewBox="0 0 46 54" width="46" height="54">
-                     <ellipse
-                        cx="23"
-                        cy="52"
-                        rx="11"
-                        ry="3"
-                        fill="rgba(28,58,69,.18)"
-                     />
-                     <g className="jm-arm-b">
-                        <rect
-                           x="11"
-                           y="22"
-                           width="5"
-                           height="15"
-                           rx="2.5"
-                           fill={color}
-                        />
-                     </g>
-                     <g className="jm-leg-b">
-                        <rect
-                           x="19"
-                           y="36"
-                           width="6"
-                           height="15"
-                           rx="3"
-                           fill="#1c3a45"
-                        />
-                     </g>
-                     <g className="jm-leg-a">
-                        <rect
-                           x="23"
-                           y="36"
-                           width="6"
-                           height="15"
-                           rx="3"
-                           fill="#244a59"
-                        />
-                     </g>
-                     <rect
-                        x="14"
-                        y="20"
-                        width="18"
-                        height="20"
-                        rx="9"
-                        fill={color}
-                     />
-                     <g className="jm-arm-a">
-                        <rect
-                           x="30"
-                           y="22"
-                           width="5"
-                           height="15"
-                           rx="2.5"
-                           fill={color}
-                        />
-                     </g>
-                     <circle
-                        cx="23"
-                        cy="13"
-                        r="9"
-                        fill="#fff"
-                        stroke={color}
-                        strokeWidth="2.5"
-                     />
-                     <circle cx="20" cy="13" r="1.6" fill="#1c3a45" />
-                     <circle cx="26" cy="13" r="1.6" fill="#1c3a45" />
-                     <path
-                        d="M20 16 q3 2.5 6 0"
-                        fill="none"
-                        stroke="#1c3a45"
-                        strokeWidth="1.4"
-                        strokeLinecap="round"
-                     />
-                  </svg>
-                  <div className="jm-youtag">
-                     {t('journey.node')} {cur}
+         {activeTab === 'map' ? (
+            <>
+               <div className="jm-chipbar">
+                  <div className="jm-chips">
+                     {COGNITIVE_PROBLEMS.map((p) => {
+                        const on = p.id === problem.id;
+                        return (
+                           <button
+                              key={p.id}
+                              ref={on ? activeChipRef : undefined}
+                              type="button"
+                              className={`jm-chip ${on ? 'jm-on' : ''}`}
+                              style={on ? { background: p.color } : undefined}
+                              onClick={() => setSelected(p.id)}
+                           >
+                              <span
+                                 className="jm-dot"
+                                 style={{ background: p.color }}
+                              />
+                              {t(`problem.${p.id}.title` as TKey)}
+                           </button>
+                        );
+                     })}
                   </div>
                </div>
-            </div>
-         </div>
 
-         {/* ── Train-this-ability CTA ────────────────────────────── */}
-         {primaryGame && (
+               {/* ── Ability header ────────────────────────────────────── */}
+               <div className="mb-3 text-center">
+                  <div className="text-lg font-bold text-slate-900">
+                     {t(`problem.${problem.id}.title` as TKey)}
+                  </div>
+                  <div className="text-sm font-semibold text-slate-500">
+                     {t('journey.node')} {cur} {t('journey.of')} {N}
+                  </div>
+               </div>
+
+               {/* ── Winding 1..100 path ───────────────────────────────── */}
+               <div className="jm-wrap">
+                  <div className="jm-map" style={mapStyle}>
+                     <svg
+                        className="jm-trail"
+                        viewBox={`0 0 ${W} ${MAP_H}`}
+                        preserveAspectRatio="none"
+                     >
+                        <path
+                           d={trailD}
+                           fill="none"
+                           stroke="#ffffff"
+                           strokeWidth={11}
+                           strokeLinecap="round"
+                           strokeLinejoin="round"
+                           opacity={0.9}
+                        />
+                        <path
+                           d={trailD}
+                           className="jm-flow"
+                           fill="none"
+                           stroke={color}
+                           strokeWidth={4}
+                           strokeLinecap="round"
+                           opacity={0.6}
+                        />
+                     </svg>
+
+                     {Array.from({ length: N }, (_, idx) => {
+                        const i = idx + 1;
+                        const p = xy(i);
+                        const mile = i % 10 === 0;
+                        const isCur = i === cur,
+                           isPrev = i === cur - 1,
+                           isNext = i === cur + 1;
+                        const done = i < cur;
+                        const showNum =
+                           i % 5 === 0 || isCur || isPrev || isNext;
+                        const size = mile ? 46 : 34;
+                        const cls = [
+                           'jm-node',
+                           done ? 'jm-done' : 'jm-locked',
+                           isNext ? 'jm-next' : '',
+                           mile ? 'jm-mile' : '',
+                           showNum ? 'jm-num' : '',
+                        ].join(' ');
+                        const label = showNum ? String(i) : done ? '✓' : '🔒';
+                        return (
+                           <div
+                              key={i}
+                              className={cls}
+                              style={{
+                                 left: p.x,
+                                 top: p.y,
+                                 width: size,
+                                 height: size,
+                                 fontSize: mile ? 15 : 13,
+                                 opacity: isCur ? 0 : 1, // current is hidden — the character stands here
+                                 background: done ? color : undefined,
+                              }}
+                           >
+                              {label}
+                              {mile && <span className="jm-mbadge">★</span>}
+                           </div>
+                        );
+                     })}
+
+                     {/* walking character on the current step */}
+                     <div
+                        ref={charRef}
+                        className="jm-char"
+                        style={{ left: xy(cur).x, top: xy(cur).y }}
+                     >
+                        <svg viewBox="0 0 46 54" width="46" height="54">
+                           <ellipse
+                              cx="23"
+                              cy="52"
+                              rx="11"
+                              ry="3"
+                              fill="rgba(28,58,69,.18)"
+                           />
+                           <g className="jm-arm-b">
+                              <rect
+                                 x="11"
+                                 y="22"
+                                 width="5"
+                                 height="15"
+                                 rx="2.5"
+                                 fill={color}
+                              />
+                           </g>
+                           <g className="jm-leg-b">
+                              <rect
+                                 x="19"
+                                 y="36"
+                                 width="6"
+                                 height="15"
+                                 rx="3"
+                                 fill="#1c3a45"
+                              />
+                           </g>
+                           <g className="jm-leg-a">
+                              <rect
+                                 x="23"
+                                 y="36"
+                                 width="6"
+                                 height="15"
+                                 rx="3"
+                                 fill="#244a59"
+                              />
+                           </g>
+                           <rect
+                              x="14"
+                              y="20"
+                              width="18"
+                              height="20"
+                              rx="9"
+                              fill={color}
+                           />
+                           <g className="jm-arm-a">
+                              <rect
+                                 x="30"
+                                 y="22"
+                                 width="5"
+                                 height="15"
+                                 rx="2.5"
+                                 fill={color}
+                              />
+                           </g>
+                           <circle
+                              cx="23"
+                              cy="13"
+                              r="9"
+                              fill="#fff"
+                              stroke={color}
+                              strokeWidth="2.5"
+                           />
+                           <circle cx="20" cy="13" r="1.6" fill="#1c3a45" />
+                           <circle cx="26" cy="13" r="1.6" fill="#1c3a45" />
+                           <path
+                              d="M20 16 q3 2.5 6 0"
+                              fill="none"
+                              stroke="#1c3a45"
+                              strokeWidth="1.4"
+                              strokeLinecap="round"
+                           />
+                        </svg>
+                        <div className="jm-youtag">
+                           {t('journey.node')} {cur}
+                        </div>
+                     </div>
+                  </div>
+               </div>
+
+               {/* ── Train-this-ability CTA ────────────────────────────── */}
+            </>
+         ) : (
+            <section className="jm-plan" aria-label="תוכנית אימונים">
+               <div className="jm-plan-head">
+                  <span className="jm-plan-eyebrow">תוכנית שבועית</span>
+                  <h2>תוכנית האימונים שלך</h2>
+                  <p>
+                     {trainingPlan?.isColdStart || planItems.length === 0
+                        ? 'עדיין אין מספיק נתוני אימון כדי לבנות תוכנית אישית. השלם עוד משחק קצר ונעדכן אותה.'
+                        : 'סהכ ' +
+                          (trainingPlan?.weeklySessions ?? 0) +
+                          ' משחקים בשבוע' +
+                          (trainingPlan?.focusDomainHe
+                             ? ' · דגש: ' + trainingPlan.focusDomainHe
+                             : '')}
+                  </p>
+               </div>
+
+               {focusItem && (
+                  <button
+                     type="button"
+                     className="jm-plan-focus"
+                     onClick={() =>
+                        navigate(
+                           routeForGame(focusItem.gameId, focusItem.gameRoute)
+                        )
+                     }
+                  >
+                     <span className="jm-plan-focus-label">
+                        המשחק המומלץ עכשיו
+                     </span>
+                     <strong>{focusItem.gameHe}</strong>
+                     <span>{focusItem.domainHe}</span>
+                  </button>
+               )}
+
+               {planItems.length > 0 && (
+                  <div className="jm-plan-list">
+                     {planItems.map((item) => (
+                        <button
+                           key={item.domainId}
+                           type="button"
+                           className={'jm-plan-row jm-prio-' + item.priority}
+                           onClick={() =>
+                              navigate(
+                                 routeForGame(item.gameId, item.gameRoute)
+                              )
+                           }
+                        >
+                           <span className="jm-plan-badge">
+                              {item.priorityHe}
+                           </span>
+                           <span className="jm-plan-main">
+                              <strong>{item.domainHe}</strong>
+                              <span>{item.gameHe}</span>
+                              <small>{item.reasonHe}</small>
+                           </span>
+                           <span className="jm-plan-frequency">
+                              <strong>{item.sessionsPerWeek}x</strong>
+                              <small>בשבוע</small>
+                           </span>
+                        </button>
+                     ))}
+                  </div>
+               )}
+            </section>
+         )}
+         {activeTab === 'map' && primaryGame && (
             <button
                type="button"
                onClick={() => navigate(`/games/${primaryGame.gameId}`)}

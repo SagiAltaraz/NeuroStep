@@ -1,6 +1,6 @@
 import './App.css';
-import { lazy, Suspense, type ComponentType } from 'react';
-import { Routes, Route } from 'react-router-dom';
+import { lazy, Suspense, useEffect, type ComponentType } from 'react';
+import { Routes, Route, useLocation } from 'react-router-dom';
 import Header from './components/Header/Header';
 import SiteBackground from './components/SiteBackground/SiteBackground';
 
@@ -24,6 +24,12 @@ import JourneyPage from './pages/journey/JourneyPage';
 import ProtectedRoute from './components/ProtectedRoute/ProtectedRoute';
 import AccessibilityWidget from './components/AccessibilityWidget/AccessibilityWidget';
 import { isAdminPanelEnabled } from './config/features';
+import { useAuth } from './context/AuthContext';
+import {
+   ChatControllerProvider,
+   useChatController,
+} from './context/ChatControllerContext';
+import { CompanionPresentationProvider } from './context/CompanionPresentationContext';
 
 // Admin pages are lazy-loaded so they only weigh on the bundle when the panel
 // is enabled (see isAdminPanelEnabled in config/features).
@@ -45,7 +51,26 @@ const renderAdminRoute = (Page: ComponentType) => (
    </Suspense>
 );
 
-function App() {
+const PUBLIC_CHAT_PATHS = new Set(['/', '/games']);
+
+function SharedChatAssistant() {
+   const { pathname } = useLocation();
+   const { user } = useAuth();
+   const { closeChat } = useChatController();
+   const isSupported = PUBLIC_CHAT_PATHS.has(pathname) || (pathname === '/journey' && !!user);
+
+   useEffect(() => {
+      if (!isSupported) closeChat();
+   }, [isSupported, closeChat]);
+
+   return isSupported
+      ? <ChatAssistant
+           showLauncher={pathname !== '/' && pathname !== '/journey' && pathname !== '/games'}
+        />
+      : null;
+}
+
+function AppContent() {
    return (
       <div className="App">
          <SiteBackground />
@@ -56,25 +81,17 @@ function App() {
             <Route
                path="/"
                element={
-                  <>
-                     <div className="home-onescreen">
-                        <HomePage />
-                        <ProblemsCarousel />
-                     </div>
-                     <ChatAssistant />
-                  </>
+                  <div className="home-onescreen">
+                     <HomePage />
+                     <ProblemsCarousel />
+                  </div>
                }
             />
             <Route path="/sign-up" element={<SignupPage />} />
             <Route path="/log-in" element={<LoginPage />} />
             <Route
                path="/games"
-               element={
-                  <>
-                     <GamesPage />
-                     <ChatAssistant />
-                  </>
-               }
+               element={<GamesPage />}
             />
             <Route
                path="/games/colorTracking"
@@ -144,10 +161,7 @@ function App() {
                path="/journey"
                element={
                   <ProtectedRoute>
-                     <>
-                        <JourneyPage />
-                        <ChatAssistant />
-                     </>
+                     <JourneyPage />
                   </ProtectedRoute>
                }
             />
@@ -176,8 +190,19 @@ function App() {
                )}
             <Route path="*" element={<div>404 - Page not found</div>} />
          </Routes>
+         <SharedChatAssistant />
          <AccessibilityWidget />
       </div>
+   );
+}
+
+function App() {
+   return (
+      <ChatControllerProvider>
+         <CompanionPresentationProvider>
+            <AppContent />
+         </CompanionPresentationProvider>
+      </ChatControllerProvider>
    );
 }
 

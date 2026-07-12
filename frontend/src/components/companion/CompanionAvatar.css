@@ -32,6 +32,14 @@
    the "My Journey" CTA line; inside a game stay low so we never cover gameplay. */
 .companion--home,
 .companion--journey { bottom: 28vh; }
+.companion--home {
+  right: 0;
+  left: auto;
+  bottom: 40vh;
+  width: 132px;
+  align-items: center;
+  animation: none;
+}
 .companion--game .companion-img { width: 92px; }
 
 .companion-char {
@@ -69,11 +77,44 @@
 }
 .companion--game .companion-video { width: 100px; height: 100px; }
 
+.companion-session-counter {
+  position: absolute;
+  right: 0;
+  bottom: calc(100% + 10px);
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  min-width: 88px;
+  padding: 8px 12px;
+  border: 1px solid var(--ns-cardline, rgba(47, 134, 214, 0.22));
+  border-radius: 999px;
+  background: var(--ns-card, rgba(255, 255, 255, 0.94));
+  box-shadow: var(--ns-soft-sm, 0 8px 24px -12px rgba(28, 58, 69, 0.35));
+  color: var(--ns-teal, #1c3a45);
+  font-variant-numeric: tabular-nums;
+  font-weight: 800;
+  direction: ltr;
+  pointer-events: none;
+}
+
 /* jetpack flight — a wider, livelier patrol of the right gutter. Overrides the
    gentle cm-roam while flying; the landing glide back is driven inline from JS
    so it stays in sync with the clip's descent. */
 .companion.companion--flying {
   animation: cm-fly 18s ease-in-out infinite alternate;
+}
+.companion--home.companion--flying {
+  animation: none;
+}
+.companion--home.companion--flight-cruise {
+  animation: cm-home-cruise 700ms ease-out forwards;
+}
+.companion.companion--ai-chat-open {
+  animation: none;
+}
+@keyframes cm-home-cruise {
+  from { transform: translateY(0); }
+  to   { transform: translateY(-8vh); }
 }
 @keyframes cm-fly {
   0%   { transform: translate(0px, 0vh); }
@@ -104,6 +145,26 @@
   color: var(--ns-teal, #1c3a45);
   animation: cm-pop 0.28s cubic-bezier(0.2, 1.3, 0.5, 1);
 }
+.companion--home .companion-bubble {
+  position: absolute;
+  right: 0;
+  left: auto;
+  bottom: calc(100% + 10px);
+  translate: none;
+  width: max-content;
+  max-width: min(270px, calc(100vw - 16px));
+}
+.companion-message-cycle {
+  animation-name: cm-message-cycle;
+  animation-timing-function: ease-in-out;
+  animation-fill-mode: both;
+}
+@keyframes cm-message-cycle {
+  0%   { opacity: 0; }
+  8%   { opacity: 1; }
+  88%  { opacity: 1; }
+  100% { opacity: 0; }
+}
 @keyframes cm-pop { from { opacity: 0; transform: translateY(8px) scale(0.96); } to { opacity: 1; transform: none; } }
 
 .companion-close {
@@ -117,7 +178,7 @@
   color: var(--ns-slate, #5a7fa8);
   cursor: pointer;
 }
-.companion-greet { margin: 0 0 4px; font-family: 'Sora', 'Heebo', sans-serif; font-weight: 800; font-size: 0.98rem; }
+.companion-greet { margin: 0 0 4px; font-family: 'Sora', 'Heebo', sans-serif; font-weight: 800; font-size: 0.98rem; direction: inherit; text-align: start; }
 .companion-reason { margin: 0 0 10px; font-size: 0.9rem; line-height: 1.5; color: var(--ns-slate, #5a7fa8); }
 .companion-cta {
   border: 0;

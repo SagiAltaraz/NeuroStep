@@ -26,3 +26,6 @@ build/
 # Local project dump tooling
 dump-project.ps1
 project-dump.txt
+
+# GPT Instructions
+/AGENTS.md
