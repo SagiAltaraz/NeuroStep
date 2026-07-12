@@ -3,6 +3,7 @@ import { useNavigate } from 'react-router-dom';
 import { ChevronRight } from 'lucide-react';
 import Phaser from 'phaser';
 import type { GameAdjustment } from '../../hooks/useGameSession';
+import { emitCelebrate } from '../../components/companion/celebrate';
 import { getGameLabels, type GameLabels } from '../../data/gameLabels';
 import { useLang } from '../../context/LanguageContext';
 import './ColorTrains.css';
@@ -67,6 +68,7 @@ class TrainScene extends Phaser.Scene {
 
   // Score
   private score = 0;
+  private celebrateStreak = 0;
   private scoreText!: Phaser.GameObjects.Text;
   private roundText!: Phaser.GameObjects.Text;
   private timerBar!:  Phaser.GameObjects.Rectangle;
@@ -417,6 +419,9 @@ class TrainScene extends Phaser.Scene {
         this.showFeedback('⚡', '#d97706');
       }
       this.emit('ROUND_END', { correct, chosenId: this.chosenId, targetId: this.targetId, score: this.score });
+      // Celebrate every 5 consecutive correct sends (streak resets on a miss).
+      if (correct) { this.celebrateStreak++; if (this.celebrateStreak % 5 === 0) emitCelebrate(); }
+      else this.celebrateStreak = 0;
       this.time.delayedCall(1400, () => this.startRound());
     }
   }

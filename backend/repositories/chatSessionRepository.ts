@@ -55,7 +55,7 @@ const cleanPatch = (patch: ChatSessionStatePatch = {}) => {
    const preferredDomain = cleanString(patch.preferredDomain, 80);
    if (preferredDomain) data.preferredDomain = preferredDomain;
 
-   const recommendedSessionLengthMin = cleanNumber(patch.recommendedSessionLengthMin, 3, 45);
+   const recommendedSessionLengthMin = cleanNumber(patch.recommendedSessionLengthMin, 5, 15);
    if (recommendedSessionLengthMin !== null) {
       data.recommendedSessionLengthMin = recommendedSessionLengthMin;
    }

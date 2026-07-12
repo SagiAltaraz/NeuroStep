@@ -140,6 +140,17 @@ const TRANSLATIONS = {
   'inst.start':          { he: 'התחל משחק',           en: 'Start game' },
   'inst.rules.heading':  { he: 'הוראות המשחק',        en: 'How to play' },
   'inst.tips.heading':   { he: 'טיפים להצלחה',        en: 'Tips for success' },
+  'inst.recommendedTime': { he: 'זמן מומלץ למשחק הזה: כ-{minutes} דקות',
+                            en: 'Recommended time for this game: about {minutes} min' },
+  'training.timer.label':  { he: 'זמן אימון מומלץ', en: 'Recommended training time' },
+  'companion.home.moodAckAlert': {
+    he: 'איזה כיף שאתה עֵר ומוכן 💪 בוא ננצל את האנרגיה — בחרתי לך אתגר שיתאים בול לרֹאש שלך עכשיו.',
+    en: "Love that you're sharp today 💪 let's ride that energy — I've picked a challenge that fits your head right now.",
+  },
+  'companion.home.moodAckTired': {
+    he: 'הבנתי, אחד מהימים האלה 🌙 נעשה משהו קליל ונעים — בלי לחץ, רק להרגיש טוב שהתאמנת קצת.',
+    en: "Gotcha, one of those days 🌙 let's keep it light and kind — no pressure, just a small win today.",
+  },
 
   // End-of-session results overlay
   'results.finish':         { he: 'סיום אימון',              en: 'Finish session' },
@@ -199,8 +210,8 @@ const TRANSLATIONS = {
 
   // Contextual companion suggestions
   'companion.home.openAssistant': {
-    he: 'אפשר ללחוץ עליי כדי לפתוח את עוזר ה-AI.',
-    en: 'Activate me to open the AI assistant.',
+    he: 'יש לך שאלה או משהו על הלב? לחץ עליי ואני כאן בשבילך 💬',
+    en: "Got a question or something on your mind? Tap me — I'm here for you 💬",
   },
   'companion.home.loadingChat': {
     he: '\u05d8\u05d5\u05e2\u05df \u05e6\u05f3\u05d0\u05d8\u2026',
@@ -211,12 +222,12 @@ const TRANSLATIONS = {
     en: 'Hello',
   },
   'companion.home.introduction': {
-    he: '\u05d0\u05e0\u05d9 \u05d4\u05e2\u05d5\u05d6\u05e8 \u05d4\u05d7\u05db\u05dd, \u05dc\u05d7\u05e5 \u05e2\u05dc\u05d9\u05d9 \u05dc\u05e2\u05d6\u05e8\u05d4',
-    en: 'I am the smart assistant. Activate me for help.',
+    he: '\u05d0\u05e0\u05d9 \u05d4\u05de\u05d0\u05de\u05df \u05d4\u05d0\u05d9\u05e9\u05d9 \u05e9\u05dc\u05da \u05db\u05d0\u05df \ud83e\udd17 \u05d1\u05db\u05dc \u05e8\u05d2\u05e2 \u05e9\u05d1\u05d0 \u05dc\u05da \u2014 \u05e4\u05e9\u05d5\u05d8 \u05dc\u05d7\u05e5 \u05e2\u05dc\u05d9\u05d9 \u05d5\u05e0\u05d3\u05d1\u05e8.',
+    en: "I'm your personal coach \ud83e\udd17 whenever you feel like it, just tap me and let's talk.",
   },
   'companion.home.moodTitle': {
-    he: '\u05de\u05d4 \u05de\u05e6\u05d1 \u05d4\u05e8\u05d5\u05d7 \u05e9\u05dc\u05da?',
-    en: 'How are you feeling?',
+    he: '\u05dc\u05e4\u05e0\u05d9 \u05e9\u05e0\u05ea\u05d7\u05d9\u05dc \u2014 \u05d0\u05d9\u05da \u05d0\u05ea\u05d4 \u05de\u05e8\u05d2\u05d9\u05e9 \u05d4\u05d9\u05d5\u05dd?',
+    en: 'Before we start \u2014 how are you feeling today?',
   },
   'companion.home.moodAlert': {
     he: '\u05e2\u05d9\u05e8\u05e0\u05d9 \u26a1',
@@ -227,8 +238,8 @@ const TRANSLATIONS = {
     en: 'Tired \ud83d\ude34',
   },
   'companion.home.planRecommendation': {
-    he: '\u05dc\u05e4\u05d9 \u05ea\u05d5\u05db\u05e0\u05d9\u05ea \u05d4\u05d0\u05d9\u05de\u05d5\u05e0\u05d9\u05dd \u05e9\u05dc\u05da \u05db\u05d3\u05d0\u05d9 \u05dc\u05d4\u05ea\u05d0\u05de\u05df \u05e2\u05dc: {domains}',
-    en: 'Based on your training plan, you should practice: {domains}',
+    he: '\u05dc\u05e4\u05d9 \u05de\u05d4 \u05e9\u05d0\u05e0\u05d9 \u05e8\u05d5\u05d0\u05d4 \u05d0\u05e6\u05dc\u05da, \u05d4\u05db\u05d9 \u05e9\u05d5\u05d5\u05d4 \u05dc\u05d7\u05d6\u05e7 \u05d4\u05d9\u05d5\u05dd \u05d0\u05ea: {domains} \ud83c\udfaf',
+    en: "From what I'm seeing, today it's most worth strengthening: {domains} \ud83c\udfaf",
   },
   'companion.home.recommendedTrainingTime': {
     he: '\u05de\u05d5\u05de\u05dc\u05e5 \u05dc\u05d4\u05ea\u05d0\u05de\u05df {minutes} \u05d3\u05e7\u05d5\u05ea',
@@ -239,14 +250,14 @@ const TRANSLATIONS = {
     en: 'Training time remaining',
   },
   'companion.home.startTraining': {
-    he: 'אפשר להתחיל באימון זמין כבר עכשיו.',
-    en: 'You can start an available training activity now.',
+    he: 'בא לך להתחיל? יש לי בדיוק משהו שמתאים לך עכשיו 🙂',
+    en: "Feel like starting? I've got just the thing for you right now 🙂",
   },
   'companion.games.select': {
-    he: 'בחר משחק שמתאים למה שתרצה לתרגל היום.',
-    en: 'Choose a game for what you would like to practice today.',
+    he: 'מה מתחשק לך לתרגל היום? אני אעזור לך לבחור 🙌',
+    en: "What do you feel like practicing today? I'll help you choose 🙌",
   },
-  'companion.recommended': { he: 'ההמלצה הנוכחית שלך:', en: 'Your current recommendation:' },
+  'companion.recommended': { he: 'חשבתי עליך — הנה מה שהכי שווה לך עכשיו:', en: "Thought of you — here's what's most worth it right now:" },
   'companion.play':        { he: 'התחל',                 en: 'Start' },
   // Structured companion suggestions
   'companion.suggestion.plan-game': {
@@ -276,6 +287,10 @@ const TRANSLATIONS = {
   'companion.suggestion.next-activity': {
     he: 'הפעילות הבאה שמוצעת לך היא {game}.',
     en: 'Your next suggested activity is {game}.',
+  },
+  'companion.suggestion.same-domain-pair': {
+    he: 'לחיזוק {domain} — שני תרגילים מומלצים, בחר אחד:',
+    en: 'To strengthen {domain} — two recommended exercises, pick one:',
   },
   'companion.action.start-game': {
     he: 'התחל את {game}',

@@ -90,7 +90,7 @@ const recentHistory = (messages: Message[]) =>
 
 const ChatAssistant = ({ showLauncher = true }: ChatAssistantProps) => {
    const { token } = useAuth();
-   const { isOpen, openChat, closeChat } = useChatController();
+   const { isOpen, openChat, closeChat, status, setStatus, anchor } = useChatController();
    const navigate = useNavigate();
    const [initialSession] = useState(loadChatSession);
    const [sessionId, setSessionId] = useState(initialSession.sessionId);
@@ -123,6 +123,21 @@ const ChatAssistant = ({ showLauncher = true }: ChatAssistantProps) => {
       if (!isOpen) return;
       messagesEndRef.current?.scrollIntoView({ block: 'end' });
    }, [isOpen, messages, isLoading]);
+
+   // After a reply is shown, let the avatar settle from 'talk' back to 'idle'.
+   useEffect(() => {
+      if (status !== 'answering') return;
+      const timer = window.setTimeout(() => setStatus('idle'), 2600);
+      return () => window.clearTimeout(timer);
+   }, [status, setStatus]);
+
+   // Auto-close the chat after 40s of user inactivity — but never while a reply
+   // is still being awaited ('thinking'). Typing or any new message resets it.
+   useEffect(() => {
+      if (!isOpen || status === 'thinking') return;
+      const timer = window.setTimeout(() => closeChat(), 40_000);
+      return () => window.clearTimeout(timer);
+   }, [isOpen, status, lastMessageAt, input, closeChat]);
 
    const renderMessageText = (text: string) => {
       const nodes: React.ReactNode[] = [];
@@ -202,6 +217,7 @@ const ChatAssistant = ({ showLauncher = true }: ChatAssistantProps) => {
 
       setInput('');
       setIsLoading(true);
+      setStatus('thinking');                 // avatar plays 'think' while we wait
       setSessionId(activeSession.sessionId);
       appendMessages(messagesWithUser, Date.now(), activeSession.sessionId);
 
@@ -227,6 +243,7 @@ const ChatAssistant = ({ showLauncher = true }: ChatAssistantProps) => {
             Date.now(),
             activeSession.sessionId
          );
+         setStatus('answering');             // avatar plays 'talk' when the reply lands
       } catch (err: unknown) {
          console.error('Error with AI API:', err);
          let errorMsg = 'Connection failed';
@@ -246,6 +263,7 @@ const ChatAssistant = ({ showLauncher = true }: ChatAssistantProps) => {
                text: `מצטער, יש כרגע בעיה בחיבור: ${errorMsg}`,
             },
          ], Date.now(), activeSession.sessionId);
+         setStatus('idle');
       } finally {
          setIsLoading(false);
       }
@@ -299,14 +317,16 @@ const ChatAssistant = ({ showLauncher = true }: ChatAssistantProps) => {
                <div
                   className={`chat-container ${isClosing ? 'closing' : ''}`}
                   onClick={(e) => e.stopPropagation()}
+                  style={anchor ? {
+                     top: 'auto',
+                     bottom: `${anchor.bottom}px`,
+                     right: `${anchor.right}px`,
+                     maxHeight: `calc(100dvh - ${anchor.bottom + 76}px)`,
+                  } : undefined}
                >
                   <div className="chat-header">
                      <div className="chat-title">
-                        <div className="chat-avatar" aria-hidden="true">🧠</div>
-                        <div className="chat-title-text">
-                           <span className="chat-title-main">עוזר AI</span>
-                           <span className="chat-title-sub">מבוסס על הפרופיל שלך</span>
-                        </div>
+                        <span className="chat-title-main">עוזר AI</span>
                      </div>
                      <div className="chat-header-actions">
                         <button
@@ -316,9 +336,6 @@ const ChatAssistant = ({ showLauncher = true }: ChatAssistantProps) => {
                            disabled={isLoading}
                         >
                            שיחה חדשה
-                        </button>
-                        <button className="chat-close-button" onClick={handleCloseChat} aria-label="סגור">
-                           ×
                         </button>
                      </div>
                   </div>

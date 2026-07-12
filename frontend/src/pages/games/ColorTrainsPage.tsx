@@ -3,6 +3,7 @@ import ColorTrains from '../../games/color-trains/ColorTrains';
 import ColorTrainsInstructions from '../../components/game-instructions/ColorTrainsInstructions';
 import { useGameSession } from '../../hooks/useGameSession';
 import CoachingToast from '../../components/ui/CoachingToast';
+import TrainingTimer from '../../components/ui/TrainingTimer';
 import SessionResults from '../../components/ui/SessionResults';
 
 export default function ColorTrainsPage() {
@@ -22,6 +23,7 @@ export default function ColorTrainsPage() {
     <>
       <ColorTrains onAction={sendEvent} adjustment={adjustment ?? undefined} onExit={handleExit} />
       <CoachingToast message={coachingMessage} />
+      <TrainingTimer />
       <SessionResults result={sessionResult} active={exiting} />
     </>
   );

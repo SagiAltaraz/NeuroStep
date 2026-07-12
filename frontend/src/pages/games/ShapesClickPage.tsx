@@ -3,6 +3,7 @@ import ShapesClickInstructions from '../../components/game-instructions/ShapesCl
 import ShapesClick from '../../games/shapes-click/ShapesClick';
 import { useGameSession } from '../../hooks/useGameSession';
 import CoachingToast from '../../components/ui/CoachingToast';
+import TrainingTimer from '../../components/ui/TrainingTimer';
 import SessionResults from '../../components/ui/SessionResults';
 
 export default function ShapesClickPage() {
@@ -33,6 +34,7 @@ export default function ShapesClickPage() {
         </div>
       )}
       <CoachingToast message={coachingMessage} />
+      <TrainingTimer />
       <SessionResults result={sessionResult} active={exiting} />
     </>
   );

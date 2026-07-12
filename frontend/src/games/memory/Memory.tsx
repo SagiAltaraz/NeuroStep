@@ -3,6 +3,7 @@ import { useNavigate } from 'react-router-dom';
 import { ChevronRight } from 'lucide-react';
 import Phaser from 'phaser';
 import type { GameAdjustment } from '../../hooks/useGameSession';
+import { emitCelebrate } from '../../components/companion/celebrate';
 import { getGameLabels, type GameLabels } from '../../data/gameLabels';
 import { useLang } from '../../context/LanguageContext';
 import './Memory.css';
@@ -422,7 +423,7 @@ class MemoryScene extends Phaser.Scene {
     this.secondSelected = null;
     this.busy = false;
 
-    if (this.pairsFound >= this.totalPairs) this.endRound();
+    if (this.pairsFound >= this.totalPairs) { emitCelebrate(); this.endRound(); }
   }
 
   private handleMiss() {

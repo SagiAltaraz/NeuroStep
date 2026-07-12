@@ -3,6 +3,7 @@ import { useNavigate } from 'react-router-dom';
 import { ChevronRight } from 'lucide-react';
 import Phaser from 'phaser';
 import type { GameAdjustment } from '../../hooks/useGameSession';
+import { emitCelebrate } from '../../components/companion/celebrate';
 import { getGameLabels, type GameLabels } from '../../data/gameLabels';
 import { useLang } from '../../context/LanguageContext';
 import './WhereWasIt.css';
@@ -294,6 +295,7 @@ class WhereWasItScene extends Phaser.Scene {
       sequenceLength: this.sequence.length,
       reactionMs: totalMs,
     }, totalMs, true);
+    emitCelebrate();               // recalled a full sequence → celebrate the stage
     this.phase = 'feedback';
     this.time.delayedCall(this.cfg.interRoundMs, () => this.startRound(), [], this);
   }

@@ -52,12 +52,13 @@ const pick = (arr) => arr[Math.floor(Math.random() * arr.length)];
 const CHAT_SESSION_ID_PATTERN = /^[A-Za-z0-9_-]{6,120}$/;
 const MOOD_RECOMMENDATIONS = {
    alert: {
-      patch: { alertness: 'high', recommendedSessionLengthMin: 20 },
-      recommendedSessionLengthMin: 20,
+      patch: { alertness: 'high', recommendedSessionLengthMin: 15 },
+      recommendedSessionLengthMin: 15,
    },
    tired: {
-      patch: { alertness: 'low', mood: 'tired', recommendedSessionLengthMin: 10 },
-      recommendedSessionLengthMin: 10,
+      // Tired → shorter session and an easier warm-up.
+      patch: { alertness: 'low', mood: 'tired', recommendedDifficulty: 'easier', recommendedSessionLengthMin: 7 },
+      recommendedSessionLengthMin: 7,
    },
 };
 

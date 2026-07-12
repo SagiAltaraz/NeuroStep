@@ -23,6 +23,20 @@ const GAME_ROUTES = {
 
 const isKnownGame = (gameId) => typeof gameId === 'string' && gameId in GAME_ROUTES;
 
+// A second game that exercises a related skill for the same cognitive domain,
+// so the home companion can offer two options in one push. Keyed by domain id
+// (DOMAIN_GAME gives the primary game; this gives the sibling).
+const DOMAIN_SECOND_GAME = {
+  'working-memory':      'where-was-it',
+  'selective-attention': 'spot-difference',
+  'divided-attention':   'shapes-click',
+  'processing-speed':    'find-letter',
+  'reaction-time':       'shapes-click',
+  'response-inhibition': 'green-light',
+  'strategic-thinking':  'memory',
+  'visual-spatial':      'memory',
+};
+
 export function parseCompanionContext(value) {
   if (value === undefined) return 'home';
   if (typeof value !== 'string' || !COMPANION_CONTEXTS.includes(value)) return null;
@@ -130,6 +144,36 @@ function profileCandidate(context, selected, generatedAt, expiresAt) {
   }, generatedAt, expiresAt);
 }
 
+function gameAction(gameId) {
+  return {
+    type: 'open-game',
+    labelKey: 'companion.action.start-game',
+    gameId,
+    route: GAME_ROUTES[gameId],
+  };
+}
+
+// Two games for the same cognitive domain, presented together.
+function pairCandidate(context, domainId, generatedAt, expiresAt) {
+  if (typeof domainId !== 'string') return null;
+  const primary = DOMAIN_GAME[domainId];
+  const secondary = DOMAIN_SECOND_GAME[domainId];
+  if (!isKnownGame(primary) || !isKnownGame(secondary) || primary === secondary) {
+    return null;
+  }
+  return suggestion({
+    id: `${context}:pair:${domainId}`,
+    kind: 'recommended-pair',
+    priority: 350,
+    messageKey: 'companion.suggestion.same-domain-pair',
+    messageParams: { domainId, gameId: primary, gameId2: secondary },
+    action: gameAction(primary),
+    secondaryAction: gameAction(secondary),
+    source: 'profile',
+    evidence: { domainId, gameId: primary },
+  }, generatedAt, expiresAt);
+}
+
 function fallbackCandidate(context, generatedAt, expiresAt) {
   if (context === 'home') {
     return suggestion({
@@ -190,13 +234,27 @@ export function buildCompanionSuggestions({
 
   const planItems = rankedPlanItems(plan);
   const firstPlanItem = planItems[0];
+  const selected = profileGame(domains);
+
+  // Home: offer TWO games for the same cognitive domain in a single push
+  // (spec: not one recommendation after another). Falls back to the singles
+  // when no valid same-domain pair exists for the focus domain.
+  if (context === 'home') {
+    const focusDomainId = firstPlanItem?.domainId ?? selected?.domainId ?? null;
+    const pair = pairCandidate(context, focusDomainId, generatedAt, expiresAt);
+    if (pair) {
+      addUnique(output, pair, seen);
+      addUnique(output, fallbackCandidate(context, generatedAt, expiresAt), seen);
+      return output;
+    }
+  }
+
   addUnique(
     output,
     planCandidate(context, firstPlanItem, plan ?? {}, generatedAt, expiresAt),
     seen,
   );
 
-  const selected = profileGame(domains);
   if (!firstPlanItem || selected?.gameId !== firstPlanItem.gameId) {
     addUnique(output, profileCandidate(context, selected, generatedAt, expiresAt), seen);
   }

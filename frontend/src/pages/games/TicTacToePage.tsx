@@ -3,6 +3,7 @@ import TicTacToeInstructions from '../../components/game-instructions/TicTacToeI
 import TicTacToe from '../../games/tic-tac-toe/TicTacToe';
 import { useGameSession } from '../../hooks/useGameSession';
 import CoachingToast from '../../components/ui/CoachingToast';
+import TrainingTimer from '../../components/ui/TrainingTimer';
 import SessionResults from '../../components/ui/SessionResults';
 
 export default function TicTacToePage() {
@@ -26,6 +27,7 @@ export default function TicTacToePage() {
         onExit={handleExit}
       />
       <CoachingToast message={coachingMessage} />
+      <TrainingTimer />
       <SessionResults result={sessionResult} active={exiting} />
     </>
   );
