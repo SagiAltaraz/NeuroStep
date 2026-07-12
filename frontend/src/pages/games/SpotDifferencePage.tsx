@@ -3,6 +3,7 @@ import SpotDifferenceInstructions from '../../components/game-instructions/SpotD
 import SpotDifference from '../../games/spot-difference/SpotDifference';
 import { useGameSession } from '../../hooks/useGameSession';
 import CoachingToast from '../../components/ui/CoachingToast';
+import TrainingTimer from '../../components/ui/TrainingTimer';
 import SessionResults from '../../components/ui/SessionResults';
 
 export default function SpotDifferencePage() {
@@ -22,6 +23,7 @@ export default function SpotDifferencePage() {
     <>
       <SpotDifference onAction={sendEvent} adjustment={adjustment ?? undefined} onExit={handleExit} />
       <CoachingToast message={coachingMessage} />
+      <TrainingTimer />
       <SessionResults result={sessionResult} active={exiting} />
     </>
   );

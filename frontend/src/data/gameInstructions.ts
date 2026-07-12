@@ -17,6 +17,22 @@ export interface GameInstructionsData {
   tips:  Bi[];
 }
 
+// Recommended play time per game (minutes), keyed by the same ids as
+// GAME_INSTRUCTIONS. Shown as a push on the instructions page (not on home).
+// Default recommended minutes shown on the instructions page (5–15 range). The
+// live in-game timer uses the per-level value from the chat-session
+// recommendation; these are the sensible mid-level fallbacks per game.
+export const GAME_RECOMMENDED_MINUTES: Record<string, number> = {
+  shapesClick:    6,
+  memory:         8,
+  ticTacToe:     10,
+  colorTracking:  6,
+  greenLight:     5,
+  spotDifference: 8,
+  whereWasIt:     8,
+  findLetter:     7,
+};
+
 export const GAME_INSTRUCTIONS: Record<string, GameInstructionsData> = {
 
   shapesClick: {
@@ -176,8 +192,8 @@ export const GAME_INSTRUCTIONS: Record<string, GameInstructionsData> = {
         en: 'Remember the order they lit up' },
       { he: 'הקש על המשבצות באותו סדר בדיוק',
         en: 'Tap the squares in the exact same order' },
-      { he: 'הקשה שגויה אחת מאפסת את הסיבוב',
-        en: 'A single wrong tap restarts the round' },
+      { he: 'הקשה שגויה אחת מסיימת את הסיבוב ומתחילה סיבוב חדש',
+        en: 'A single wrong tap ends the round and a new one begins' },
     ],
     tips: [
       { he: 'הסתכל על המסך כולו — אל תתמקד במשבצת אחת',

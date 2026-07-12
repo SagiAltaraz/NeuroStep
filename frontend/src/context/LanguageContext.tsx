@@ -140,6 +140,8 @@ const TRANSLATIONS = {
   'inst.start':          { he: 'התחל משחק',           en: 'Start game' },
   'inst.rules.heading':  { he: 'הוראות המשחק',        en: 'How to play' },
   'inst.tips.heading':   { he: 'טיפים להצלחה',        en: 'Tips for success' },
+  'inst.recommendedTime': { he: 'זמן מומלץ למשחק הזה: כ-{minutes} דקות',
+                            en: 'Recommended time for this game: about {minutes} min' },
 
   // End-of-session results overlay
   'results.finish':         { he: 'סיום אימון',              en: 'Finish session' },
@@ -276,6 +278,10 @@ const TRANSLATIONS = {
   'companion.suggestion.next-activity': {
     he: 'הפעילות הבאה שמוצעת לך היא {game}.',
     en: 'Your next suggested activity is {game}.',
+  },
+  'companion.suggestion.same-domain-pair': {
+    he: 'לחיזוק {domain} — שני תרגילים מומלצים, בחר אחד:',
+    en: 'To strengthen {domain} — two recommended exercises, pick one:',
   },
   'companion.action.start-game': {
     he: 'התחל את {game}',

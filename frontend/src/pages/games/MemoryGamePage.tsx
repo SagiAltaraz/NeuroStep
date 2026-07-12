@@ -3,6 +3,7 @@ import MemoryGameInstructions from '../../components/game-instructions/MemoryGam
 import Memory from '../../games/memory/Memory';
 import { useGameSession } from '../../hooks/useGameSession';
 import CoachingToast from '../../components/ui/CoachingToast';
+import TrainingTimer from '../../components/ui/TrainingTimer';
 import SessionResults from '../../components/ui/SessionResults';
 
 export default function MemoryGamePage() {
@@ -26,6 +27,7 @@ export default function MemoryGamePage() {
         onExit={handleExit}
       />
       <CoachingToast message={coachingMessage} />
+      <TrainingTimer />
       <SessionResults result={sessionResult} active={exiting} />
     </>
   );

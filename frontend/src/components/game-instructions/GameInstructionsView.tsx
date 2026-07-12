@@ -7,7 +7,7 @@
  * structurally identical and bilingual.
  */
 
-import { useLayoutEffect } from 'react';
+import { useEffect, useLayoutEffect, useRef, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { ChevronRight, ChevronLeft } from 'lucide-react';
 import {
@@ -16,7 +16,7 @@ import {
 import { Button } from '../ui/button';
 import AnimatedAvatar from '../companion/AnimatedAvatar';
 import CognitiveAreas from './CognitiveAreas';
-import { GAME_INSTRUCTIONS } from '../../data/gameInstructions';
+import { GAME_INSTRUCTIONS, GAME_RECOMMENDED_MINUTES } from '../../data/gameInstructions';
 import { useLang } from '../../context/LanguageContext';
 import { useCompanionPresentation } from '../../context/CompanionPresentationContext';
 
@@ -30,6 +30,18 @@ export default function GameInstructionsView({ gameId, onStart }: Props) {
   const { lang, dir, t } = useLang();
   const { showInstructionAvatar, hideInstructionAvatar } = useCompanionPresentation();
   const data = GAME_INSTRUCTIONS[gameId];
+  const recommendedMinutes = GAME_RECOMMENDED_MINUTES[gameId];
+
+  // The avatar greets with a single 'talk' cycle, then settles to a constant
+  // 'idle' — it introduces the game once and stops "talking" while the user reads.
+  const [avatarMode, setAvatarMode] = useState<'talk' | 'idle'>('talk');
+  const settleTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
+  useEffect(() => {
+    // Fallback for the static-image / reduced-motion path, where the clip's
+    // onAnimationEnd never fires: settle to idle after one talk beat anyway.
+    settleTimer.current = setTimeout(() => setAvatarMode('idle'), 2600);
+    return () => { if (settleTimer.current) clearTimeout(settleTimer.current); };
+  }, [gameId]);
 
   useLayoutEffect(() => {
     if (!data) return;
@@ -67,11 +79,22 @@ export default function GameInstructionsView({ gameId, onStart }: Props) {
 
         <CardContent className={`space-y-6 ${contentAlignClass}`}>
           <div className="flex flex-col sm:flex-row items-center gap-3">
-            <AnimatedAvatar mode="talk" size="medium" className="shrink-0" />
+            <AnimatedAvatar
+              mode={avatarMode}
+              size="medium"
+              className="shrink-0"
+              onAnimationEnd={() => setAvatarMode('idle')}
+            />
             <div className="w-full rounded-2xl border border-blue-100 bg-blue-50 px-4 py-3 shadow-sm">
               <p className="m-0 text-sm text-gray-700">{data.desc[lang]}</p>
             </div>
           </div>
+
+          {recommendedMinutes !== undefined && (
+            <div className="rounded-2xl border border-emerald-100 bg-emerald-50 px-4 py-2 text-sm font-medium text-emerald-800">
+              ⏱ {t('inst.recommendedTime').replace('{minutes}', String(recommendedMinutes))}
+            </div>
+          )}
 
           <CognitiveAreas gameId={gameId} />
 

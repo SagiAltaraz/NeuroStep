@@ -3,6 +3,7 @@ import { useNavigate } from 'react-router-dom';
 import { ChevronRight } from 'lucide-react';
 import Phaser from 'phaser';
 import type { GameAdjustment } from '../../hooks/useGameSession';
+import { emitCelebrate } from '../../components/companion/celebrate';
 import { getGameLabels, type GameLabels } from '../../data/gameLabels';
 import { useLang } from '../../context/LanguageContext';
 import './FindLetter.css';
@@ -348,6 +349,7 @@ class FindLetterScene extends Phaser.Scene {
     this.fireAction('ROUND_COMPLETE', {
       round: this.round, totalMs,
     }, totalMs, true);
+    emitCelebrate();               // finished a letter round → celebrate the stage
     this.endRound();
   }
 

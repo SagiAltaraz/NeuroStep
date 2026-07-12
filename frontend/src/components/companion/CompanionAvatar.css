@@ -109,8 +109,12 @@
 .companion--home.companion--flight-cruise {
   animation: cm-home-cruise 700ms ease-out forwards;
 }
+/* While the AI chat is open the mascot stays frozen wherever it was clicked
+   (an inline transform pins it there); the chat bubble anchors to that spot.
+   Keep it above the chat's transparent click-catcher so it stays visible. */
 .companion.companion--ai-chat-open {
   animation: none;
+  z-index: 1001;
 }
 @keyframes cm-home-cruise {
   from { transform: translateY(0); }

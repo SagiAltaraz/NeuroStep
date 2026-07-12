@@ -77,6 +77,7 @@ export type CompanionContext = 'home' | 'games' | 'journey-map' | 'journey-plan'
 export type CompanionSuggestionKind =
    | 'open-assistant'
    | 'recommended-game'
+   | 'recommended-pair'
    | 'start-training'
    | 'journey-progress'
    | 'training-plan'
@@ -110,6 +111,9 @@ export interface CompanionSuggestion {
    messageKey: string;
    messageParams?: Record<string, string | number>;
    action?: CompanionSuggestionAction;
+   // A second game for the same cognitive domain — used by 'recommended-pair'
+   // so the home companion offers two options in a single push.
+   secondaryAction?: CompanionSuggestionAction;
    source: CompanionSuggestionSource;
    evidence?: CompanionSuggestionEvidence;
    generatedAt: number;

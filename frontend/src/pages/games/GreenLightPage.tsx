@@ -3,6 +3,7 @@ import GreenLightInstructions from '../../components/game-instructions/GreenLigh
 import GreenLight from '../../games/green-light/GreenLight';
 import { useGameSession } from '../../hooks/useGameSession';
 import CoachingToast from '../../components/ui/CoachingToast';
+import TrainingTimer from '../../components/ui/TrainingTimer';
 import SessionResults from '../../components/ui/SessionResults';
 
 export default function GreenLightPage() {
@@ -22,6 +23,7 @@ export default function GreenLightPage() {
     <>
       <GreenLight onAction={sendEvent} adjustment={adjustment ?? undefined} onExit={handleExit} />
       <CoachingToast message={coachingMessage} />
+      <TrainingTimer />
       <SessionResults result={sessionResult} active={exiting} />
     </>
   );

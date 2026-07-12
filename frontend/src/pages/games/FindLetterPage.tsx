@@ -3,6 +3,7 @@ import FindLetterInstructions from '../../components/game-instructions/FindLette
 import FindLetter from '../../games/find-letter/FindLetter';
 import { useGameSession } from '../../hooks/useGameSession';
 import CoachingToast from '../../components/ui/CoachingToast';
+import TrainingTimer from '../../components/ui/TrainingTimer';
 import SessionResults from '../../components/ui/SessionResults';
 
 export default function FindLetterPage() {
@@ -22,6 +23,7 @@ export default function FindLetterPage() {
     <>
       <FindLetter onAction={sendEvent} adjustment={adjustment ?? undefined} onExit={handleExit} />
       <CoachingToast message={coachingMessage} />
+      <TrainingTimer />
       <SessionResults result={sessionResult} active={exiting} />
     </>
   );

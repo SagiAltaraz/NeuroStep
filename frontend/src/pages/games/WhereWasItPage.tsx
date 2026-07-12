@@ -3,6 +3,7 @@ import WhereWasItInstructions from '../../components/game-instructions/WhereWasI
 import WhereWasIt from '../../games/where-was-it/WhereWasIt';
 import { useGameSession } from '../../hooks/useGameSession';
 import CoachingToast from '../../components/ui/CoachingToast';
+import TrainingTimer from '../../components/ui/TrainingTimer';
 import SessionResults from '../../components/ui/SessionResults';
 
 export default function WhereWasItPage() {
@@ -22,6 +23,7 @@ export default function WhereWasItPage() {
     <>
       <WhereWasIt onAction={sendEvent} adjustment={adjustment ?? undefined} onExit={handleExit} />
       <CoachingToast message={coachingMessage} />
+      <TrainingTimer />
       <SessionResults result={sessionResult} active={exiting} />
     </>
   );
