@@ -38,9 +38,10 @@
   bottom: 40vh;
   width: 132px;
   align-items: center;
-  animation: none;
+  /* gentle idle drift in the right gutter — only ever moves UP, so it never
+     reaches the content cards lower on the page. */
+  animation: cm-home-idle 11s ease-in-out infinite;
 }
-.companion--game .companion-img { width: 92px; }
 
 .companion-char {
   border: 0;
@@ -75,7 +76,6 @@
   transition: opacity 320ms ease; /* keep in sync with FADE_MS in AvatarClip */
   pointer-events: none;
 }
-.companion--game .companion-video { width: 100px; height: 100px; }
 
 .companion-session-counter {
   position: absolute;
@@ -107,7 +107,8 @@
   animation: none;
 }
 .companion--home.companion--flight-cruise {
-  animation: cm-home-cruise 700ms ease-out forwards;
+  /* a livelier, continuous patrol of the upper-right gutter while cruising */
+  animation: cm-home-cruise 9s ease-in-out infinite alternate;
 }
 /* While the AI chat is open the mascot stays frozen wherever it was clicked
    (an inline transform pins it there); the chat bubble anchors to that spot.
@@ -116,16 +117,25 @@
   animation: none;
   z-index: 1001;
 }
+/* Home idle: a small up/down drift (horizontal stays tiny and leftward so it
+   never leaves the right gutter or overlaps centred content). */
+@keyframes cm-home-idle {
+  0%, 100% { transform: translate(0px, 0vh); }
+  50%      { transform: translate(-7px, -7vh); }
+}
+/* Home cruise: a gentle upward patrol — moves noticeably but never so high that
+   there's no room to read its chat bubble, and always above the content cards. */
 @keyframes cm-home-cruise {
-  from { transform: translateY(0); }
-  to   { transform: translateY(-8vh); }
+  0%   { transform: translate(0px, -1vh); }
+  50%  { transform: translate(-10px, -13vh); }
+  100% { transform: translate(-3px, -5vh); }
 }
 @keyframes cm-fly {
   0%   { transform: translate(0px, 0vh); }
-  25%  { transform: translate(-14px, -26vh); }
-  50%  { transform: translate(8px, -44vh); }
-  75%  { transform: translate(-10px, -18vh); }
-  100% { transform: translate(2px, -38vh); }
+  25%  { transform: translate(-12px, -14vh); }
+  50%  { transform: translate(6px, -22vh); }
+  75%  { transform: translate(-8px, -10vh); }
+  100% { transform: translate(2px, -18vh); }
 }
 .companion-char:hover { animation-play-state: paused; }
 @keyframes cm-wobble {

@@ -23,7 +23,7 @@ export default function ColorTrainsPage() {
     <>
       <ColorTrains onAction={sendEvent} adjustment={adjustment ?? undefined} onExit={handleExit} />
       <CoachingToast message={coachingMessage} />
-      <TrainingTimer />
+      <TrainingTimer gameKey="colorTracking" />
       <SessionResults result={sessionResult} active={exiting} />
     </>
   );

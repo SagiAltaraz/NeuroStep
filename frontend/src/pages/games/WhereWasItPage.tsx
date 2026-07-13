@@ -23,7 +23,7 @@ export default function WhereWasItPage() {
     <>
       <WhereWasIt onAction={sendEvent} adjustment={adjustment ?? undefined} onExit={handleExit} />
       <CoachingToast message={coachingMessage} />
-      <TrainingTimer />
+      <TrainingTimer gameKey="whereWasIt" />
       <SessionResults result={sessionResult} active={exiting} />
     </>
   );

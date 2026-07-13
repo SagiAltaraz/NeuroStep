@@ -63,6 +63,26 @@
 .training-timer--low .training-timer__time { color: #d97706; }
 .training-timer--low .training-timer__fill { background: linear-gradient(90deg, #f59e0b, #d97706); }
 
+/* Time's up — a warm congratulation, not a stop. */
+.training-timer--done {
+  flex-direction: row;
+  align-items: center;
+  gap: 12px;
+  background: linear-gradient(135deg, rgba(34, 197, 94, 0.12), rgba(16, 185, 129, 0.06));
+  border-color: rgba(22, 163, 74, 0.28);
+}
+.training-timer--done .training-timer__icon { font-size: 1.5rem; }
+.training-timer__done-text {
+  font-family: 'Heebo', sans-serif;
+  font-size: 0.95rem;
+  font-weight: 700;
+  line-height: 1.4;
+  color: #15803d;
+}
+@media (prefers-color-scheme: dark) {
+  .training-timer__done-text { color: #86efac; }
+}
+
 @media (prefers-color-scheme: dark) {
   .training-timer {
     background: linear-gradient(135deg, rgba(63, 159, 207, 0.16), rgba(47, 134, 214, 0.08));

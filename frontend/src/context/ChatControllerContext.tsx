@@ -17,7 +17,11 @@ export type ChatStatus = 'idle' | 'thinking' | 'answering';
 // where the mascot is standing. null → the default bottom-right corner.
 export interface ChatAnchor {
   right: number;
-  bottom: number;
+  /** Anchor by bottom edge → the chat opens ABOVE the avatar. */
+  bottom?: number;
+  /** Anchor by top edge → the chat opens BELOW the avatar (used when there
+   *  isn't enough room above, so the bubble is never cut off / unreadable). */
+  top?: number;
 }
 
 interface ChatControllerValue {
