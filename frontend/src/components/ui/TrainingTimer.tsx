@@ -1,39 +1,33 @@
 /**
  * TrainingTimer — the recommended play-time countdown, shown as a prominent card
  * BELOW the game (not on the companion avatar) so the mascot is free to give
- * feedback pushes during play. The recommended length (5–15 min, per the
- * player's level in the game's cognitive category) comes from the chat-session
- * recommendation.
+ * feedback pushes during play.
+ *
+ * It uses the SAME per-game recommended minutes shown on the instructions page
+ * (GAME_RECOMMENDED_MINUTES), so the two always match. It never stops the game —
+ * when the recommended time is up it just congratulates the player on the effort
+ * and invites them to keep going if they want.
  */
 import { useEffect, useState } from 'react';
-import { useAuth } from '../../context/AuthContext';
-import { getMyChatSessionRecommendation, isApiError } from '../../api/me';
-import { getStoredChatSessionId } from '../chat-assistant/chatSessionStorage';
+import { GAME_RECOMMENDED_MINUTES } from '../../data/gameInstructions';
 import { useLang } from '../../context/LanguageContext';
 import './TrainingTimer.css';
 
-export default function TrainingTimer() {
-  const { token } = useAuth();
+interface Props {
+  /** The GAME_INSTRUCTIONS key (e.g. "colorTracking") — matches the instructions page. */
+  gameKey: string;
+}
+
+export default function TrainingTimer({ gameKey }: Props) {
   const { t } = useLang();
-  const [totalSeconds, setTotalSeconds] = useState<number | null>(null);
-  const [seconds, setSeconds] = useState<number | null>(null);
+  const minutes = GAME_RECOMMENDED_MINUTES[gameKey];
+  const [seconds, setSeconds] = useState<number | null>(
+    minutes != null ? minutes * 60 : null,
+  );
 
   useEffect(() => {
-    if (!token) return;
-    const sessionId = getStoredChatSessionId();
-    if (!sessionId) return;
-    let cancelled = false;
-    getMyChatSessionRecommendation(token, sessionId).then((r) => {
-      if (!cancelled && !isApiError(r) && r.recommendedSessionLengthMin !== null) {
-        setTotalSeconds(r.recommendedSessionLengthMin * 60);
-      }
-    });
-    return () => { cancelled = true; };
-  }, [token]);
-
-  useEffect(() => {
-    if (totalSeconds === null) return;
-    setSeconds(totalSeconds);
+    if (minutes == null) return;
+    setSeconds(minutes * 60);
     const id = window.setInterval(() => {
       setSeconds((s) => {
         if (s === null || s <= 1) { window.clearInterval(id); return 0; }
@@ -41,12 +35,24 @@ export default function TrainingTimer() {
       });
     }, 1000);
     return () => window.clearInterval(id);
-  }, [totalSeconds]);
+  }, [minutes]);
 
-  if (seconds === null || totalSeconds === null) return null;
+  if (minutes == null || seconds === null) return null;
+
+  const total = minutes * 60;
+
+  // Time's up → congratulate, don't stop the game; invite them to keep playing.
+  if (seconds <= 0) {
+    return (
+      <div className="training-timer training-timer--done" role="status">
+        <span className="training-timer__icon" aria-hidden="true">🎉</span>
+        <span className="training-timer__done-text">{t('training.timer.done')}</span>
+      </div>
+    );
+  }
 
   const label = `${String(Math.floor(seconds / 60)).padStart(2, '0')}:${String(seconds % 60).padStart(2, '0')}`;
-  const remaining = totalSeconds > 0 ? seconds / totalSeconds : 0;
+  const remaining = total > 0 ? seconds / total : 0;
   const low = remaining <= 0.2;
 
   return (

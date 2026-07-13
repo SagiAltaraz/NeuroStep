@@ -143,6 +143,10 @@ const TRANSLATIONS = {
   'inst.recommendedTime': { he: 'זמן מומלץ למשחק הזה: כ-{minutes} דקות',
                             en: 'Recommended time for this game: about {minutes} min' },
   'training.timer.label':  { he: 'זמן אימון מומלץ', en: 'Recommended training time' },
+  'training.timer.done': {
+    he: 'כל הכבוד על ההשקעה! 🎉 סיימת את הזמן המומלץ — אם בא לך להמשיך, מעולה, אני איתך 💪',
+    en: "Well done on the effort! 🎉 You finished the recommended time — want to keep going? Awesome, I'm with you 💪",
+  },
   'companion.home.moodAckAlert': {
     he: 'איזה כיף שאתה עֵר ומוכן 💪 בוא ננצל את האנרגיה — בחרתי לך אתגר שיתאים בול לרֹאש שלך עכשיו.',
     en: "Love that you're sharp today 💪 let's ride that energy — I've picked a challenge that fits your head right now.",
@@ -258,6 +262,38 @@ const TRANSLATIONS = {
     en: "What do you feel like practicing today? I'll help you choose 🙌",
   },
   'companion.recommended': { he: 'חשבתי עליך — הנה מה שהכי שווה לך עכשיו:', en: "Thought of you — here's what's most worth it right now:" },
+  'companion.choose.title':     { he: 'על מה בא לך לעבוד עכשיו?', en: 'What would you like to work on now?' },
+  'companion.choose.memory':    { he: 'זיכרון 🧠', en: 'Memory 🧠' },
+  'companion.choose.attention': { he: 'קשב 🎯', en: 'Attention 🎯' },
+  'companion.choose.reaction':  { he: 'תגובה ⚡', en: 'Reaction ⚡' },
+  'companion.game.thisTraining': { he: 'האימון הזה', en: 'this training' },
+  'companion.game.tip.focus': {
+    he: 'בוא נתמקד ב{game} 💪 קח את הזמן שלך — אני כאן איתך לכל אורך הדרך.',
+    en: "Let's focus on {game} 💪 take your time — I'm right here with you.",
+  },
+  'companion.game.tip.breath': {
+    he: 'טיפ קטן: נשימה עמוקה לפני כל סבב מחדדת את הקשב ומרגיעה 🙂',
+    en: 'Small tip: a deep breath before each round sharpens focus and calms you 🙂',
+  },
+  'companion.game.tip.strengthen': {
+    he: 'כל סבב שאתה עושה מחזק אותך — {game} זה בדיוק סוג האימון שהמוח שלך אוהב.',
+    en: 'Every round makes you stronger — {game} is exactly the kind of workout your brain loves.',
+  },
+  'companion.game.tip.learning': {
+    he: 'אם זה מרגיש מאתגר, זה סימן שאתה לומד. אני גאה בך שאתה כאן 🚀',
+    en: "If it feels challenging, that means you're learning. I'm proud you're here 🚀",
+  },
+  'companion.games.intro': {
+    he: 'איזה כיף שבאת להתאמן 🙌 בחר תחום ואני אתפור לך משחק שמתאים בול לרמה שלך.',
+    en: "So glad you came to train 🙌 pick an area and I'll tailor a game that fits your level.",
+  },
+  'companion.home.greetingFallback': { he: 'היי! כיף לראות אותך 👋', en: 'Hey! Great to see you 👋' },
+  'companion.home.reasonFallback': {
+    he: 'בא לך אימון קצר ונעים? בוא נתחיל 🙂',
+    en: "Feel like a short, pleasant session? Let's start 🙂",
+  },
+  'companion.home.coach': { he: 'אני המאמן שלך — כאן לאורך כל הדרך 🤖', en: "I'm your coach — here with you all the way 🤖" },
+  'companion.home.ctaPlay': { he: 'בוא נשחק ב{game}', en: "Let's play {game}" },
   'companion.play':        { he: 'התחל',                 en: 'Start' },
   // Structured companion suggestions
   'companion.suggestion.plan-game': {

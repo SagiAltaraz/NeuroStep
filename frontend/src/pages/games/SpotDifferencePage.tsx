@@ -23,7 +23,7 @@ export default function SpotDifferencePage() {
     <>
       <SpotDifference onAction={sendEvent} adjustment={adjustment ?? undefined} onExit={handleExit} />
       <CoachingToast message={coachingMessage} />
-      <TrainingTimer />
+      <TrainingTimer gameKey="spotDifference" />
       <SessionResults result={sessionResult} active={exiting} />
     </>
   );

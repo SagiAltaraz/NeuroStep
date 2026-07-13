@@ -27,7 +27,7 @@ export default function TicTacToePage() {
         onExit={handleExit}
       />
       <CoachingToast message={coachingMessage} />
-      <TrainingTimer />
+      <TrainingTimer gameKey="ticTacToe" />
       <SessionResults result={sessionResult} active={exiting} />
     </>
   );

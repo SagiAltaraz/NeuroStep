@@ -34,7 +34,7 @@ export default function ShapesClickPage() {
         </div>
       )}
       <CoachingToast message={coachingMessage} />
-      <TrainingTimer />
+      <TrainingTimer gameKey="shapesClick" />
       <SessionResults result={sessionResult} active={exiting} />
     </>
   );

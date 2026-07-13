@@ -9,7 +9,7 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { useNavigate, useLocation } from 'react-router-dom';
 import { useAuth } from '../../context/AuthContext';
-import { useChatController } from '../../context/ChatControllerContext';
+import { useChatController, type ChatAnchor } from '../../context/ChatControllerContext';
 import { useCompanionPresentation } from '../../context/CompanionPresentationContext';
 import { useLang, type Lang, type TKey } from '../../context/LanguageContext';
 import {
@@ -92,46 +92,63 @@ const askedMoodToday = () => {
   try { return localStorage.getItem(MOOD_ASK_KEY) === todayStr(); } catch { return false; }
 };
 
-// quick "what to work on" chooser — routes straight into a matching game
-const CHOOSE: Msg = {
-  text: 'על מה בא לך לעבוד עכשיו?',
-  replies: [
-    { label: 'זיכרון 🧠', gameId: 'memory' },
-    { label: 'קשב 🎯', gameId: 'find-letter' },
-    { label: 'תגובה ⚡', gameId: 'green-light' },
-  ],
-};
+// quick "what to work on" chooser — routes straight into a matching game.
+// Language-aware so the mascot speaks the selected UI language everywhere.
+function buildChoose(t: Translate): Msg {
+  return {
+    text: t('companion.choose.title'),
+    replies: [
+      { label: t('companion.choose.memory'), gameId: 'memory' },
+      { label: t('companion.choose.attention'), gameId: 'find-letter' },
+      { label: t('companion.choose.reaction'), gameId: 'green-light' },
+    ],
+  };
+}
 
 // Build the message queue for the current page, weaving in the user's data.
 // `gameName` (when on a specific game) lets the in-game coaching speak to the
-// actual game the player is in, in a warm, personal voice.
-function buildMessages(ctx: Ctx, data: CompanionResponse | null, gameName?: string): Msg[] {
+// actual game the player is in, in a warm, personal voice — in the UI language.
+function buildMessages(
+  ctx: Ctx,
+  data: CompanionResponse | null,
+  t: Translate,
+  lang: Lang,
+  gameName?: string,
+): Msg[] {
+  const dir = lang === 'he' ? 'rtl' : 'ltr';
+  const fmt = (key: TKey, params: Record<string, string>) =>
+    formatSuggestionText(t(key), params) ?? t(key);
+
   if (ctx === 'game') {
-    const g = gameName ?? 'האימון הזה';
+    const g = gameName ?? t('companion.game.thisTraining');
     return [
-      { text: `בוא נתמקד ב${g} 💪 קח את הזמן שלך — אני כאן איתך לכל אורך הדרך.` },
-      { text: 'טיפ קטן: נשימה עמוקה לפני כל סבב מחדדת את הקשב ומרגיעה 🙂' },
-      { text: `כל סבב שאתה עושה מחזק אותך — ${g} זה בדיוק סוג האימון שהמוח שלך אוהב.` },
-      { text: 'אם זה מרגיש מאתגר, זה סימן שאתה לומד. אני גאה בך שאתה כאן 🚀' },
+      { text: fmt('companion.game.tip.focus', { game: g }), dir },
+      { text: t('companion.game.tip.breath'), dir },
+      { text: fmt('companion.game.tip.strengthen', { game: g }), dir },
+      { text: t('companion.game.tip.learning'), dir },
     ];
   }
   if (ctx === 'games') {
     return [
-      { text: 'איזה כיף שבאת להתאמן 🙌 בחר תחום ואני אתפור לך משחק שמתאים בול לרמה שלך.' },
-      CHOOSE,
+      { text: t('companion.games.intro'), dir },
+      buildChoose(t),
     ];
   }
-  // home / journey / other — personalised from the DB profile
+  // home / journey / other — personalised from the DB profile, localized.
   const gameId = data?.suggestedGameId ?? 'memory';
-  const gameHe = data?.suggestedGameHe ?? 'זיכרון';
+  const gameKey = GAME_ROUTE[gameId] ?? 'memory';
+  const gameName2 = GAME_INSTRUCTIONS[gameKey]?.title[lang]
+    ?? (lang === 'he' ? data?.suggestedGameHe : undefined)
+    ?? GAME_INSTRUCTIONS.memory.title[lang];
   return [
-    { text: data?.greetingHe ?? 'היי! כיף לראות אותך 👋' },
+    { text: (lang === 'he' ? data?.greetingHe : undefined) ?? t('companion.home.greetingFallback'), dir },
     {
-      text: data?.reasonHe ?? 'בא לך אימון קצר ונעים? בוא נתחיל 🙂',
-      cta: { label: `בוא נשחק ב${gameHe}`, gameId },
+      text: (lang === 'he' ? data?.reasonHe : undefined) ?? t('companion.home.reasonFallback'),
+      cta: { label: fmt('companion.home.ctaPlay', { game: gameName2 }), gameId },
+      dir,
     },
-    CHOOSE,
-    { text: 'אני המאמן שלך — כאן לאורך כל הדרך 🤖' },
+    buildChoose(t),
+    { text: t('companion.home.coach'), dir },
   ];
 }
 
@@ -365,7 +382,7 @@ export default function CompanionAvatar() {
   const openAfterLand = useRef(false);                // land was triggered by a click/re-engage
   const openAfterLaunch = useRef(false);
   const openChatAfterLand = useRef(false);            // land → open the AI chat (not the scripted bubble)
-  const pendingChatAnchor = useRef<{ right: number; bottom: number } | null>(null);
+  const pendingChatAnchor = useRef<ChatAnchor | null>(null);
   const rootRef = useRef<HTMLDivElement>(null);
   const suppressCompanionRef = useRef(false);
   const pendingContextResetRef = useRef(false);
@@ -535,7 +552,7 @@ export default function CompanionAvatar() {
       }
     }
 
-    const baseMessages = buildMessages(ctx, null, gameName);
+    const baseMessages = buildMessages(ctx, null, t, lang, gameName);
     const suggestions = buildFallbackSuggestions(ctx, null, lang, t);
     if (ctx === 'home') {
       return [...homeOpeningMessages, ...baseMessages.slice(0, 2), ...suggestions, ...baseMessages.slice(2)];
@@ -698,7 +715,7 @@ export default function CompanionAvatar() {
   // transform), so removing the flight class/animation can't make it drift or
   // snap to the corner. It stops dead where it is; the returned anchor tells the
   // chat bubble to open directly above that spot. Shared by every open path.
-  const pinAvatarAndMeasure = useCallback((): { right: number; bottom: number } | null => {
+  const pinAvatarAndMeasure = useCallback((): ChatAnchor | null => {
     const el = rootRef.current;
     if (!el) return null;
     const rect = el.getBoundingClientRect();
@@ -716,10 +733,16 @@ export default function CompanionAvatar() {
     el.style.top = `${Math.round(rect.top)}px`;
     el.style.right = 'auto';
     el.style.bottom = 'auto';
-    return {
-      right:  Math.max(12, Math.round(window.innerWidth - rect.right)),
-      bottom: Math.max(12, Math.round(window.innerHeight - rect.top + 12)),
-    };
+
+    const gap = 12;
+    const right = Math.max(12, Math.round(vw - rect.right));
+    // Prefer opening the chat ABOVE the mascot; but if it's roamed too high to
+    // leave room for the bubble, open it BELOW instead so it's never cut off.
+    const roomAbove = rect.top;
+    if (roomAbove >= 260) {
+      return { right, bottom: Math.max(12, Math.round(vh - rect.top + gap)) };
+    }
+    return { right, top: Math.max(64, Math.round(rect.bottom + gap)) };
   }, []);
 
   const openChatAtAvatar = useCallback(() => {
@@ -870,31 +893,18 @@ export default function CompanionAvatar() {
     if (isAiChatOpen) { closeChat(); return; }
     if (suppressCompanion) return;
 
-    // Home & games: clicking the mascot opens the AI chat anchored to it.
-    //  • If it's flying, play the LAND clip in place first, then open the chat
-    //    when touchdown completes (proper use of the launch→cruise→land videos).
-    //  • If it's already grounded, open the chat immediately where it stands.
-    if (ctx === 'home' || ctx === 'games') {
-      if (flight === 'land') return;
-      if (flying) {
-        pendingChatAnchor.current = pinAvatarAndMeasure();
-        openChatAfterLand.current = true;
-        setFlight('land');
-        return;
-      }
-      openChatAtAvatar();
-      return;
-    }
-
-    // Non-home routes keep the existing land/toggle behavior.
-    if (flying) {
-      openAfterLand.current = true;
-      landInPlace();
-      return;
-    }
+    // On EVERY page, clicking the mascot opens the AI chat anchored to it — so
+    // players can consult it mid-game (e.g. ask about the instructions), not
+    // just on home. If it's flying, play the LAND clip in place first, then open
+    // the chat when touchdown completes; otherwise open it where it stands.
     if (flight === 'land') return;
-    setDismissed(false);
-    setOpen((o) => !o);
+    if (flying) {
+      pendingChatAnchor.current = pinAvatarAndMeasure();
+      openChatAfterLand.current = true;
+      setFlight('land');
+      return;
+    }
+    openChatAtAvatar();
   };
 
   if (isInstructionAvatarVisible || isResultAvatarVisible || isJourneyRoute) return null;
@@ -957,7 +967,6 @@ export default function CompanionAvatar() {
         {videoOk ? (
           <AvatarClip
             clip={clip}
-            playbackRate={ctx === 'home' && clip === 'jet-launch' ? 3 : 1}
             className="companion-video"
             onEnded={handleClipEnd}
             onFail={() => {

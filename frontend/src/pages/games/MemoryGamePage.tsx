@@ -27,7 +27,7 @@ export default function MemoryGamePage() {
         onExit={handleExit}
       />
       <CoachingToast message={coachingMessage} />
-      <TrainingTimer />
+      <TrainingTimer gameKey="memory" />
       <SessionResults result={sessionResult} active={exiting} />
     </>
   );

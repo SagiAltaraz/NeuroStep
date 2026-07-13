@@ -317,12 +317,23 @@ const ChatAssistant = ({ showLauncher = true }: ChatAssistantProps) => {
                <div
                   className={`chat-container ${isClosing ? 'closing' : ''}`}
                   onClick={(e) => e.stopPropagation()}
-                  style={anchor ? {
-                     top: 'auto',
-                     bottom: `${anchor.bottom}px`,
-                     right: `${anchor.right}px`,
-                     maxHeight: `calc(100dvh - ${anchor.bottom + 76}px)`,
-                  } : undefined}
+                  style={
+                     anchor?.top != null
+                        ? {
+                             top: `${anchor.top}px`,
+                             bottom: 'auto',
+                             right: `${anchor.right}px`,
+                             maxHeight: `calc(100dvh - ${anchor.top + 24}px)`,
+                          }
+                        : anchor?.bottom != null
+                        ? {
+                             top: 'auto',
+                             bottom: `${anchor.bottom}px`,
+                             right: `${anchor.right}px`,
+                             maxHeight: `calc(100dvh - ${anchor.bottom + 76}px)`,
+                          }
+                        : undefined
+                  }
                >
                   <div className="chat-header">
                      <div className="chat-title">
