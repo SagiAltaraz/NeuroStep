@@ -7,6 +7,7 @@ import SiteBackground from './components/SiteBackground/SiteBackground';
 import HomePage from './pages/home/Home';
 import SignupPage from './pages/sign-up/SignUp';
 import LoginPage from './pages/log-in/LogIn';
+import AboutPage from './pages/about/About';
 
 import ProblemsCarousel from './components/ProblemsCarousel/ProblemsCarousel';
 import ChatAssistant from './components/chat-assistant/ChatAssistant';
@@ -89,6 +90,7 @@ function AppContent() {
             />
             <Route path="/sign-up" element={<SignupPage />} />
             <Route path="/log-in" element={<LoginPage />} />
+            <Route path="/about" element={<AboutPage />} />
             <Route
                path="/games"
                element={<GamesPage />}

@@ -33,7 +33,27 @@ const TRANSLATIONS = {
   'header.welcome':      { he: 'שלום',            en: 'Hello' },
   'header.admin':        { he: 'מנהל',            en: 'Admin Panel' },
   'header.journey':      { he: 'המסע שלי',         en: 'My Journey' },
+  'header.about':        { he: 'אודות',          en: 'About' },
   'header.lang.toggle':  { he: 'EN',              en: 'עברית' },
+
+  // About page
+  'about.page.title':          { he: 'אודות NeuroStep', en: 'About NeuroStep' },
+  'about.page.subtitle':       { he: 'פרויקט התמחות בהנדסת נתונים שמחבר משחקים לאימון קוגניטיבי', en: 'A data engineering internship project that connects games with cognitive training' },
+  'about.our-story.title':     { he: 'על הפרויקט', en: 'About the project' },
+  'about.our-story.text1':     { he: 'NeuroStep נוצר כדי לבחון איך משחקים יכולים לחזק יכולות קוגניטיביות בצורה שמרגישה באמת מרתקת.', en: 'NeuroStep was created to explore how games can strengthen cognitive abilities in a way that actually feels engaging.' },
+  'about.our-story.text2':     { he: 'הרעיון צמח במהלך התמחות בהנדסת נתונים, שבה הפער בין אימון קוגניטיבי מבוסס מחקר לבין החוויה של שימוש בו הפך קשה להתעלמות.', en: 'The idea took shape during a data engineering internship, where the gap between research-backed cognitive training and the experience of actually using it became hard to ignore.' },
+  'about.our-story.text3':     { he: 'בהתבסס על מחקר עדכני במדעי הקוגניציה, NeuroStep משלבת עקרונות למידה מוכחים עם משחקים שאנשים באמת רוצים לשחק, הכל עטוף בממשק נקי וידידותי.', en: 'Drawing on current research in cognitive science, NeuroStep combines proven learning principles with games people genuinely want to play, all wrapped in a clean, friendly interface.' },
+  'about.team.title':          { he: 'הכותבים', en: 'The creators' },
+  'about.team.subtitle':       { he: 'המפתחים שעיצבו את החוויה והקוד מאחורי NeuroStep', en: 'The developers who designed the experience and the code behind NeuroStep' },
+  'about.image.placeholder':    { he: 'תמונה', en: 'Image' },
+  'about.creator.1.name':      { he: 'שגיא אלטרץ', en: 'Sagi Altaraz' },
+  'about.creator.1.role':      { he: 'אדריכלות ותכנון מערכות', en: 'Architecture & System Design' },
+  'about.creator.2.name':      { he: 'דור אבגי', en: 'Dor Evgi' },
+  'about.creator.2.role':      { he: 'פיתוח Full-Stack ואינטגרציית בינה מלאכותית', en: 'Full-Stack Development & AI Integration' },
+  'about.creator.3.name':      { he: 'גיא רוטנברג', en: 'Guy Rotenberg' },
+  'about.creator.3.role':      { he: 'פיתוח Full-Stack ואינטגרציית בינה מלאכותית', en: 'Full-Stack Development & AI Integration' },
+  'about.creator.4.name':      { he: 'ליאן הרשקוביץ', en: 'Lian Hershkovits' },
+  'about.creator.4.role':      { he: 'Frontend ועיצוב', en: 'Frontend & Design' },
 
   // Home page hero
   'home.cta.start':      { he: 'התחל אימון',      en: 'Start Training' },
