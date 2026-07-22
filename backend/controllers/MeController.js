@@ -4,7 +4,7 @@
 // is scoped to req.user.id (set by the `protect` middleware) — a user can never
 // read another user's data here (that's what the admin routes are for).
 import { firestore } from '../config/firebase.js';
-import { buildTrainingPlan } from '../services/trainingPlan.js';
+import { buildTrainingPlan, targetMinutesForGame } from '../services/trainingPlan.js';
 
 // ── Companion data maps ──────────────────────────────────────────────────────
 // Domain → the game whose PRIMARY domain it is (inverse of the game-server's
@@ -122,6 +122,28 @@ export const getMyGameStats = async (req, res) => {
    } catch (err) {
       console.error('[me/stats]', err.message);
       res.status(500).json({ message: 'Failed to load stats' });
+   }
+};
+
+// GET /api/me/target-time/:gameId — the recommended per-session play time (in
+// minutes) for one game, DERIVED from the caller's cognitive profile: weaker /
+// declining / higher-priority domains get a longer target. Feeds the in-game
+// RecommendedTimeBar. Neutral default for players with no relevant data.
+export const getMyTargetTime = async (req, res) => {
+   try {
+      const userId = req.user.id;
+      const { gameId } = req.params;
+      const snap = await firestore
+         .collection('users')
+         .doc(userId)
+         .collection('cognitiveProfile')
+         .get();
+      const domains = snap.docs.map((d) => ({ id: d.id, ...d.data() }));
+      const result = targetMinutesForGame(domains, gameId);
+      res.json({ ...result, targetMinutes: result.minutes });
+   } catch (err) {
+      console.error('[me/target-time]', err.message);
+      res.status(500).json({ message: 'Failed to load target time' });
    }
 };
 

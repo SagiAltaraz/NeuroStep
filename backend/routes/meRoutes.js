@@ -6,6 +6,7 @@ import {
    getMyReport,
    getMyGameStats,
    getMyCompanion,
+   getMyTargetTime,
 } from '../controllers/MeController.js';
 import { protect } from '../middleware/authMiddleware.js';
 
@@ -16,5 +17,6 @@ router.get('/progression', protect, getMyProgression);
 router.get('/companion', protect, getMyCompanion);
 router.get('/reports/:sessionId', protect, getMyReport);
 router.get('/stats/:gameId', protect, getMyGameStats);
+router.get('/target-time/:gameId', protect, getMyTargetTime);
 
 export default router;
