@@ -73,6 +73,12 @@ const Header: React.FC = () => {
                      </>
                   )}
 
+                  <li>
+                     <Link to="/about" className="nav-link" onClick={close}>
+                        {t('header.about')}
+                     </Link>
+                  </li>
+
                   {/* Language toggle */}
                   <li>
                      <button
