@@ -1,12 +1,13 @@
 import './App.css';
-import { lazy, Suspense, type ComponentType } from 'react';
-import { Routes, Route } from 'react-router-dom';
+import { lazy, Suspense, useEffect, type ComponentType } from 'react';
+import { Routes, Route, useLocation } from 'react-router-dom';
 import Header from './components/Header/Header';
 import SiteBackground from './components/SiteBackground/SiteBackground';
 
 import HomePage from './pages/home/Home';
 import SignupPage from './pages/sign-up/SignUp';
 import LoginPage from './pages/log-in/LogIn';
+import AboutPage from './pages/about/About';
 
 import ProblemsCarousel from './components/ProblemsCarousel/ProblemsCarousel';
 import ChatAssistant from './components/chat-assistant/ChatAssistant';
@@ -24,16 +25,24 @@ import JourneyPage from './pages/journey/JourneyPage';
 import ProtectedRoute from './components/ProtectedRoute/ProtectedRoute';
 import AccessibilityWidget from './components/AccessibilityWidget/AccessibilityWidget';
 import { isAdminPanelEnabled } from './config/features';
+import { useAuth } from './context/AuthContext';
+import {
+   ChatControllerProvider,
+   useChatController,
+} from './context/ChatControllerContext';
+import { CompanionPresentationProvider } from './context/CompanionPresentationContext';
 
-const AdminPage = import.meta.env.DEV ? lazy(() => import('./pages/admin/AdminPage')) : null;
-const CognitiveTrendPage = import.meta.env.DEV
+// Admin pages are lazy-loaded so they only weigh on the bundle when the panel
+// is enabled (see isAdminPanelEnabled in config/features).
+const AdminPage = isAdminPanelEnabled ? lazy(() => import('./pages/admin/AdminPage')) : null;
+const CognitiveTrendPage = isAdminPanelEnabled
    ? lazy(() => import('./pages/admin/trend/CognitiveTrendPage'))
    : null;
-const AlertsPage = import.meta.env.DEV ? lazy(() => import('./pages/admin/alerts/AlertsPage')) : null;
-const CoachReportsPage = import.meta.env.DEV
+const AlertsPage = isAdminPanelEnabled ? lazy(() => import('./pages/admin/alerts/AlertsPage')) : null;
+const CoachReportsPage = isAdminPanelEnabled
    ? lazy(() => import('./pages/admin/coach-reports/CoachReportsPage'))
    : null;
-const PlayerFilePage = import.meta.env.DEV
+const PlayerFilePage = isAdminPanelEnabled
    ? lazy(() => import('./pages/admin/player-file/PlayerFilePage'))
    : null;
 
@@ -43,7 +52,26 @@ const renderAdminRoute = (Page: ComponentType) => (
    </Suspense>
 );
 
-function App() {
+const PUBLIC_CHAT_PATHS = new Set(['/', '/games']);
+
+function SharedChatAssistant() {
+   const { pathname } = useLocation();
+   const { user } = useAuth();
+   const { closeChat } = useChatController();
+   const isSupported = PUBLIC_CHAT_PATHS.has(pathname) || (pathname === '/journey' && !!user);
+
+   useEffect(() => {
+      if (!isSupported) closeChat();
+   }, [isSupported, closeChat]);
+
+   return isSupported
+      ? <ChatAssistant
+           showLauncher={pathname !== '/' && pathname !== '/journey' && pathname !== '/games'}
+        />
+      : null;
+}
+
+function AppContent() {
    return (
       <div className="App">
          <SiteBackground />
@@ -54,25 +82,18 @@ function App() {
             <Route
                path="/"
                element={
-                  <>
-                     <div className="home-onescreen">
-                        <HomePage />
-                        <ProblemsCarousel />
-                     </div>
-                     <ChatAssistant />
-                  </>
+                  <div className="home-onescreen">
+                     <HomePage />
+                     <ProblemsCarousel />
+                  </div>
                }
             />
             <Route path="/sign-up" element={<SignupPage />} />
             <Route path="/log-in" element={<LoginPage />} />
+            <Route path="/about" element={<AboutPage />} />
             <Route
                path="/games"
-               element={
-                  <>
-                     <GamesPage />
-                     <ChatAssistant />
-                  </>
-               }
+               element={<GamesPage />}
             />
             <Route
                path="/games/colorTracking"
@@ -142,10 +163,7 @@ function App() {
                path="/journey"
                element={
                   <ProtectedRoute>
-                     <>
-                        <JourneyPage />
-                        <ChatAssistant />
-                     </>
+                     <JourneyPage />
                   </ProtectedRoute>
                }
             />
@@ -174,8 +192,19 @@ function App() {
                )}
             <Route path="*" element={<div>404 - Page not found</div>} />
          </Routes>
+         <SharedChatAssistant />
          <AccessibilityWidget />
       </div>
+   );
+}
+
+function App() {
+   return (
+      <ChatControllerProvider>
+         <CompanionPresentationProvider>
+            <AppContent />
+         </CompanionPresentationProvider>
+      </ChatControllerProvider>
    );
 }
 

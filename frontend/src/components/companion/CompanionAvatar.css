@@ -32,7 +32,16 @@
    the "My Journey" CTA line; inside a game stay low so we never cover gameplay. */
 .companion--home,
 .companion--journey { bottom: 28vh; }
-.companion--game .companion-img { width: 92px; }
+.companion--home {
+  right: 0;
+  left: auto;
+  bottom: 40vh;
+  width: 132px;
+  align-items: center;
+  /* gentle idle drift in the right gutter — only ever moves UP, so it never
+     reaches the content cards lower on the page. */
+  animation: cm-home-idle 11s ease-in-out infinite;
+}
 
 .companion-char {
   border: 0;
@@ -67,7 +76,26 @@
   transition: opacity 320ms ease; /* keep in sync with FADE_MS in AvatarClip */
   pointer-events: none;
 }
-.companion--game .companion-video { width: 100px; height: 100px; }
+
+.companion-session-counter {
+  position: absolute;
+  right: 0;
+  bottom: calc(100% + 10px);
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  min-width: 88px;
+  padding: 8px 12px;
+  border: 1px solid var(--ns-cardline, rgba(47, 134, 214, 0.22));
+  border-radius: 999px;
+  background: var(--ns-card, rgba(255, 255, 255, 0.94));
+  box-shadow: var(--ns-soft-sm, 0 8px 24px -12px rgba(28, 58, 69, 0.35));
+  color: var(--ns-teal, #1c3a45);
+  font-variant-numeric: tabular-nums;
+  font-weight: 800;
+  direction: ltr;
+  pointer-events: none;
+}
 
 /* jetpack flight — a wider, livelier patrol of the right gutter. Overrides the
    gentle cm-roam while flying; the landing glide back is driven inline from JS
@@ -75,12 +103,39 @@
 .companion.companion--flying {
   animation: cm-fly 18s ease-in-out infinite alternate;
 }
+.companion--home.companion--flying {
+  animation: none;
+}
+.companion--home.companion--flight-cruise {
+  /* a livelier, continuous patrol of the upper-right gutter while cruising */
+  animation: cm-home-cruise 9s ease-in-out infinite alternate;
+}
+/* While the AI chat is open the mascot stays frozen wherever it was clicked
+   (an inline transform pins it there); the chat bubble anchors to that spot.
+   Keep it above the chat's transparent click-catcher so it stays visible. */
+.companion.companion--ai-chat-open {
+  animation: none;
+  z-index: 1001;
+}
+/* Home idle: a small up/down drift (horizontal stays tiny and leftward so it
+   never leaves the right gutter or overlaps centred content). */
+@keyframes cm-home-idle {
+  0%, 100% { transform: translate(0px, 0vh); }
+  50%      { transform: translate(-7px, -7vh); }
+}
+/* Home cruise: a gentle upward patrol — moves noticeably but never so high that
+   there's no room to read its chat bubble, and always above the content cards. */
+@keyframes cm-home-cruise {
+  0%   { transform: translate(0px, -1vh); }
+  50%  { transform: translate(-10px, -13vh); }
+  100% { transform: translate(-3px, -5vh); }
+}
 @keyframes cm-fly {
   0%   { transform: translate(0px, 0vh); }
-  25%  { transform: translate(-14px, -26vh); }
-  50%  { transform: translate(8px, -44vh); }
-  75%  { transform: translate(-10px, -18vh); }
-  100% { transform: translate(2px, -38vh); }
+  25%  { transform: translate(-12px, -14vh); }
+  50%  { transform: translate(6px, -22vh); }
+  75%  { transform: translate(-8px, -10vh); }
+  100% { transform: translate(2px, -18vh); }
 }
 .companion-char:hover { animation-play-state: paused; }
 @keyframes cm-wobble {
@@ -104,6 +159,26 @@
   color: var(--ns-teal, #1c3a45);
   animation: cm-pop 0.28s cubic-bezier(0.2, 1.3, 0.5, 1);
 }
+.companion--home .companion-bubble {
+  position: absolute;
+  right: 0;
+  left: auto;
+  bottom: calc(100% + 10px);
+  translate: none;
+  width: max-content;
+  max-width: min(270px, calc(100vw - 16px));
+}
+.companion-message-cycle {
+  animation-name: cm-message-cycle;
+  animation-timing-function: ease-in-out;
+  animation-fill-mode: both;
+}
+@keyframes cm-message-cycle {
+  0%   { opacity: 0; }
+  8%   { opacity: 1; }
+  88%  { opacity: 1; }
+  100% { opacity: 0; }
+}
 @keyframes cm-pop { from { opacity: 0; transform: translateY(8px) scale(0.96); } to { opacity: 1; transform: none; } }
 
 .companion-close {
@@ -117,7 +192,7 @@
   color: var(--ns-slate, #5a7fa8);
   cursor: pointer;
 }
-.companion-greet { margin: 0 0 4px; font-family: 'Sora', 'Heebo', sans-serif; font-weight: 800; font-size: 0.98rem; }
+.companion-greet { margin: 0 0 4px; font-family: 'Sora', 'Heebo', sans-serif; font-weight: 800; font-size: 0.98rem; direction: inherit; text-align: start; }
 .companion-reason { margin: 0 0 10px; font-size: 0.9rem; line-height: 1.5; color: var(--ns-slate, #5a7fa8); }
 .companion-cta {
   border: 0;

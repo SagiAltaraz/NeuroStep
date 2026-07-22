@@ -6,10 +6,24 @@
  * encouraging tips inside games. Always visible; the bottom chat can later take
  * over the conversation via a professional LLM.
  */
-import { useEffect, useMemo, useRef, useState } from 'react';
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { useNavigate, useLocation } from 'react-router-dom';
 import { useAuth } from '../../context/AuthContext';
-import { getMyCompanion, isApiError, type CompanionResponse } from '../../api/me';
+import { useChatController, type ChatAnchor } from '../../context/ChatControllerContext';
+import { useCompanionPresentation } from '../../context/CompanionPresentationContext';
+import { useLang, type Lang, type TKey } from '../../context/LanguageContext';
+import {
+  getMyCompanion,
+  isApiError,
+  updateMyChatSessionMood,
+  type CompanionMoodSelection,
+  type CompanionContext,
+  type CompanionResponse,
+  type CompanionSuggestion,
+} from '../../api/me';
+import { getStoredChatSessionId } from '../chat-assistant/chatSessionStorage';
+import { GAME_INSTRUCTIONS } from '../../data/gameInstructions';
+import { COGNITIVE_PROBLEMS } from '../../data/cognitiveProblems';
 import AvatarClip, { type ClipName } from './AvatarClip';
 import { CELEBRATE_EVENT } from './celebrate';
 import './CompanionAvatar.css';
@@ -52,69 +66,327 @@ const GLIDE_HOME_MS = 1500;     // drift back to the anchor during the quiet gap
 
 type Ctx = 'home' | 'journey' | 'games' | 'game' | 'other';
 interface Reply { label: string; gameId: string }
-interface Msg { text: string; cta?: { label: string; gameId: string }; replies?: Reply[] }
+interface MoodReply { label: string; value: 'alert' | 'tired' }
+interface Msg {
+  title?: string;
+  text: string;
+  durationMs?: number;
+  cta?: { label: string; gameId?: string; action?: 'open-chat' | 'browse-games' };
+  replies?: Reply[];
+  moodReplies?: MoodReply[];
+  dir?: 'rtl' | 'ltr';
+}
+
+type Translate = (key: TKey) => string;
 
 // reading-time pacing: short lines linger less, long lines get time to read.
 const readMs = (t: string) => Math.min(11000, Math.max(4200, 2400 + t.length * 55));
 // after the page's queue is done, stay quiet this long before a gentle re-engage.
 const QUIET_MS = 32000;
 
-// quick "what to work on" chooser — routes straight into a matching game
-const CHOOSE: Msg = {
-  text: 'על מה בא לך לעבוד עכשיו?',
-  replies: [
-    { label: 'זיכרון 🧠', gameId: 'memory' },
-    { label: 'קשב 🎯', gameId: 'find-letter' },
-    { label: 'תגובה ⚡', gameId: 'green-light' },
-  ],
+// The "how are you feeling?" check-in is asked at most once per calendar day.
+const MOOD_ASK_KEY = 'neurostep:moodAskedDate';
+const MOOD_PICK_KEY = 'neurostep:mood';
+const todayStr = () => new Date().toISOString().slice(0, 10);
+const askedMoodToday = () => {
+  try { return localStorage.getItem(MOOD_ASK_KEY) === todayStr(); } catch { return false; }
 };
 
+// quick "what to work on" chooser — routes straight into a matching game.
+// Language-aware so the mascot speaks the selected UI language everywhere.
+function buildChoose(t: Translate): Msg {
+  return {
+    text: t('companion.choose.title'),
+    replies: [
+      { label: t('companion.choose.memory'), gameId: 'memory' },
+      { label: t('companion.choose.attention'), gameId: 'find-letter' },
+      { label: t('companion.choose.reaction'), gameId: 'green-light' },
+    ],
+  };
+}
+
 // Build the message queue for the current page, weaving in the user's data.
-function buildMessages(ctx: Ctx, data: CompanionResponse | null): Msg[] {
+// `gameName` (when on a specific game) lets the in-game coaching speak to the
+// actual game the player is in, in a warm, personal voice — in the UI language.
+function buildMessages(
+  ctx: Ctx,
+  data: CompanionResponse | null,
+  t: Translate,
+  lang: Lang,
+  gameName?: string,
+): Msg[] {
+  const dir = lang === 'he' ? 'rtl' : 'ltr';
+  const fmt = (key: TKey, params: Record<string, string>) =>
+    formatSuggestionText(t(key), params) ?? t(key);
+
   if (ctx === 'game') {
+    const g = gameName ?? t('companion.game.thisTraining');
     return [
-      { text: 'אתה מתקדם יפה — תישאר ממוקד 💪' },
-      { text: 'טיפ קטן: קח נשימה לפני כל סבב, זה משפר דיוק 🙂' },
-      { text: 'כל תרגול קטן מחזק את המוח. כל הכבוד שאתה כאן!' },
-      { text: 'אם זה מאתגר — זה אומר שאתה לומד. תמשיך 🚀' },
+      { text: fmt('companion.game.tip.focus', { game: g }), dir },
+      { text: t('companion.game.tip.breath'), dir },
+      { text: fmt('companion.game.tip.strengthen', { game: g }), dir },
+      { text: t('companion.game.tip.learning'), dir },
     ];
   }
   if (ctx === 'games') {
     return [
-      { text: 'בחר אתגר ואני אעזור להתאים לך את המשחק 👇' },
-      CHOOSE,
+      { text: t('companion.games.intro'), dir },
+      buildChoose(t),
     ];
   }
-  // home / journey / other — personalised from the DB profile
+  // home / journey / other — personalised from the DB profile, localized.
   const gameId = data?.suggestedGameId ?? 'memory';
-  const gameHe = data?.suggestedGameHe ?? 'זיכרון';
+  const gameKey = GAME_ROUTE[gameId] ?? 'memory';
+  const gameName2 = GAME_INSTRUCTIONS[gameKey]?.title[lang]
+    ?? (lang === 'he' ? data?.suggestedGameHe : undefined)
+    ?? GAME_INSTRUCTIONS.memory.title[lang];
   return [
-    { text: data?.greetingHe ?? 'היי! כיף לראות אותך 👋' },
+    { text: (lang === 'he' ? data?.greetingHe : undefined) ?? t('companion.home.greetingFallback'), dir },
     {
-      text: data?.reasonHe ?? 'בא לך אימון קצר ונעים? בוא נתחיל 🙂',
-      cta: { label: `בוא נשחק ב${gameHe}`, gameId },
+      text: (lang === 'he' ? data?.reasonHe : undefined) ?? t('companion.home.reasonFallback'),
+      cta: { label: fmt('companion.home.ctaPlay', { game: gameName2 }), gameId },
+      dir,
     },
-    CHOOSE,
-    { text: 'אני המאמן שלך — כאן לאורך כל הדרך 🤖' },
+    buildChoose(t),
+    { text: t('companion.home.coach'), dir },
   ];
 }
 
+function buildFallbackSuggestions(
+  ctx: Ctx,
+  data: CompanionResponse | null,
+  lang: Lang,
+  t: Translate,
+): Msg[] {
+  const dir = lang === 'he' ? 'rtl' : 'ltr';
+  const suggestedGameId = data?.suggestedGameId ?? 'memory';
+  const gameKey = GAME_ROUTE[suggestedGameId] ?? 'memory';
+  const gameName = GAME_INSTRUCTIONS[gameKey]?.title[lang]
+    ?? (lang === 'he' ? data?.suggestedGameHe : undefined)
+    ?? GAME_INSTRUCTIONS.memory.title[lang];
+  const recommendation: Msg = {
+    text: `${t('companion.recommended')} ${gameName}`,
+    cta: { label: `${t('companion.play')} ${gameName}`, gameId: suggestedGameId },
+    dir,
+  };
+
+  if (ctx === 'home') {
+    return data
+      ? [recommendation, { text: t('companion.home.openAssistant'), dir }]
+      : [
+          { text: t('companion.home.openAssistant'), dir },
+          {
+            text: t('companion.home.startTraining'),
+            cta: recommendation.cta,
+            dir,
+          },
+        ];
+  }
+
+  if (ctx === 'games') {
+    return [
+      ...(data ? [recommendation] : []),
+      { text: t('companion.games.select'), dir },
+    ];
+  }
+
+  if (ctx === 'journey') {
+    const focusItem = data?.plan?.items[0];
+    if (!focusItem) {
+      return [{ text: t('journey.avatar.plan.pending'), dir }];
+    }
+    return [{
+      text: `${t('journey.avatar.plan.focus')}: ${t(
+        `problem.${focusItem.domainId}.title` as TKey,
+      )} · ${focusItem.sessionsPerWeek} ${t('journey.avatar.plan.sessions')}`,
+      dir,
+    }];
+  }
+
+  return [];
+}
+
+const SUGGESTION_MESSAGE_KEYS: Record<string, TKey> = {
+  'companion.suggestion.plan-game': 'companion.suggestion.plan-game',
+  'companion.suggestion.open-assistant': 'companion.suggestion.open-assistant',
+  'companion.suggestion.browse-games': 'companion.suggestion.browse-games',
+  'companion.suggestion.recorded-level': 'companion.suggestion.recorded-level',
+  'companion.suggestion.journey-map': 'companion.suggestion.journey-map',
+  'companion.suggestion.weekly-plan': 'companion.suggestion.weekly-plan',
+  'companion.suggestion.next-activity': 'companion.suggestion.next-activity',
+  'companion.suggestion.same-domain-pair': 'companion.suggestion.same-domain-pair',
+};
+
+const SUGGESTION_ACTION_KEYS: Record<string, TKey> = {
+  'companion.action.start-game': 'companion.action.start-game',
+  'companion.action.open-assistant': 'companion.action.open-assistant',
+  'companion.action.browse-games': 'companion.action.browse-games',
+};
+
+function formatSuggestionText(
+  template: string,
+  params: Record<string, string>,
+): string | null {
+  const text = template.replace(/\{(\w+)\}/g, (placeholder, key: string) =>
+    params[key] ?? placeholder
+  );
+  return text.includes('{') ? null : text;
+}
+
+function suggestionParams(
+  suggestion: CompanionSuggestion,
+  lang: Lang,
+  t: Translate,
+): Record<string, string> | null {
+  const params: Record<string, string> = {};
+  const raw = suggestion.messageParams ?? {};
+  const gameId = suggestion.action?.gameId ?? raw.gameId;
+
+  if (gameId !== undefined) {
+    if (typeof gameId !== 'string') return null;
+    const gameKey = GAME_ROUTE[gameId];
+    const game = gameKey ? GAME_INSTRUCTIONS[gameKey] : undefined;
+    if (!game) return null;
+    params.game = game.title[lang];
+  }
+
+  if (raw.domainId !== undefined) {
+    if (
+      typeof raw.domainId !== 'string' ||
+      !COGNITIVE_PROBLEMS.some((problem) => problem.id === raw.domainId)
+    ) {
+      return null;
+    }
+    params.domain = t(('problem.' + raw.domainId + '.title') as TKey);
+  }
+
+  for (const key of ['level', 'sessionsPerWeek', 'weeklySessions']) {
+    const value = raw[key];
+    if (value !== undefined) {
+      if (typeof value !== 'number' || !Number.isFinite(value)) return null;
+      params[key] = String(Math.round(value));
+    }
+  }
+
+  return params;
+}
+
+function backendSuggestionMessage(
+  suggestion: CompanionSuggestion,
+  lang: Lang,
+  t: Translate,
+): Msg | null {
+  const messageKey = SUGGESTION_MESSAGE_KEYS[suggestion.messageKey];
+  if (!messageKey) return null;
+
+  const params = suggestionParams(suggestion, lang, t);
+  if (!params) return null;
+  const text = formatSuggestionText(t(messageKey), params);
+  if (!text) return null;
+
+  // Same-domain pair: two games for one cognitive problem, shown as two
+  // reply buttons in a single message (spec: not one after another).
+  if (suggestion.kind === 'recommended-pair') {
+    const gameTitle = (gameId?: string): string | null => {
+      const gameKey = gameId ? GAME_ROUTE[gameId] : undefined;
+      const game = gameKey ? GAME_INSTRUCTIONS[gameKey] : undefined;
+      return game ? game.title[lang] : null;
+    };
+    const g1 = suggestion.action?.gameId;
+    const g2 = suggestion.secondaryAction?.gameId;
+    const l1 = gameTitle(g1);
+    const l2 = gameTitle(g2);
+    if (!g1 || !g2 || !l1 || !l2) return null;
+    return {
+      text,
+      replies: [{ label: l1, gameId: g1 }, { label: l2, gameId: g2 }],
+      dir: lang === 'he' ? 'rtl' : 'ltr',
+    };
+  }
+
+  let cta: Msg['cta'];
+  if (suggestion.action) {
+    const labelKey = SUGGESTION_ACTION_KEYS[suggestion.action.labelKey];
+    if (!labelKey) return null;
+    const label = formatSuggestionText(t(labelKey), params);
+    if (!label) return null;
+
+    if (suggestion.action.type === 'open-game') {
+      const gameId = suggestion.action.gameId;
+      const gameKey = gameId ? GAME_ROUTE[gameId] : undefined;
+      if (!gameId || !gameKey || suggestion.action.route !== '/games/' + gameKey) {
+        return null;
+      }
+      cta = { label, gameId };
+    } else if (suggestion.action.type === 'open-chat') {
+      cta = { label, action: 'open-chat' };
+    } else if (
+      suggestion.action.type === 'open-route' &&
+      suggestion.action.route === '/games'
+    ) {
+      cta = { label, action: 'browse-games' };
+    } else {
+      return null;
+    }
+  }
+
+  return { text, cta, dir: lang === 'he' ? 'rtl' : 'ltr' };
+}
+
+function buildBackendMessages(
+  data: CompanionResponse,
+  expectedContext: CompanionContext,
+  lang: Lang,
+  t: Translate,
+): Msg[] | null {
+  if (
+    data.dataVersion !== 'companion-suggestions-v1' ||
+    data.context !== expectedContext ||
+    !Array.isArray(data.suggestions) ||
+    data.suggestions.length === 0
+  ) {
+    return null;
+  }
+
+  const messages: Msg[] = [];
+  for (const suggestion of data.suggestions) {
+    const message = backendSuggestionMessage(suggestion, lang, t);
+    if (!message) return null;
+    messages.push(message);
+  }
+  return messages;
+}
+
 export default function CompanionAvatar() {
-  const { token } = useAuth();
+  const { token, user } = useAuth();
+  const { lang, t } = useLang();
+  const { isOpen: isAiChatOpen, openChat, closeChat, status: chatStatus, setAnchor: setChatAnchor } = useChatController();
+  const { isInstructionAvatarVisible, isResultAvatarVisible } = useCompanionPresentation();
   const navigate = useNavigate();
   const loc = useLocation();
 
-  const [data, setData] = useState<CompanionResponse | null>(null);
+  const [companionResult, setCompanionResult] = useState<{
+    token: string;
+    context: CompanionContext;
+    response: CompanionResponse;
+  } | null>(null);
   const [pose, setPose] = useState<Pose>('idle');
   const [broken, setBroken] = useState<Record<string, boolean>>({});
   const [open, setOpen] = useState(true);
   const [idx, setIdx] = useState(0);
   const [dismissed, setDismissed] = useState(false);  // user closed it → stay quiet until next page
+  const [moodPicked, setMoodPicked] = useState<CompanionMoodSelection | null>(null);
   const [videoOk, setVideoOk] = useState(true);       // false → fall back to the PNG poses
   const [flight, setFlight] = useState<Flight>(null);
   const [celebrating, setCelebrating] = useState(false); // level-up → plays the celebrate clip
   const openAfterLand = useRef(false);                // land was triggered by a click/re-engage
+  const openAfterLaunch = useRef(false);
+  const openChatAfterLand = useRef(false);            // land → open the AI chat (not the scripted bubble)
+  const pendingChatAnchor = useRef<ChatAnchor | null>(null);
   const rootRef = useRef<HTMLDivElement>(null);
+  const suppressCompanionRef = useRef(false);
+  const pendingContextResetRef = useRef(false);
+  const contextResetTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const reducedMotion = useMemo(
     () => window.matchMedia?.('(prefers-reduced-motion: reduce)').matches ?? false,
     [],
@@ -129,34 +401,190 @@ export default function CompanionAvatar() {
     return 'other';
   }, [loc.pathname]);
 
-  // personalised data (once we have a token); silent fallback otherwise
-  useEffect(() => {
-    if (!token) return;
-    let cancelled = false;
-    getMyCompanion(token).then((r) => {
-      if (!cancelled && !isApiError(r)) setData(r);
-    });
-    return () => { cancelled = true; };
-  }, [token]);
+  const backendContext = useMemo<CompanionContext | null>(() => {
+    if (ctx === 'home') return 'home';
+    if (ctx === 'games') return 'games';
+    return null;
+  }, [ctx]);
 
-  const messages = useMemo(() => buildMessages(ctx, data), [ctx, data]);
+  const data =
+    token &&
+    backendContext &&
+    companionResult?.token === token &&
+    companionResult.context === backendContext
+      ? companionResult.response
+      : null;
+  const isJourneyRoute = loc.pathname === '/journey';
+  const suppressCompanion =
+    isAiChatOpen || isInstructionAvatarVisible || isResultAvatarVisible || isJourneyRoute;
 
-  // new page (or data arrived) → restart the conversation with a wave
   useEffect(() => {
+    suppressCompanionRef.current = suppressCompanion;
+  }, [suppressCompanion]);
+
+  const cancelContextResetTimer = useCallback(() => {
+    if (!contextResetTimerRef.current) return;
+    clearTimeout(contextResetTimerRef.current);
+    contextResetTimerRef.current = null;
+  }, []);
+
+  const resetCompanionContext = useCallback(() => {
+    cancelContextResetTimer();
     setIdx(0);
-    setOpen(true);
+    setOpen(ctx !== 'game');
     setDismissed(false);
-    setPose('wave');
+    // Drop any just-picked mood ack; whether we asked today is remembered in
+    // localStorage, so returning to home simply skips the check-in.
+    setMoodPicked(null);
+    setPose(ctx === 'home' ? 'idle' : 'wave');
     setFlight(null);
     openAfterLand.current = false;
+    openAfterLaunch.current = false;
     if (rootRef.current) {
       rootRef.current.style.transform = '';
       rootRef.current.style.transition = '';
       rootRef.current.style.animation = '';
+      rootRef.current.style.left = '';
+      rootRef.current.style.top = '';
+      rootRef.current.style.right = '';
+      rootRef.current.style.bottom = '';
     }
-    const t = setTimeout(() => setPose('idle'), 2600);
-    return () => clearTimeout(t);
-  }, [ctx, data]);
+    if (ctx !== 'home') {
+      contextResetTimerRef.current = setTimeout(() => {
+        setPose('idle');
+        contextResetTimerRef.current = null;
+      }, 2600);
+    }
+  }, [cancelContextResetTimer, ctx]);
+
+  useEffect(() => () => cancelContextResetTimer(), [cancelContextResetTimer]);
+
+  // Fetch only for supported global-companion contexts. The token/context pair
+  // stored with the response prevents a late request from replacing newer data.
+  useEffect(() => {
+    if (!token || !backendContext) return;
+    let cancelled = false;
+    const requestedToken = token;
+    const requestedContext = backendContext;
+
+    getMyCompanion(requestedToken, requestedContext).then((response) => {
+      if (
+        cancelled ||
+        isApiError(response) ||
+        response.context !== requestedContext
+      ) {
+        return;
+      }
+      setCompanionResult({
+        token: requestedToken,
+        context: requestedContext,
+        response,
+      });
+    });
+
+    return () => {
+      cancelled = true;
+    };
+  }, [token, backendContext]);
+
+  const messages = useMemo(() => {
+    // Which specific game are we in? Lets the in-game voice name it.
+    const gameKey = ctx === 'game'
+      ? Object.values(GAME_ROUTE).find((k) => loc.pathname === `/games/${k}`)
+      : undefined;
+    const gameName = gameKey ? GAME_INSTRUCTIONS[gameKey]?.title[lang] : undefined;
+
+    const homeIntro: Msg = {
+      title: user?.name
+        ? `${t('companion.home.hello')} \u2068${user.name}\u2069`
+        : t('companion.home.hello'),
+      text: t('companion.home.introduction'),
+      dir: lang === 'he' ? 'rtl' : 'ltr',
+    };
+    const homeMood: Msg = {
+      title: t('companion.home.moodTitle'),
+      text: '',
+      durationMs: 16000,
+      moodReplies: [
+        { label: t('companion.home.moodAlert'), value: 'alert' },
+        { label: t('companion.home.moodTired'), value: 'tired' },
+      ],
+      dir: lang === 'he' ? 'rtl' : 'ltr',
+    };
+    // Mood check-in flow:
+    //  • once the user picks, replace the question with a warm, human reply and
+    //    keep the conversation going (never stop after a mood pick);
+    //  • the question itself is asked at most once per calendar day.
+    const dir = lang === 'he' ? 'rtl' : 'ltr';
+    const moodAck: Msg | null = moodPicked
+      ? {
+          text: t(moodPicked === 'alert'
+            ? 'companion.home.moodAckAlert'
+            : 'companion.home.moodAckTired'),
+          dir,
+        }
+      : null;
+    const homeMoodSlot: Msg | null =
+      moodAck ?? (!askedMoodToday() ? homeMood : null);
+    const planDomains = Array.from(new Set(
+      (data?.plan?.items ?? [])
+        .filter((item) => COGNITIVE_PROBLEMS.some((problem) => problem.id === item.domainId))
+        .slice(0, 3)
+        .map((item) => t(`problem.${item.domainId}.title` as TKey)),
+    ));
+    const homePlan: Msg | null = planDomains.length > 0
+      ? {
+          text: formatSuggestionText(t('companion.home.planRecommendation'), {
+            domains: planDomains.join(', '),
+          }) ?? '',
+          dir: lang === 'he' ? 'rtl' : 'ltr',
+        }
+      : null;
+    const homeOpeningMessages = [
+      homeIntro,
+      ...(homeMoodSlot ? [homeMoodSlot] : []),
+      ...(homePlan ? [homePlan] : []),
+    ];
+    if (data && backendContext) {
+      const backendMessages = buildBackendMessages(data, backendContext, lang, t);
+      if (backendMessages) {
+        return ctx === 'home' ? [...homeOpeningMessages, ...backendMessages] : backendMessages;
+      }
+    }
+
+    const baseMessages = buildMessages(ctx, null, t, lang, gameName);
+    const suggestions = buildFallbackSuggestions(ctx, null, lang, t);
+    if (ctx === 'home') {
+      return [...homeOpeningMessages, ...baseMessages.slice(0, 2), ...suggestions, ...baseMessages.slice(2)];
+    }
+    if (ctx === 'games') {
+      return [...baseMessages, ...suggestions];
+    }
+    if (ctx === 'journey') {
+      return [baseMessages[0], ...suggestions, ...baseMessages.slice(1)];
+    }
+    return baseMessages;
+  }, [ctx, data, backendContext, lang, t, user, moodPicked, loc.pathname]);
+  // Route/data changes reset immediately unless AI chat temporarily owns the surface.
+  useEffect(() => {
+    if (suppressCompanionRef.current) {
+      pendingContextResetRef.current = true;
+      cancelContextResetTimer();
+      return;
+    }
+
+    pendingContextResetRef.current = false;
+    // eslint-disable-next-line react-hooks/set-state-in-effect -- Route/data changes intentionally reset presentation state.
+    resetCompanionContext();
+  }, [ctx, data, cancelContextResetTimer, resetCompanionContext]);
+
+  // Apply a deferred route/data reset once, when AI chat releases the surface.
+  useEffect(() => {
+    if (suppressCompanion || !pendingContextResetRef.current) return;
+    pendingContextResetRef.current = false;
+    // eslint-disable-next-line react-hooks/set-state-in-effect -- A deferred context change resets once after chat closes.
+    resetCompanionContext();
+  }, [suppressCompanion, resetCompanionContext]);
 
   // Quiet (chat closed or dismissed) → glide back to the anchor if the mascot
   // is still parked where it last landed, then after a short beat the jetpack
@@ -190,7 +618,54 @@ export default function CompanionAvatar() {
   }, [celebrating, videoOk]);
 
   useEffect(() => {
-    if (open || flight || celebrating || !videoOk || reducedMotion) return;
+    if (!suppressCompanion) return;
+    openAfterLand.current = false;
+    openAfterLaunch.current = false;
+    /* eslint-disable react-hooks/set-state-in-effect -- AI chat intentionally moves the companion to quiet state. */
+    if (open) setOpen(false);
+    if (flight) setFlight(null);
+    /* eslint-enable react-hooks/set-state-in-effect */
+    const el = rootRef.current;
+    // When the AI chat is open the mascot must STAY frozen where it was clicked
+    // (openChatAtAvatar set an inline transform), so the bubble stays anchored to
+    // it. Only reset the position for the other suppression reasons.
+    if (el && !isAiChatOpen) {
+      el.style.animation = '';
+      el.style.transition = '';
+      el.style.transform = '';
+      el.style.left = '';
+      el.style.top = '';
+      el.style.right = '';
+      el.style.bottom = '';
+    }
+  }, [suppressCompanion, open, flight, isAiChatOpen]);
+
+  // When the chat closes, the mascot STAYS exactly where it was (its left/top
+  // pin is kept, so it never snaps to the corner). We only re-enable animation
+  // so it can idle/fly again from that spot. The pin is fully cleared on the
+  // next navigation (resetCompanionContext).
+  useEffect(() => {
+    if (isAiChatOpen) return;
+    const el = rootRef.current;
+    if (el && el.style.left) {
+      el.style.animation = '';
+      el.style.transition = '';
+      el.style.transform = '';
+    }
+  }, [isAiChatOpen]);
+
+  useEffect(() => {
+    // Once the mascot is idle and unused (no open message, not already flying),
+    // it takes off and roams the gutter — on every page, home included, so the
+    // flight animation is always put to use instead of the mascot sitting still.
+    if (
+      suppressCompanion ||
+      open ||
+      flight ||
+      celebrating ||
+      !videoOk ||
+      reducedMotion
+    ) return;
     const el = rootRef.current;
     if (el && el.style.transform) {
       // drift home during the quiet gap — done well before the launch fires
@@ -205,11 +680,17 @@ export default function CompanionAvatar() {
         el.style.transition = '';
         el.style.transform = '';
         el.style.animation = '';
+        // Release any left/top pin from a just-closed chat so the mascot roams
+        // the FULL right gutter again (the reposition is masked by the take-off).
+        el.style.left = '';
+        el.style.top = '';
+        el.style.right = '';
+        el.style.bottom = '';
       }
       setFlight('launch');
     }, FLIGHT_DELAY_MS);
     return () => clearTimeout(t);
-  }, [open, flight, videoOk, reducedMotion]);
+  }, [open, flight, celebrating, videoOk, reducedMotion, suppressCompanion, ctx]);
 
   // Pin the mascot exactly where it is RIGHT NOW, synchronously, and start the
   // landing there. Must run BEFORE the `companion--flying` class is removed:
@@ -226,13 +707,75 @@ export default function CompanionAvatar() {
     setFlight('land');
   };
 
+  // Freeze the mascot exactly where it is on screen RIGHT NOW and open the chat
+  // anchored to that spot, so the bubble appears right above wherever it roamed
+  // to. The frozen inline transform is preserved while the chat stays open (see
+  // the suppress effect) and cleared when it closes so roaming resumes.
+  // Pin the mascot to its EXACT current viewport spot via left/top (not a
+  // transform), so removing the flight class/animation can't make it drift or
+  // snap to the corner. It stops dead where it is; the returned anchor tells the
+  // chat bubble to open directly above that spot. Shared by every open path.
+  const pinAvatarAndMeasure = useCallback((): ChatAnchor | null => {
+    const el = rootRef.current;
+    if (!el) return null;
+    const rect = el.getBoundingClientRect();
+    // Guard against a degenerate measurement (e.g. a not-yet-laid-out or
+    // backgrounded viewport reporting 0 width) — never pin the mascot off-screen.
+    const vw = window.innerWidth;
+    const vh = window.innerHeight;
+    if (vw <= 0 || vh <= 0 || rect.width === 0 || rect.right <= 0 || rect.left >= vw) {
+      return null;
+    }
+    el.style.animation = 'none';
+    el.style.transition = 'none';
+    el.style.transform = 'none';
+    el.style.left = `${Math.round(rect.left)}px`;
+    el.style.top = `${Math.round(rect.top)}px`;
+    el.style.right = 'auto';
+    el.style.bottom = 'auto';
+
+    const gap = 12;
+    const right = Math.max(12, Math.round(vw - rect.right));
+    // Prefer opening the chat ABOVE the mascot; but if it's roamed too high to
+    // leave room for the bubble, open it BELOW instead so it's never cut off.
+    const roomAbove = rect.top;
+    if (roomAbove >= 260) {
+      return { right, bottom: Math.max(12, Math.round(vh - rect.top + gap)) };
+    }
+    return { right, top: Math.max(64, Math.round(rect.bottom + gap)) };
+  }, []);
+
+  const openChatAtAvatar = useCallback(() => {
+    openChat('avatar', pinAvatarAndMeasure());
+  }, [openChat, pinAvatarAndMeasure]);
+
+  // Any OTHER way the chat opens (launcher button, a message CTA) won't have
+  // pinned the mascot — so pin it where it is and anchor the bubble to it too,
+  // on every page. This keeps the chat above the avatar and stops the avatar
+  // from snapping to the bottom-right corner when the chat opens.
+  useEffect(() => {
+    if (!isAiChatOpen) return;
+    const el = rootRef.current;
+    if (el && !el.style.left) {
+      setChatAnchor(pinAvatarAndMeasure());
+    }
+  }, [isAiChatOpen, pinAvatarAndMeasure, setChatAnchor]);
+
   // One-shot clips chain here: launch → cruise loop; land → grounded in place
   // (and open the chat if the landing was user-initiated); celebrate → idle.
   const handleClipEnd = (clip: ClipName) => {
-    if (clip === 'jet-launch') setFlight('cruise');
+    if (suppressCompanion && clip.startsWith('jet-')) return;
+    if (clip === 'jet-launch' && openAfterLaunch.current) {
+      setFlight('cruise');
+    } else if (clip === 'jet-launch') setFlight('cruise');
     else if (clip === 'jet-land') {
       setFlight(null);
-      if (openAfterLand.current) {
+      if (openChatAfterLand.current) {
+        // Touchdown finished → open the AI chat anchored to where it landed.
+        openChatAfterLand.current = false;
+        openChat('avatar', pendingChatAnchor.current);
+        pendingChatAnchor.current = null;
+      } else if (openAfterLand.current) {
         openAfterLand.current = false;
         setIdx(0);
         setOpen(true);
@@ -244,19 +787,31 @@ export default function CompanionAvatar() {
     }
   };
 
+  useEffect(() => {
+    if (ctx !== 'home' || flight !== 'cruise' || !openAfterLaunch.current) return;
+    const timer = setTimeout(() => {
+      openAfterLaunch.current = false;
+      setFlight(null);
+      openChatAtAvatar();
+    }, 700);
+    return () => clearTimeout(timer);
+  }, [ctx, flight, openChatAtAvatar]);
+
   // Smart pacing: linger on each message for its reading time, then move on;
   // once the page's queue is done, go quiet — and only re-engage gently after a
   // long pause. If the user dismissed it, stay quiet until the next page.
   useEffect(() => {
-    if (dismissed) return;
+    if (dismissed || suppressCompanion) return;
     if (open) {
       const cur = messages[Math.min(idx, messages.length - 1)];
       const t = setTimeout(() => {
-        if (idx < messages.length - 1) setIdx(idx + 1);   // next message
-        else setOpen(false);                              // queue done → go quiet
-      }, readMs(cur.text));
+        if (ctx === 'game') setOpen(false);               // no automatic game coaching rotation
+        else if (idx < messages.length - 1) setIdx(idx + 1); // next message
+        else setOpen(false);   // queue done (home included) → go quiet so it can take off
+      }, cur.durationMs ?? readMs(cur.text));
       return () => clearTimeout(t);
     }
+    if (ctx === 'game') return;
     // quiet → gentle re-engage after a long pause. If it's out flying, bring it
     // in for a landing first — the chat opens when the touchdown completes.
     const t = setTimeout(() => {
@@ -270,8 +825,7 @@ export default function CompanionAvatar() {
     }, QUIET_MS);
     return () => clearTimeout(t);
     // landInPlace reads refs only; excluding it keeps this from re-firing.
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [open, idx, dismissed, messages, flight]);
+  }, [open, idx, dismissed, messages, flight, suppressCompanion, ctx]);
 
   const goGame = (gameId: string) => {
     setOpen(false);
@@ -279,33 +833,102 @@ export default function CompanionAvatar() {
   };
 
   const msg = messages[Math.min(idx, messages.length - 1)];
+
+  const selectMood = (selection: CompanionMoodSelection) => {
+    if (!token) return;
+    const sessionId = getStoredChatSessionId();
+    if (!sessionId) return;
+
+    // Persist the mood (game warm-up reads it) and mark that we asked today, so
+    // the check-in won't reappear on every visit to the main page.
+    try {
+      localStorage.setItem(MOOD_PICK_KEY, selection);
+      localStorage.setItem(MOOD_ASK_KEY, todayStr());
+    } catch { /* ignore */ }
+
+    // Keep the conversation going: swap the question for a warm, human reply and
+    // let the queue continue — never lock the UI or stop after a mood pick.
+    setMoodPicked(selection);
+    setOpen(true);
+    updateMyChatSessionMood(token, sessionId, selection).catch(() => {
+      /* mood is best-effort */
+    });
+  };
+
+  const activateMessageCta = () => {
+    const cta = msg?.cta;
+    if (!cta) return;
+    if (cta.gameId) {
+      goGame(cta.gameId);
+    } else if (cta.action === 'open-chat') {
+      openChatAtAvatar();
+    } else if (cta.action === 'browse-games') {
+      setOpen(false);
+      navigate('/games');
+    }
+  };
   const resolvedPose: Pose = broken[pose] ? 'idle' : pose;
 
   // The clip the state machine wants right now. A level-up celebration wins
-  // over everything; then flight owns the jet clips; otherwise an open chat
-  // talks, and the pose drives the rest.
+  // over everything; then, while the AI chat is open, the avatar mirrors the
+  // chat status (think → talk → idle); then flight owns the jet clips; otherwise
+  // a dialogue message talks while speaking and idles while awaiting a reply.
+  const activeFlight = suppressCompanion ? null : flight;
   const clip: ClipName = celebrating
     ? 'celebrate'
-    : flight
-      ? (`jet-${flight}` as ClipName)
-      : open && msg
-        ? 'talk'
-        : POSE_CLIP[resolvedPose];
+    : isAiChatOpen
+      ? (chatStatus === 'thinking' ? 'think' : chatStatus === 'answering' ? 'talk' : 'idle')
+      : activeFlight
+        ? (`jet-${activeFlight}` as ClipName)
+        : open && !suppressCompanion && msg
+          // talk while "speaking" a plain line; idle while a choice awaits the user
+          ? (msg.moodReplies ? 'think' : (msg.replies || msg.cta) ? 'idle' : 'talk')
+          : POSE_CLIP[resolvedPose];
 
-  const flying = flight === 'launch' || flight === 'cruise';
+  const flying = activeFlight === 'launch' || activeFlight === 'cruise';
+
+  const handleAvatarActivation = () => {
+    // Clicking the mascot while the AI chat is open closes it (the chat has no
+    // × button — the avatar is the toggle).
+    if (isAiChatOpen) { closeChat(); return; }
+    if (suppressCompanion) return;
+
+    // On EVERY page, clicking the mascot opens the AI chat anchored to it — so
+    // players can consult it mid-game (e.g. ask about the instructions), not
+    // just on home. If it's flying, play the LAND clip in place first, then open
+    // the chat when touchdown completes; otherwise open it where it stands.
+    if (flight === 'land') return;
+    if (flying) {
+      pendingChatAnchor.current = pinAvatarAndMeasure();
+      openChatAfterLand.current = true;
+      setFlight('land');
+      return;
+    }
+    openChatAtAvatar();
+  };
+
+  if (isInstructionAvatarVisible || isResultAvatarVisible || isJourneyRoute) return null;
 
   return (
     <div
       ref={rootRef}
-      className={`companion companion--${ctx} ${open ? 'is-talking' : ''} ${flying ? 'companion--flying' : ''}`}
+      className={`companion companion--${ctx} ${open && !suppressCompanion ? 'is-talking' : ''} ${flying ? 'companion--flying' : ''} ${activeFlight ? `companion--flight-${activeFlight}` : ''} ${suppressCompanion ? 'companion--ai-chat-open' : ''}`}
       dir="rtl"
     >
-      {open && msg && (
-        <div className="companion-bubble" role="status">
+      {open && msg && !suppressCompanion && (
+        <div
+          key={`${ctx}-${idx}-${msg.title ?? msg.text}`}
+          className='companion-message-cycle'
+          style={{ animationDuration: `${msg.durationMs ?? readMs(msg.text)}ms` }}
+        >
+        <div className="companion-bubble" role="status" dir={msg.dir ?? 'rtl'}>
           <button className="companion-close" onClick={() => { setOpen(false); setDismissed(true); }} aria-label="סגור">×</button>
-          <p className="companion-greet">{msg.text}</p>
+          {msg.title && <p className='companion-greet'>{msg.title}</p>}
+          {msg.text && (
+            <p className={msg.title ? 'companion-reason' : 'companion-greet'}>{msg.text}</p>
+          )}
           {msg.cta && (
-            <button className="companion-cta" onClick={() => goGame(msg.cta!.gameId)}>
+            <button className="companion-cta" onClick={activateMessageCta}>
               {msg.cta.label} ←
             </button>
           )}
@@ -318,31 +941,41 @@ export default function CompanionAvatar() {
               ))}
             </div>
           )}
+          {msg.moodReplies && (
+            <div className='companion-replies'>
+              {msg.moodReplies.map((reply) => (
+                <button
+                  key={reply.value}
+                  className='companion-reply'
+                  onClick={() => selectMood(reply.value)}
+                >
+                  {reply.label}
+                </button>
+              ))}
+            </div>
+          )}
+        </div>
         </div>
       )}
 
       <button
         className="companion-char"
-        onClick={() => {
-          // clicking mid-flight lands it ON THE SPOT, then the chat opens
-          if (flying) {
-            openAfterLand.current = true;
-            landInPlace();
-            return;
-          }
-          if (flight === 'land') return; // already on approach
-          setDismissed(false);
-          setOpen((o) => !o);
-        }}
-        aria-label="המאמן שלי"
-        title="המאמן שלי"
+        onClick={handleAvatarActivation}
+        aria-label={ctx === 'home' || ctx === 'games' ? 'Open AI assistant' : 'המאמן שלי'}
+        title={ctx === 'home' || ctx === 'games' ? 'Open AI assistant' : 'המאמן שלי'}
       >
         {videoOk ? (
           <AvatarClip
             clip={clip}
             className="companion-video"
             onEnded={handleClipEnd}
-            onFail={() => { setVideoOk(false); setFlight(null); }}
+            onFail={() => {
+              const shouldOpenChat = openAfterLaunch.current;
+              openAfterLaunch.current = false;
+              setVideoOk(false);
+              setFlight(null);
+              if (shouldOpenChat) openChatAtAvatar();
+            }}
           />
         ) : !broken.idle ? (
           <img

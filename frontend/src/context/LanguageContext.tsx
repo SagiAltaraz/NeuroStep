@@ -33,7 +33,27 @@ const TRANSLATIONS = {
   'header.welcome':      { he: 'שלום',            en: 'Hello' },
   'header.admin':        { he: 'מנהל',            en: 'Admin Panel' },
   'header.journey':      { he: 'המסע שלי',         en: 'My Journey' },
+  'header.about':        { he: 'אודות',          en: 'About' },
   'header.lang.toggle':  { he: 'EN',              en: 'עברית' },
+
+  // About page
+  'about.page.title':          { he: 'אודות NeuroStep', en: 'About NeuroStep' },
+  'about.page.subtitle':       { he: 'פרויקט התמחות בהנדסת נתונים שמחבר משחקים לאימון קוגניטיבי', en: 'A data engineering internship project that connects games with cognitive training' },
+  'about.our-story.title':     { he: 'על הפרויקט', en: 'About the project' },
+  'about.our-story.text1':     { he: 'NeuroStep נוצר כדי לבחון איך משחקים יכולים לחזק יכולות קוגניטיביות בצורה שמרגישה באמת מרתקת.', en: 'NeuroStep was created to explore how games can strengthen cognitive abilities in a way that actually feels engaging.' },
+  'about.our-story.text2':     { he: 'הרעיון צמח במהלך התמחות בהנדסת נתונים, שבה הפער בין אימון קוגניטיבי מבוסס מחקר לבין החוויה של שימוש בו הפך קשה להתעלמות.', en: 'The idea took shape during a data engineering internship, where the gap between research-backed cognitive training and the experience of actually using it became hard to ignore.' },
+  'about.our-story.text3':     { he: 'בהתבסס על מחקר עדכני במדעי הקוגניציה, NeuroStep משלבת עקרונות למידה מוכחים עם משחקים שאנשים באמת רוצים לשחק, הכל עטוף בממשק נקי וידידותי.', en: 'Drawing on current research in cognitive science, NeuroStep combines proven learning principles with games people genuinely want to play, all wrapped in a clean, friendly interface.' },
+  'about.team.title':          { he: 'הכותבים', en: 'The creators' },
+  'about.team.subtitle':       { he: 'המפתחים שעיצבו את החוויה והקוד מאחורי NeuroStep', en: 'The developers who designed the experience and the code behind NeuroStep' },
+  'about.image.placeholder':    { he: 'תמונה', en: 'Image' },
+  'about.creator.1.name':      { he: 'שגיא אלטרץ', en: 'Sagi Altaraz' },
+  'about.creator.1.role':      { he: 'אדריכלות ותכנון מערכות', en: 'Architecture & System Design' },
+  'about.creator.2.name':      { he: 'דור אבגי', en: 'Dor Evgi' },
+  'about.creator.2.role':      { he: 'פיתוח Full-Stack ואינטגרציית בינה מלאכותית', en: 'Full-Stack Development & AI Integration' },
+  'about.creator.3.name':      { he: 'גיא רוטנברג', en: 'Guy Rotenberg' },
+  'about.creator.3.role':      { he: 'פיתוח Full-Stack ואינטגרציית בינה מלאכותית', en: 'Full-Stack Development & AI Integration' },
+  'about.creator.4.name':      { he: 'ליאן הרשקוביץ', en: 'Lian Hershkovits' },
+  'about.creator.4.role':      { he: 'Frontend ועיצוב', en: 'Frontend & Design' },
 
   // Home page hero
   'home.cta.start':      { he: 'התחל אימון',      en: 'Start Training' },
@@ -140,6 +160,21 @@ const TRANSLATIONS = {
   'inst.start':          { he: 'התחל משחק',           en: 'Start game' },
   'inst.rules.heading':  { he: 'הוראות המשחק',        en: 'How to play' },
   'inst.tips.heading':   { he: 'טיפים להצלחה',        en: 'Tips for success' },
+  'inst.recommendedTime': { he: 'זמן מומלץ למשחק הזה: כ-{minutes} דקות',
+                            en: 'Recommended time for this game: about {minutes} min' },
+  'training.timer.label':  { he: 'זמן אימון מומלץ', en: 'Recommended training time' },
+  'training.timer.done': {
+    he: 'כל הכבוד על ההשקעה! 🎉 סיימת את הזמן המומלץ — אם בא לך להמשיך, מעולה, אני איתך 💪',
+    en: "Well done on the effort! 🎉 You finished the recommended time — want to keep going? Awesome, I'm with you 💪",
+  },
+  'companion.home.moodAckAlert': {
+    he: 'איזה כיף שאתה עֵר ומוכן 💪 בוא ננצל את האנרגיה — בחרתי לך אתגר שיתאים בול לרֹאש שלך עכשיו.',
+    en: "Love that you're sharp today 💪 let's ride that energy — I've picked a challenge that fits your head right now.",
+  },
+  'companion.home.moodAckTired': {
+    he: 'הבנתי, אחד מהימים האלה 🌙 נעשה משהו קליל ונעים — בלי לחץ, רק להרגיש טוב שהתאמנת קצת.',
+    en: "Gotcha, one of those days 🌙 let's keep it light and kind — no pressure, just a small win today.",
+  },
 
   // End-of-session results overlay
   'results.finish':         { he: 'סיום אימון',              en: 'Finish session' },
@@ -181,7 +216,150 @@ const TRANSLATIONS = {
   'journey.of':       { he: 'מתוך',                      en: 'of' },
   'journey.you':      { he: 'אתה כאן',                   en: 'You are here' },
   'journey.play':     { he: 'אימון',                     en: 'Train' },
+  'journey.avatar.plan.focus':    { he: 'מוקד התוכנית', en: 'Plan focus' },
+  'journey.avatar.plan.sessions': { he: 'אימונים השבוע', en: 'sessions this week' },
+  'journey.avatar.plan.pending':  {
+    he: 'עדיין אין מספיק נתוני אימון לבניית תוכנית אישית.',
+    en: 'There is not enough training data to build a personalized plan yet.',
+  },
 
+  'journey.avatar.openChat': {
+    he: '\u05e4\u05ea\u05d7 \u05d0\u05ea \u05d4\u05e2\u05d5\u05d6\u05e8 \u05d4\u05d7\u05db\u05dd',
+    en: 'Open the smart assistant',
+  },
+  'journey.avatar.consult': {
+    he: '\u05dc\u05d7\u05e5 \u05e2\u05dc\u05d9\u05d9 \u05dc\u05d4\u05ea\u05d9\u05d9\u05e2\u05e6\u05d5\u05ea',
+    en: 'Activate me for advice',
+  },
+
+  // Contextual companion suggestions
+  'companion.home.openAssistant': {
+    he: 'יש לך שאלה או משהו על הלב? לחץ עליי ואני כאן בשבילך 💬',
+    en: "Got a question or something on your mind? Tap me — I'm here for you 💬",
+  },
+  'companion.home.loadingChat': {
+    he: '\u05d8\u05d5\u05e2\u05df \u05e6\u05f3\u05d0\u05d8\u2026',
+    en: 'Loading chat\u2026',
+  },
+  'companion.home.hello': {
+    he: '\u05e9\u05dc\u05d5\u05dd',
+    en: 'Hello',
+  },
+  'companion.home.introduction': {
+    he: '\u05d0\u05e0\u05d9 \u05d4\u05de\u05d0\u05de\u05df \u05d4\u05d0\u05d9\u05e9\u05d9 \u05e9\u05dc\u05da \u05db\u05d0\u05df \ud83e\udd17 \u05d1\u05db\u05dc \u05e8\u05d2\u05e2 \u05e9\u05d1\u05d0 \u05dc\u05da \u2014 \u05e4\u05e9\u05d5\u05d8 \u05dc\u05d7\u05e5 \u05e2\u05dc\u05d9\u05d9 \u05d5\u05e0\u05d3\u05d1\u05e8.',
+    en: "I'm your personal coach \ud83e\udd17 whenever you feel like it, just tap me and let's talk.",
+  },
+  'companion.home.moodTitle': {
+    he: '\u05dc\u05e4\u05e0\u05d9 \u05e9\u05e0\u05ea\u05d7\u05d9\u05dc \u2014 \u05d0\u05d9\u05da \u05d0\u05ea\u05d4 \u05de\u05e8\u05d2\u05d9\u05e9 \u05d4\u05d9\u05d5\u05dd?',
+    en: 'Before we start \u2014 how are you feeling today?',
+  },
+  'companion.home.moodAlert': {
+    he: '\u05e2\u05d9\u05e8\u05e0\u05d9 \u26a1',
+    en: 'Alert \u26a1',
+  },
+  'companion.home.moodTired': {
+    he: '\u05e2\u05d9\u05d9\u05e3 \ud83d\ude34',
+    en: 'Tired \ud83d\ude34',
+  },
+  'companion.home.planRecommendation': {
+    he: '\u05dc\u05e4\u05d9 \u05de\u05d4 \u05e9\u05d0\u05e0\u05d9 \u05e8\u05d5\u05d0\u05d4 \u05d0\u05e6\u05dc\u05da, \u05d4\u05db\u05d9 \u05e9\u05d5\u05d5\u05d4 \u05dc\u05d7\u05d6\u05e7 \u05d4\u05d9\u05d5\u05dd \u05d0\u05ea: {domains} \ud83c\udfaf',
+    en: "From what I'm seeing, today it's most worth strengthening: {domains} \ud83c\udfaf",
+  },
+  'companion.home.recommendedTrainingTime': {
+    he: '\u05de\u05d5\u05de\u05dc\u05e5 \u05dc\u05d4\u05ea\u05d0\u05de\u05df {minutes} \u05d3\u05e7\u05d5\u05ea',
+    en: 'Recommended training time: {minutes} minutes',
+  },
+  'companion.game.timeRemaining': {
+    he: '\u05d6\u05de\u05df \u05d0\u05d9\u05de\u05d5\u05df \u05e0\u05d5\u05ea\u05e8',
+    en: 'Training time remaining',
+  },
+  'companion.home.startTraining': {
+    he: 'בא לך להתחיל? יש לי בדיוק משהו שמתאים לך עכשיו 🙂',
+    en: "Feel like starting? I've got just the thing for you right now 🙂",
+  },
+  'companion.games.select': {
+    he: 'מה מתחשק לך לתרגל היום? אני אעזור לך לבחור 🙌',
+    en: "What do you feel like practicing today? I'll help you choose 🙌",
+  },
+  'companion.recommended': { he: 'חשבתי עליך — הנה מה שהכי שווה לך עכשיו:', en: "Thought of you — here's what's most worth it right now:" },
+  'companion.choose.title':     { he: 'על מה בא לך לעבוד עכשיו?', en: 'What would you like to work on now?' },
+  'companion.choose.memory':    { he: 'זיכרון 🧠', en: 'Memory 🧠' },
+  'companion.choose.attention': { he: 'קשב 🎯', en: 'Attention 🎯' },
+  'companion.choose.reaction':  { he: 'תגובה ⚡', en: 'Reaction ⚡' },
+  'companion.game.thisTraining': { he: 'האימון הזה', en: 'this training' },
+  'companion.game.tip.focus': {
+    he: 'בוא נתמקד ב{game} 💪 קח את הזמן שלך — אני כאן איתך לכל אורך הדרך.',
+    en: "Let's focus on {game} 💪 take your time — I'm right here with you.",
+  },
+  'companion.game.tip.breath': {
+    he: 'טיפ קטן: נשימה עמוקה לפני כל סבב מחדדת את הקשב ומרגיעה 🙂',
+    en: 'Small tip: a deep breath before each round sharpens focus and calms you 🙂',
+  },
+  'companion.game.tip.strengthen': {
+    he: 'כל סבב שאתה עושה מחזק אותך — {game} זה בדיוק סוג האימון שהמוח שלך אוהב.',
+    en: 'Every round makes you stronger — {game} is exactly the kind of workout your brain loves.',
+  },
+  'companion.game.tip.learning': {
+    he: 'אם זה מרגיש מאתגר, זה סימן שאתה לומד. אני גאה בך שאתה כאן 🚀',
+    en: "If it feels challenging, that means you're learning. I'm proud you're here 🚀",
+  },
+  'companion.games.intro': {
+    he: 'איזה כיף שבאת להתאמן 🙌 בחר תחום ואני אתפור לך משחק שמתאים בול לרמה שלך.',
+    en: "So glad you came to train 🙌 pick an area and I'll tailor a game that fits your level.",
+  },
+  'companion.home.greetingFallback': { he: 'היי! כיף לראות אותך 👋', en: 'Hey! Great to see you 👋' },
+  'companion.home.reasonFallback': {
+    he: 'בא לך אימון קצר ונעים? בוא נתחיל 🙂',
+    en: "Feel like a short, pleasant session? Let's start 🙂",
+  },
+  'companion.home.coach': { he: 'אני המאמן שלך — כאן לאורך כל הדרך 🤖', en: "I'm your coach — here with you all the way 🤖" },
+  'companion.home.ctaPlay': { he: 'בוא נשחק ב{game}', en: "Let's play {game}" },
+  'companion.play':        { he: 'התחל',                 en: 'Start' },
+  // Structured companion suggestions
+  'companion.suggestion.plan-game': {
+    he: 'תוכנית האימון הנוכחית שלך כוללת את {game}.',
+    en: 'Your current training plan includes {game}.',
+  },
+  'companion.suggestion.open-assistant': {
+    he: 'אפשר לפתוח את עוזר ה-AI כדי לשאול שאלה.',
+    en: 'You can open the AI assistant to ask a question.',
+  },
+  'companion.suggestion.browse-games': {
+    he: 'אפשר לעיין במשחקים הזמינים ולבחור פעילות.',
+    en: 'Browse the available games and choose an activity.',
+  },
+  'companion.suggestion.recorded-level': {
+    he: 'הרמה המתועדת שלך במסע היא {level}.',
+    en: 'Your recorded journey level is {level}.',
+  },
+  'companion.suggestion.journey-map': {
+    he: 'אפשר לעיין במפת המסע או לבחור פעילות אימון.',
+    en: 'View your journey map or choose a training activity.',
+  },
+  'companion.suggestion.weekly-plan': {
+    he: 'התוכנית השבועית שלך כוללת {sessionsPerWeek} אימונים ב{game}.',
+    en: 'Your weekly plan includes {sessionsPerWeek} sessions of {game}.',
+  },
+  'companion.suggestion.next-activity': {
+    he: 'הפעילות הבאה שמוצעת לך היא {game}.',
+    en: 'Your next suggested activity is {game}.',
+  },
+  'companion.suggestion.same-domain-pair': {
+    he: 'לחיזוק {domain} — שני תרגילים מומלצים, בחר אחד:',
+    en: 'To strengthen {domain} — two recommended exercises, pick one:',
+  },
+  'companion.action.start-game': {
+    he: 'התחל את {game}',
+    en: 'Start {game}',
+  },
+  'companion.action.open-assistant': {
+    he: 'פתח את עוזר ה-AI',
+    en: 'Open AI assistant',
+  },
+  'companion.action.browse-games': {
+    he: 'עיין במשחקים',
+    en: 'Browse games',
+  },
   // Cognitive-domain trend
   'trend.up':     { he: 'עולה',  en: 'Improving' },
   'trend.stable': { he: 'יציב',  en: 'Steady' },

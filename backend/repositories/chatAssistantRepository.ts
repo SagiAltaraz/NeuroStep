@@ -1,4 +1,4 @@
-﻿import Anthropic from '@anthropic-ai/sdk';
+import Anthropic from '@anthropic-ai/sdk';
 import { CHAT_ASSISTANT_SYSTEM_MESSAGE } from '../config/chatAssistantSystemMessage.ts';
 import type { ChatHistoryMessage } from '../agents/gameAgentChatOrchestrator.ts';
 import type { CollectedAgentData } from './gameAgentDataRepository.ts';
@@ -21,6 +21,7 @@ export type ChatDataPlan = {
       | 'reports'
       | 'coachReports'
       | 'alerts'
+      | 'trainingPlan'
       | 'general';
    needsUserData: boolean;
    dataRequests: string[];
@@ -28,11 +29,48 @@ export type ChatDataPlan = {
    sessionStatePatch?: ChatSessionStatePatch;
 };
 
+const TRAINING_PLAN_KEYWORDS = [
+   'התוכנית שלי',
+   'התכנית שלי',
+   'תוכנית שלי',
+   'תכנית שלי',
+   'התוכנית האישית',
+   'תוכנית אישית',
+   'תוכנית האימון',
+   'תכנית האימון',
+   'תוכנית אימון',
+   'תכנית אימון',
+   'אימון שבועי',
+   'האימון השבועי',
+   'מה התוכנית',
+   'מה התכנית',
+   'plan',
+   'my plan',
+   'training plan',
+   'my training plan',
+];
+
+const asksForTrainingPlan = (
+   prompt: string,
+   history: ChatHistoryMessage[] = []
+) => {
+   const haystack = [
+      prompt,
+      ...history.slice(-3).map((message) => message.text),
+   ]
+      .join(' ')
+      .toLowerCase();
+
+   return TRAINING_PLAN_KEYWORDS.some((keyword) =>
+      haystack.includes(keyword.toLowerCase())
+   );
+};
+
 const DEFAULT_PLAN: ChatDataPlan = {
    intent: 'general',
    needsUserData: false,
    dataRequests: [],
-   goalHe: 'ענה למשתמש בעברית בצורה קצרה וברורה על שימוש ב-NeuroStep.',
+   goalHe: 'Answer briefly and directly in Hebrew about NeuroStep.',
    sessionStatePatch: {},
 };
 
@@ -78,11 +116,11 @@ const parseJsonObject = (text: string): unknown => {
 };
 
 const formatHistory = (history: ChatHistoryMessage[] = []): string => {
-   if (history.length === 0) return 'אין היסטוריית שיחה קודמת בסשן הנוכחי.';
+   if (history.length === 0) return 'No previous chat history in this session.';
 
    return history
       .map((message, index) => {
-         const speaker = message.sender === 'user' ? 'משתמש' : 'עוזר';
+         const speaker = message.sender === 'user' ? 'User' : 'Assistant';
          return `${index + 1}. ${speaker}: ${message.text}`;
       })
       .join('\n');
@@ -97,6 +135,7 @@ const toPlan = (value: unknown): ChatDataPlan => {
       'reports',
       'coachReports',
       'alerts',
+      'trainingPlan',
       'general',
    ]);
    const intent =
@@ -132,12 +171,23 @@ export const chatAssistantRepository = {
       prompt: string,
       history: ChatHistoryMessage[] = []
    ): Promise<ChatDataPlan> {
+      if (asksForTrainingPlan(prompt, history)) {
+         return {
+            intent: 'trainingPlan',
+            needsUserData: true,
+            dataRequests: ['trainingPlan'],
+            goalHe:
+               'Briefly show the user their personal training plan: focus domain, top recommended game, and weekly frequency only.',
+            sessionStatePatch: {},
+         };
+      }
+
       try {
          const message = await createClaudeClient().messages.create({
             model: 'claude-haiku-4-5-20251001',
             system: [
                'You are the planning layer for the NeuroStep chat assistant.',
-               'Given the current user prompt and the current chat-session history, decide which game-agent outputs should be read before answering.',
+               'Given the current user prompt and chat-session history, decide which user data should be read before answering.',
                'Use history to resolve follow-up questions such as "what about that?" or "explain more".',
                'Also extract current user-state signals for training adaptation when the user provides them.',
                'Do not infer medical status. Use null for unknown fields.',
@@ -149,6 +199,7 @@ export const chatAssistantRepository = {
                '- recentReports: recent per-session cognitive scores, domain scores, summaries',
                '- coachReports: longitudinal reports across multiple sessions',
                '- alerts: performance decline alerts, if any',
+               '- trainingPlan: the user weekly personalized training plan, including priority domains, recommended games, sessions per week, and reasons',
                'Set needsUserData=false only for general product/help questions that do not need personal data.',
             ].join('\n'),
             messages: [
@@ -163,10 +214,10 @@ export const chatAssistantRepository = {
                      '',
                      'Return JSON in this exact shape:',
                      '{',
-                     '  "intent": "progression|profile|reports|coachReports|alerts|general",',
+                     '  "intent": "progression|profile|reports|coachReports|alerts|trainingPlan|general",',
                      '  "needsUserData": true,',
                      '  "dataRequests": ["progression", "profile"],',
-                     '  "goalHe": "מטרת התשובה בעברית קצרה",',
+                     '  "goalHe": "Short answer goal in Hebrew",',
                      '  "sessionStatePatch": {',
                      '    "alertness": "low|medium|high|null",',
                      '    "mood": "positive|neutral|stressed|sad|tired|null",',
@@ -175,9 +226,14 @@ export const chatAssistantRepository = {
                      '    "preferredDomain": "working-memory|selective-attention|divided-attention|processing-speed|reaction-time|response-inhibition|strategic-thinking|visual-spatial|null",',
                      '    "recommendedSessionLengthMin": 10,',
                      '    "recommendedDifficulty": "easier|normal|harder|null",',
-                     '    "notesHe": "סיכום קצר בעברית של המצב הנוכחי או null"',
+                     '    "notesHe": "Short Hebrew state summary or null"',
                      '  }',
                      '}',
+                     '',
+                     'recommendedSessionLengthMin MUST be between 5 and 15, scaled by the',
+                     "user's level in the cognitive category being trained: lower level →",
+                     'shorter (closer to 5); higher level → longer (closer to 15). If the mood',
+                     'is tired, bias shorter and set recommendedDifficulty to "easier".',
                   ].join('\n'),
                },
             ],
@@ -206,43 +262,41 @@ export const chatAssistantRepository = {
                {
                   role: 'user',
                   content: [
-                     'ענה למשתמש בעברית בלבד.',
-                     'ענה בקצרה. ברירת המחדל היא 1-3 משפטים או עד 3 קישורים רלוונטיים.',
-                     'אל תפרט מעבר למה שהתבקש. הרחב רק אם המשתמש ביקש במפורש פירוט, הסבר, דוגמאות או ניתוח.',
-                     'כאשר יש מסך פנימי רלוונטי, העדף תמיד להחזיר קישור פנימי במקום תשובה מילולית ארוכה.',
-                     'היסטוריית השיחה מיועדת רק להבנת ההקשר. אל תעדיף סיכום של ההיסטוריה על פני הפניה למסך מתאים.',
-                     'אם שאלת המשך מתייחסת לנושא שכבר הופיע בהיסטוריה ויש לו מסך מתאים, החזר את הקישור למסך הזה.',
-                     'השתמש בקישורי Markdown פנימיים בלבד, למשל [המסע שלי](/journey).',
-                     'תן הסבר קצר של משפט אחד לכל היותר לפני או אחרי הקישורים, אלא אם המשתמש ביקש פירוט מפורש.',
-                     'בסוף כל תגובה הוסף שאלה מנחה אחת וקצרה למשתמש.',
-                     'השאלה המנחה צריכה לשאול בעדיפות על עירנות ומצב רוח, כדי להתאים זמן משחק ורמת קושי.',
-                     'אם כבר ידועות העירנות ומצב הרוח מהסשן, אפשר לשאול על זמן פנוי, תחום שרוצה לתרגל או האם האימון מרגיש קל/מאתגר מדי.',
-                     'נסח את השאלה באופן טבעי ולא רפואי, למשל: איך העירנות ומצב הרוח שלך עכשיו?',
-                     'השאלה צריכה להיות לא יותר ממשפט אחד.',
-                     'אם נאסף מצב משתמש בסשן הצ׳אט, השתמש בו כדי להציע זמן אימון ורמת קושי באופן עדין ולא רפואי.',
-                     'התייחס להיסטוריית השיחה רק כסשן זמני של 10 דקות, והשתמש בה כדי להבין שאלות המשך.',
-                     'השתמש רק במידע שנאסף מהמערכת כאשר אתה מתייחס למצב האישי של המשתמש.',
-                     'אל תמציא ציונים, אבחנות רפואיות, או נתונים שלא מופיעים ב-JSON.',
-                     'אם אין מספיק מידע אישי, אמור זאת בעדינות והצע להשלים עוד אימון.',
+                     'Answer in Hebrew only.',
+                     'Keep the final answer very short and focused.',
+                     'Default length: one short paragraph, up to 2 sentences.',
+                     'Format the answer as clean Markdown with spacing: short intro line, blank line, then up to 2 bullet points when useful.',
+                     'Do not output dense paragraphs. Use line breaks so the chat bubble is easy to scan.',
+                     'Always include exactly one relevant internal Markdown link when a matching screen exists.',
+                     'Keep links on their own line when possible.',
+                     'For trainingPlan intent: include only focus domain, top recommended game, and weekly frequency; do not list every item unless the user asks.',
+                     'For trainingPlan intent, the top recommended game MUST be a Markdown link using the item gameHe as label and item gameRoute as href, for example [Memory](/games/memory).',
+                     'For training plans, prefer [המסע שלי](/journey) or [כל המשחקים](/games).',
+                     'Always end with exactly one short guiding question in Hebrew.',
+                     'The guiding question should prefer alertness and mood; if those are already known, ask about available time, preferred domain, or whether the training feels too easy or too hard.',
+                     'Keep the guiding question on its own final line and do not add more than one question mark.',
+                     'Use only the collected JSON data when referencing the user personal state.',
+                     'Do not invent scores, diagnoses, reports, or personal details that do not appear in the JSON.',
+                     'If there is not enough personal data, say so briefly and suggest completing another training session.',
                      '',
-                     `מטרת התשובה: ${plan.goalHe}`,
+                     `Answer goal: ${plan.goalHe}`,
                      '',
-                     'קישורים פנימיים זמינים במערכת:',
+                     'Available internal links:',
                      INTERNAL_LINK_GUIDE,
                      '',
-                     'מצב המשתמש שנאסף מסשן הצ׳אט הנוכחי:',
+                     'Temporary user state collected in this chat session:',
                      JSON.stringify(plan.sessionStatePatch ?? {}, null, 2),
                      '',
-                     'היסטוריית השיחה בסשן הנוכחי:',
+                     'Chat history in this session:',
                      formatHistory(history),
                      '',
-                     'שאלת המשתמש הנוכחית:',
+                     'Current user prompt:',
                      prompt,
                      '',
-                     'תוכנית איסוף המידע:',
-                     JSON.stringify(plan),
+                     'Data access plan:',
+                     JSON.stringify(plan, null, 2),
                      '',
-                     'מידע שנאסף מתוצרי סוכני המשחק:',
+                     'Collected user data:',
                      JSON.stringify(
                         data ?? {
                            requested: [],
@@ -255,7 +309,7 @@ export const chatAssistantRepository = {
                },
             ],
             temperature: 0.5,
-            max_tokens: 500,
+            max_tokens: 600,
          });
 
          return textFromClaude(message) || 'לא הצלחתי להכין תשובה כרגע.';
@@ -283,4 +337,3 @@ export const chatAssistantRepository = {
       return this.generateGroundedReply(prompt, plan, null);
    },
 };
-

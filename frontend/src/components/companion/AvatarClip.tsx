@@ -54,6 +54,7 @@ const FADE_MS = 320;
 interface Props {
    clip: ClipName;
    className?: string;
+   playbackRate?: number;
    onEnded?: (clip: ClipName) => void;
    onFail?: () => void;
 }
@@ -65,7 +66,7 @@ export default function AvatarClip(props: Props) {
 }
 
 // Chrome/Firefox path: WebM+alpha in a straightforward A/B <video> buffer.
-function WebmClip({ clip, className, onEnded, onFail }: Props) {
+function WebmClip({ clip, className, playbackRate = 1, onEnded, onFail }: Props) {
    // Two buffers; `active` is the visible one, the other stages the next clip.
    const [slots, setSlots] = useState<(ClipName | null)[]>([clip, null]);
    const [active, setActive] = useState(0);
@@ -74,10 +75,16 @@ function WebmClip({ clip, className, onEnded, onFail }: Props) {
    const realFailures = useRef(0);
    const refs = [vidA, vidB];
 
+   useEffect(() => {
+      if (vidA.current) vidA.current.playbackRate = playbackRate;
+      if (vidB.current) vidB.current.playbackRate = playbackRate;
+   }, [playbackRate]);
+
    const swapTo = useCallback(
       (idx: number) => {
          const vid = refs[idx === 0 ? 0 : 1].current;
          if (!vid) return;
+         vid.playbackRate = playbackRate;
          try { vid.currentTime = 0; } catch { /* not seekable yet */ }
          vid.play().catch(() => {});
          setActive(idx);
@@ -86,7 +93,7 @@ function WebmClip({ clip, className, onEnded, onFail }: Props) {
       },
       // refs are stable
       // eslint-disable-next-line react-hooks/exhaustive-deps
-      [],
+      [playbackRate],
    );
 
    // A new clip was requested → stage it in the hidden buffer, or — if that

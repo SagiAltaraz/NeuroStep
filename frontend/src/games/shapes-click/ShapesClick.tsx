@@ -3,6 +3,7 @@ import { useNavigate } from 'react-router-dom';
 import { ChevronRight } from 'lucide-react';
 import Phaser from 'phaser';
 import type { GameAdjustment } from '../../hooks/useGameSession';
+import { emitCelebrate } from '../../components/companion/celebrate';
 import { getGameLabels, type GameLabels } from '../../data/gameLabels';
 import { useLang } from '../../context/LanguageContext';
 import './ShapesClick.css';
@@ -493,6 +494,8 @@ class ShapesScene extends Phaser.Scene {
     this.showFeedback('✓', '#16a34a');
 
     this.fireAction('CIRCLE_HIT', { reactionMs, streak: this.streak, level: this.level });
+    // Celebrate every 5 consecutive hits (streak resets on a miss/timeout).
+    if (this.streak > 0 && this.streak % 5 === 0) emitCelebrate();
     this.scheduleNextSpawn();
   }
 

@@ -1,21 +1,24 @@
-﻿import React, { useEffect, useRef, useState } from 'react';
+﻿import React, { useCallback, useEffect, useRef, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import './ChatAssistant.css';
 import axios from 'axios';
 import { useAuth } from '../../context/AuthContext';
+import { useChatController } from '../../context/ChatControllerContext';
+import {
+   CHAT_RESET_EVENT,
+   CHAT_STORAGE_KEY,
+   type StoredChatSession,
+} from './chatSessionStorage';
 
-type Message = {
+export type Message = {
    sender: 'ai' | 'user';
    text: string;
 };
 
-type StoredChatSession = {
-   sessionId: string;
-   lastMessageAt: number;
-   messages: Message[];
-};
+interface ChatAssistantProps {
+   showLauncher?: boolean;
+}
 
-const CHAT_STORAGE_KEY = 'neurostep.chat.session.v1';
 const CHAT_SESSION_TTL_MS = 10 * 60 * 1000;
 const INITIAL_MESSAGE: Message = {
    sender: 'ai',
@@ -85,14 +88,14 @@ const recentHistory = (messages: Message[]) =>
       .filter((message) => message.text.trim().length > 0)
       .slice(-12);
 
-const ChatAssistant = () => {
+const ChatAssistant = ({ showLauncher = true }: ChatAssistantProps) => {
    const { token } = useAuth();
+   const { isOpen, openChat, closeChat, status, setStatus, anchor } = useChatController();
    const navigate = useNavigate();
    const [initialSession] = useState(loadChatSession);
    const [sessionId, setSessionId] = useState(initialSession.sessionId);
    const [lastMessageAt, setLastMessageAt] = useState(initialSession.lastMessageAt);
    const [messages, setMessages] = useState<Message[]>(initialSession.messages);
-   const [isOpen, setIsOpen] = useState(false);
    const [isClosing, setIsClosing] = useState(false);
    const [input, setInput] = useState('');
    const [isLoading, setIsLoading] = useState(false);
@@ -103,9 +106,38 @@ const ChatAssistant = () => {
    }, [sessionId, lastMessageAt, messages]);
 
    useEffect(() => {
+      const resetChatState = () => {
+         const fresh = createChatSession();
+         setSessionId(fresh.sessionId);
+         setLastMessageAt(fresh.lastMessageAt);
+         setMessages(fresh.messages);
+         setInput('');
+         setIsLoading(false);
+      };
+
+      window.addEventListener(CHAT_RESET_EVENT, resetChatState);
+      return () => window.removeEventListener(CHAT_RESET_EVENT, resetChatState);
+   }, []);
+
+   useEffect(() => {
       if (!isOpen) return;
       messagesEndRef.current?.scrollIntoView({ block: 'end' });
    }, [isOpen, messages, isLoading]);
+
+   // After a reply is shown, let the avatar settle from 'talk' back to 'idle'.
+   useEffect(() => {
+      if (status !== 'answering') return;
+      const timer = window.setTimeout(() => setStatus('idle'), 2600);
+      return () => window.clearTimeout(timer);
+   }, [status, setStatus]);
+
+   // Auto-close the chat after 40s of user inactivity — but never while a reply
+   // is still being awaited ('thinking'). Typing or any new message resets it.
+   useEffect(() => {
+      if (!isOpen || status === 'thinking') return;
+      const timer = window.setTimeout(() => closeChat(), 40_000);
+      return () => window.clearTimeout(timer);
+   }, [isOpen, status, lastMessageAt, input, closeChat]);
 
    const renderMessageText = (text: string) => {
       const nodes: React.ReactNode[] = [];
@@ -123,7 +155,7 @@ const ChatAssistant = () => {
                type="button"
                className="chat-inline-link"
                onClick={() => {
-                  setIsOpen(false);
+                  closeChat();
                   navigate(href);
                }}
             >
@@ -139,7 +171,7 @@ const ChatAssistant = () => {
       ));
    };
 
-   const ensureActiveSession = (): StoredChatSession => {
+   const ensureActiveSession = useCallback((): StoredChatSession => {
       if (Date.now() - lastMessageAt <= CHAT_SESSION_TTL_MS) {
          return { sessionId, lastMessageAt, messages };
       }
@@ -150,7 +182,16 @@ const ChatAssistant = () => {
       setMessages(fresh.messages);
       persistChatSession(fresh);
       return fresh;
-   };
+   }, [lastMessageAt, messages, sessionId]);
+
+   useEffect(() => {
+      if (!isOpen) return;
+      const activeSession = ensureActiveSession();
+      setSessionId(activeSession.sessionId);
+      setMessages(activeSession.messages);
+      setLastMessageAt(activeSession.lastMessageAt);
+      setIsClosing(false);
+   }, [isOpen, ensureActiveSession]);
 
    const appendMessages = (
       nextMessages: Message[],
@@ -176,6 +217,7 @@ const ChatAssistant = () => {
 
       setInput('');
       setIsLoading(true);
+      setStatus('thinking');                 // avatar plays 'think' while we wait
       setSessionId(activeSession.sessionId);
       appendMessages(messagesWithUser, Date.now(), activeSession.sessionId);
 
@@ -201,6 +243,7 @@ const ChatAssistant = () => {
             Date.now(),
             activeSession.sessionId
          );
+         setStatus('answering');             // avatar plays 'talk' when the reply lands
       } catch (err: unknown) {
          console.error('Error with AI API:', err);
          let errorMsg = 'Connection failed';
@@ -220,6 +263,7 @@ const ChatAssistant = () => {
                text: `מצטער, יש כרגע בעיה בחיבור: ${errorMsg}`,
             },
          ], Date.now(), activeSession.sessionId);
+         setStatus('idle');
       } finally {
          setIsLoading(false);
       }
@@ -232,13 +276,8 @@ const ChatAssistant = () => {
       }
    };
 
-   const openChat = () => {
-      const activeSession = ensureActiveSession();
-      setSessionId(activeSession.sessionId);
-      setMessages(activeSession.messages);
-      setLastMessageAt(activeSession.lastMessageAt);
-      setIsClosing(false);
-      setIsOpen(true);
+   const handleOpenChat = () => {
+      openChat('button');
    };
 
    const startNewChatSession = () => {
@@ -251,18 +290,22 @@ const ChatAssistant = () => {
       persistChatSession(fresh);
    };
 
-   const closeChat = () => {
+   const handleCloseChat = () => {
       setIsClosing(true);
       window.setTimeout(() => {
-         setIsOpen(false);
+         closeChat();
          setIsClosing(false);
       }, 220);
    };
 
+   if (!isOpen && !showLauncher) {
+      return <div className="chat-assistant" />;
+   }
+
    return (
       <div className="chat-assistant">
          {!isOpen ? (
-            <button className="chat-toggle-button" onClick={openChat} aria-label="Open AI assistant">
+            <button className="chat-toggle-button" onClick={handleOpenChat} aria-label="Open AI assistant">
                <svg width="18" height="18" viewBox="0 0 24 24" fill="none" aria-hidden="true">
                   <path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z"
                      stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"/>
@@ -270,18 +313,31 @@ const ChatAssistant = () => {
                עוזר AI
             </button>
          ) : (
-            <div className="chat-overlay" onClick={closeChat}>
+            <div className="chat-overlay" onClick={handleCloseChat}>
                <div
                   className={`chat-container ${isClosing ? 'closing' : ''}`}
                   onClick={(e) => e.stopPropagation()}
+                  style={
+                     anchor?.top != null
+                        ? {
+                             top: `${anchor.top}px`,
+                             bottom: 'auto',
+                             right: `${anchor.right}px`,
+                             maxHeight: `calc(100dvh - ${anchor.top + 24}px)`,
+                          }
+                        : anchor?.bottom != null
+                        ? {
+                             top: 'auto',
+                             bottom: `${anchor.bottom}px`,
+                             right: `${anchor.right}px`,
+                             maxHeight: `calc(100dvh - ${anchor.bottom + 76}px)`,
+                          }
+                        : undefined
+                  }
                >
                   <div className="chat-header">
                      <div className="chat-title">
-                        <div className="chat-avatar" aria-hidden="true">🧠</div>
-                        <div className="chat-title-text">
-                           <span className="chat-title-main">עוזר AI</span>
-                           <span className="chat-title-sub">מבוסס על הפרופיל שלך</span>
-                        </div>
+                        <span className="chat-title-main">עוזר AI</span>
                      </div>
                      <div className="chat-header-actions">
                         <button
@@ -291,9 +347,6 @@ const ChatAssistant = () => {
                            disabled={isLoading}
                         >
                            שיחה חדשה
-                        </button>
-                        <button className="chat-close-button" onClick={closeChat} aria-label="סגור">
-                           ×
                         </button>
                      </div>
                   </div>

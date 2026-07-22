@@ -3,6 +3,7 @@ import { useNavigate } from 'react-router-dom';
 import { ChevronRight } from 'lucide-react';
 import Phaser from 'phaser';
 import type { GameAdjustment } from '../../hooks/useGameSession';
+import { emitCelebrate } from '../../components/companion/celebrate';
 import { getGameLabels, type GameLabels } from '../../data/gameLabels';
 import { useLang } from '../../context/LanguageContext';
 import './SpotDifference.css';
@@ -77,6 +78,7 @@ class SpotDifferenceScene extends Phaser.Scene {
   // Stats
   private score = 0;
   private round = 0;
+  private celebrateStreak = 0;
 
   // Round state
   private cells: Phaser.GameObjects.Rectangle[] = [];
@@ -259,6 +261,9 @@ class SpotDifferenceScene extends Phaser.Scene {
       this.scoreText.setText(String(this.score));
       this.flash(this.labels.correct, '#22c55e');
       this.fireAction('ODD_HIT', { round: this.round, reactionMs }, reactionMs, true);
+      // Celebrate every 5 correct finds in a row (resets on a wrong pick / timeout).
+      this.celebrateStreak++;
+      if (this.celebrateStreak % 5 === 0) emitCelebrate();
       this.endRound();
     } else {
       // Wrong cell — shake it and end the round
@@ -268,6 +273,7 @@ class SpotDifferenceScene extends Phaser.Scene {
       });
       this.flash(this.labels.wrong, '#ef4444');
       this.fireAction('WRONG_PICK', { round: this.round, reactionMs }, reactionMs, false);
+      this.celebrateStreak = 0;
       this.endRound();
     }
   }
@@ -276,6 +282,7 @@ class SpotDifferenceScene extends Phaser.Scene {
     if (!this.isRoundActive) return;
     this.flash(this.labels.timeout, '#fbbf24');
     this.fireAction('TIMEOUT', { round: this.round }, undefined, false);
+    this.celebrateStreak = 0;
     this.endRound();
   }
 
@@ -336,9 +343,10 @@ interface SpotDifferenceProps {
   config?:     Partial<GameConfig>;
   onAction?:   (action: GameAction) => void;
   adjustment?: GameAdjustment;
+  onExit?:     () => void;
 }
 
-export default function SpotDifference({ config, onAction, adjustment }: SpotDifferenceProps) {
+export default function SpotDifference({ config, onAction, adjustment, onExit }: SpotDifferenceProps) {
   const navigate     = useNavigate();
   const containerRef = useRef<HTMLDivElement>(null);
   const gameRef      = useRef<Phaser.Game | null>(null);
@@ -386,7 +394,7 @@ export default function SpotDifference({ config, onAction, adjustment }: SpotDif
     <div className="spot-difference-game">
       <div className="game-back-row" dir="rtl">
         <button
-          onClick={() => navigate('/games')}
+          onClick={() => (onExit ? onExit() : navigate('/games'))}
           className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-full text-sm font-medium text-blue-600 bg-blue-50 hover:bg-blue-100 border border-blue-100 transition-colors duration-200"
         >
           <ChevronRight size={14} />

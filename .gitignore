@@ -1,5 +1,6 @@
 # Environment files with real secrets — never commit these
 backend/.env
+game-server/.env
 backend/game-server/.env
 .env.local
 .env.*.local
@@ -14,9 +15,17 @@ node_modules/
 dist/
 build/
 
+# Dev-server / bundler caches + logs
+.tmp/
+.vite/
+*.log
+
 # Claude Code local state
 .claude/
 
 # Local project dump tooling
 dump-project.ps1
 project-dump.txt
+
+# GPT Instructions
+/AGENTS.md

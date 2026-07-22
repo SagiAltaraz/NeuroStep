@@ -1,4 +1,5 @@
-﻿import { firestore } from '../config/firebase.js';
+import { firestore } from '../config/firebase.js';
+import { buildTrainingPlan } from '../services/trainingPlan.js';
 
 export type AgentDataRequest =
    | 'progression'
@@ -6,7 +7,8 @@ export type AgentDataRequest =
    | 'stats'
    | 'recentReports'
    | 'coachReports'
-   | 'alerts';
+   | 'alerts'
+   | 'trainingPlan';
 
 export type CollectedAgentData = {
    requested: AgentDataRequest[];
@@ -16,6 +18,7 @@ export type CollectedAgentData = {
    recentReports?: Array<Record<string, unknown>>;
    coachReports?: Array<Record<string, unknown>>;
    alerts?: Array<Record<string, unknown>>;
+   trainingPlan?: Record<string, unknown>;
 };
 
 const DEFAULT_REQUESTS: AgentDataRequest[] = [
@@ -31,12 +34,24 @@ const ALLOWED_REQUESTS = new Set<AgentDataRequest>([
    'recentReports',
    'coachReports',
    'alerts',
+   'trainingPlan',
 ]);
 
 const dataOf = (doc: FirebaseFirestore.QueryDocumentSnapshot) => ({
    id: doc.id,
    ...doc.data(),
 });
+
+const GAME_ROUTES: Record<string, string> = {
+   memory: '/games/memory',
+   'find-letter': '/games/findLetter',
+   'color-trains': '/games/colorTracking',
+   'spot-difference': '/games/spotDifference',
+   'green-light': '/games/greenLight',
+   'shapes-click': '/games/shapesClick',
+   tictactoe: '/games/ticTacToe',
+   'where-was-it': '/games/whereWasIt',
+};
 
 const safeRequests = (requests: string[] | undefined): AgentDataRequest[] => {
    const cleaned = (requests ?? DEFAULT_REQUESTS).filter(
@@ -73,6 +88,31 @@ export const gameAgentDataRepository = {
                return;
             }
 
+            if (request === 'trainingPlan') {
+               const snap = await userRef.collection('cognitiveProfile').get();
+               const domains = snap.docs.map(dataOf);
+               const plan = buildTrainingPlan(domains);
+               const planWithRoutes = {
+                  ...plan,
+                  items: plan.items.map((item) => ({
+                     ...item,
+                     gameRoute: GAME_ROUTES[item.gameId] ?? '/games',
+                  })),
+               };
+
+               if (!plan.isColdStart) {
+                  await userRef
+                     .collection('trainingPlan')
+                     .doc('current')
+                     .set(
+                        { ...planWithRoutes, updatedAt: Date.now() },
+                        { merge: true }
+                     );
+               }
+
+               result.trainingPlan = planWithRoutes;
+               return;
+            }
             if (request === 'stats') {
                const snap = await userRef.collection('stats').get();
                result.stats = snap.docs.map(dataOf);

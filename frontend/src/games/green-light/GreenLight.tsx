@@ -3,6 +3,7 @@ import { useNavigate } from 'react-router-dom';
 import { ChevronRight } from 'lucide-react';
 import Phaser from 'phaser';
 import type { GameAdjustment } from '../../hooks/useGameSession';
+import { emitCelebrate } from '../../components/companion/celebrate';
 import { getGameLabels, type GameLabels } from '../../data/gameLabels';
 import { useLang } from '../../context/LanguageContext';
 import './GreenLight.css';
@@ -52,6 +53,7 @@ class GreenLightScene extends Phaser.Scene {
   private score    = 0;
   private bestMs   = Infinity;
   private rounds   = 0;
+  private celebrateStreak = 0;
 
   // Round state
   private phase: Phase = 'red';
@@ -253,6 +255,7 @@ class GreenLightScene extends Phaser.Scene {
       this.cancelAllTimers();
       this.flashFeedback(this.labels.falseStart, '#ff3b3b');
       this.fireAction('FALSE_START', { phase: this.phase }, undefined, false);
+      this.celebrateStreak = 0;
       this.setPhase('feedback');
       this.time.delayedCall(this.cfg.interRoundMs, () => this.startRound(), [], this);
       return;
@@ -269,6 +272,9 @@ class GreenLightScene extends Phaser.Scene {
       }
       this.flashFeedback(this.labels.reactionMs.replace('{n}', String(reactionMs)), '#16a34a');
       this.fireAction('GO_HIT', { round: this.rounds }, reactionMs, true);
+      // Celebrate every 5 clean reactions in a row (resets on false start / miss).
+      this.celebrateStreak++;
+      if (this.celebrateStreak % 5 === 0) emitCelebrate();
       this.setPhase('feedback');
       this.time.delayedCall(this.cfg.interRoundMs, () => this.startRound(), [], this);
     }
@@ -279,6 +285,7 @@ class GreenLightScene extends Phaser.Scene {
     this.cancelAllTimers();
     this.flashFeedback(this.labels.miss, '#d97706');
     this.fireAction('MISS', { round: this.rounds }, undefined, false);
+    this.celebrateStreak = 0;
     this.setPhase('feedback');
     this.time.delayedCall(this.cfg.interRoundMs, () => this.startRound(), [], this);
   }
@@ -353,9 +360,10 @@ interface GreenLightProps {
   config?:     Partial<GameConfig>;
   onAction?:   (action: GameAction) => void;
   adjustment?: GameAdjustment;
+  onExit?:     () => void;
 }
 
-export default function GreenLight({ config, onAction, adjustment }: GreenLightProps) {
+export default function GreenLight({ config, onAction, adjustment, onExit }: GreenLightProps) {
   const navigate     = useNavigate();
   const containerRef = useRef<HTMLDivElement>(null);
   const gameRef      = useRef<Phaser.Game | null>(null);
@@ -403,7 +411,7 @@ export default function GreenLight({ config, onAction, adjustment }: GreenLightP
     <div className="green-light-game">
       <div className="game-back-row" dir="rtl">
         <button
-          onClick={() => navigate('/games')}
+          onClick={() => (onExit ? onExit() : navigate('/games'))}
           className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-full text-sm font-medium text-blue-600 bg-blue-50 hover:bg-blue-100 border border-blue-100 transition-colors duration-200"
         >
           <ChevronRight size={14} />

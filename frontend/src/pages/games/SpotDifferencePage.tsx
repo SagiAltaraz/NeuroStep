@@ -3,23 +3,28 @@ import SpotDifferenceInstructions from '../../components/game-instructions/SpotD
 import SpotDifference from '../../games/spot-difference/SpotDifference';
 import { useGameSession } from '../../hooks/useGameSession';
 import CoachingToast from '../../components/ui/CoachingToast';
-import RecommendedTimeBar from '../../components/ui/RecommendedTimeBar';
+import TrainingTimer from '../../components/ui/TrainingTimer';
 import SessionResults from '../../components/ui/SessionResults';
 
 export default function SpotDifferencePage() {
   const [showInstructions, setShowInstructions] = useState(true);
+  const [exiting, setExiting] = useState(false);
   const { sendEvent, adjustment, coachingMessage, endSession, sessionResult } = useGameSession('spot-difference');
 
   if (showInstructions) {
     return <SpotDifferenceInstructions onStart={() => setShowInstructions(false)} />;
   }
 
+  // The in-game back button ends the session and shows the results overlay.
+  // Any other exit is finalized server-side on disconnect, so progress is safe.
+  const handleExit = () => { setExiting(true); endSession(); };
+
   return (
     <>
-      <SpotDifference onAction={sendEvent} adjustment={adjustment ?? undefined} />
+      <SpotDifference onAction={sendEvent} adjustment={adjustment ?? undefined} onExit={handleExit} />
       <CoachingToast message={coachingMessage} />
-      <RecommendedTimeBar gameId="spot-difference" />
-      <SessionResults result={sessionResult} onFinish={endSession} />
+      <TrainingTimer gameKey="spotDifference" />
+      <SessionResults result={sessionResult} active={exiting} />
     </>
   );
 }
