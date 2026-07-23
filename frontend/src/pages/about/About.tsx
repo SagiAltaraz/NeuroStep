@@ -30,7 +30,7 @@ const creators = [
     imageSrc: '/images/ian1.jpg',
     imageAltKey: 'about.creator.4.name',
   },
-];
+] as const;
 
 const About = () => {
   const { t, dir } = useLang();

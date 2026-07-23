@@ -38,9 +38,11 @@
   bottom: 40vh;
   width: 132px;
   align-items: center;
-  /* gentle idle drift in the right gutter — only ever moves UP, so it never
-     reaches the content cards lower on the page. */
-  animation: cm-home-idle 11s ease-in-out infinite;
+  /* ONE continuous roam for EVERY state (idle / launching / cruising). The
+     flight state only swaps the VIDEO clip — never the container animation —
+     so the mascot never snaps between keyframe start positions (that snap was
+     the jump-down/up/down on take-off). */
+  animation: cm-home-cruise 9s ease-in-out infinite alternate;
 }
 
 .companion-char {
@@ -97,24 +99,17 @@
   pointer-events: none;
 }
 
-/* jetpack flight — a wider, livelier patrol of the right gutter. Overrides the
-   gentle cm-roam while flying; the landing glide back is driven inline from JS
-   so it stays in sync with the clip's descent. */
-.companion.companion--flying {
-  animation: cm-fly 18s ease-in-out infinite alternate;
-}
-.companion--home.companion--flying {
-  animation: none;
-}
-.companion--home.companion--flight-cruise {
-  /* a livelier, continuous patrol of the upper-right gutter while cruising */
-  animation: cm-home-cruise 9s ease-in-out infinite alternate;
-}
-/* While the AI chat is open the mascot stays frozen wherever it was clicked
-   (an inline transform pins it there); the chat bubble anchors to that spot.
-   Keep it above the chat's transparent click-catcher so it stays visible. */
+/* NOTE: there are intentionally NO flight-state animation overrides. The
+   container keeps its single continuous roam in every state; "flying" only
+   changes the video clip. Switching the container animation on take-off/landing
+   is exactly what caused the jump — so we never do it. */
+
+/* While the AI chat is open we PAUSE the roam at its current frame (not reset
+   it): the mascot freezes exactly where it is, and on close the animation
+   RESUMES from the same frame — no snap on open OR close. Keep it above the
+   chat's transparent click-catcher so it stays visible. */
 .companion.companion--ai-chat-open {
-  animation: none;
+  animation-play-state: paused;
   z-index: 1001;
 }
 /* Home idle: a small up/down drift (horizontal stays tiny and leftward so it

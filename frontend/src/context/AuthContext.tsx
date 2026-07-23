@@ -1,7 +1,7 @@
 import { createContext, useContext, useState, useEffect, useCallback } from "react";
 import type { ReactNode } from "react";
-import { signInWithPopup } from "firebase/auth";
-import { auth, googleProvider } from "../config/firebase";
+import { signInWithPopup, type AuthError } from "firebase/auth";
+import { auth, googleProvider, isFirebaseConfigured } from "../config/firebase";
 import * as authAPI from "../api/auth";
 import { useLang } from "./LanguageContext";
 import { resetStoredChatSession } from "../components/chat-assistant/chatSessionStorage";
@@ -109,6 +109,12 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
   };
 
   const loginWithGoogle = async (): Promise<AuthResponse> => {
+    if (!isFirebaseConfigured) {
+      return {
+        error:
+          "Google sign-in isn't configured yet. Add the Firebase web keys to frontend/.env (see .env.example) and restart.",
+      };
+    }
     try {
       // Sign in with Google using Firebase
       const result = await signInWithPopup(auth, googleProvider);
@@ -130,7 +136,22 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
       return data;
     } catch (error) {
       console.error("Google sign-in error:", error);
-      return { error: "Google sign-in failed. Please try again." };
+      const code = (error as AuthError)?.code;
+      // Silent when the user simply closed/cancelled the popup.
+      if (code === "auth/popup-closed-by-user" || code === "auth/cancelled-popup-request") {
+        return {};
+      }
+      const messages: Record<string, string> = {
+        "auth/operation-not-allowed":
+          "Google sign-in is not enabled for this project. Enable it in Firebase Console → Authentication → Sign-in method → Google.",
+        "auth/unauthorized-domain":
+          "This domain isn't authorized for Google sign-in. Add it in Firebase Console → Authentication → Settings → Authorized domains.",
+        "auth/invalid-api-key":
+          "The Firebase API key is invalid. Check VITE_FIREBASE_API_KEY in frontend/.env.",
+        "auth/popup-blocked":
+          "The sign-in popup was blocked by the browser. Allow popups for this site and try again.",
+      };
+      return { error: (code && messages[code]) || "Google sign-in failed. Please try again." };
     }
   };
 
