@@ -20,5 +20,6 @@ router.get('/chat-session/:sessionId/recommendation', protect, getMyChatSessionR
 router.patch('/chat-session/mood', protect, updateMyChatSessionMood);
 router.get('/reports/:sessionId', protect, getMyReport);
 router.get('/stats/:gameId', protect, getMyGameStats);
+router.get('/target-time/:gameId', protect, getMyTargetTime);
 
 export default router;

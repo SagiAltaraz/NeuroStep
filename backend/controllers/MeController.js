@@ -200,6 +200,28 @@ export const getMyGameStats = async (req, res) => {
    }
 };
 
+// GET /api/me/target-time/:gameId — the recommended per-session play time (in
+// minutes) for one game, DERIVED from the caller's cognitive profile: weaker /
+// declining / higher-priority domains get a longer target. Feeds the in-game
+// RecommendedTimeBar. Neutral default for players with no relevant data.
+export const getMyTargetTime = async (req, res) => {
+   try {
+      const userId = req.user.id;
+      const { gameId } = req.params;
+      const snap = await firestore
+         .collection('users')
+         .doc(userId)
+         .collection('cognitiveProfile')
+         .get();
+      const domains = snap.docs.map((d) => ({ id: d.id, ...d.data() }));
+      const result = targetMinutesForGame(domains, gameId);
+      res.json({ ...result, targetMinutes: result.minutes });
+   } catch (err) {
+      console.error('[me/target-time]', err.message);
+      res.status(500).json({ message: 'Failed to load target time' });
+   }
+};
+
 // GET /api/me/companion — the proactive companion's next message, derived from
 // the caller's own data. The GAME PICK is deterministic (the weakest cognitive
 // domain → the game that trains it); the phrasing here is templated Hebrew with
