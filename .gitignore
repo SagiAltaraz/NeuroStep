@@ -29,3 +29,4 @@ project-dump.txt
 
 # GPT Instructions
 /AGENTS.md
+node_modules
