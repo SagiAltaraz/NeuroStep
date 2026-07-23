@@ -360,7 +360,7 @@ function buildBackendMessages(
 export default function CompanionAvatar() {
   const { token, user } = useAuth();
   const { lang, t } = useLang();
-  const { isOpen: isAiChatOpen, openChat, closeChat, status: chatStatus, setAnchor: setChatAnchor } = useChatController();
+  const { isOpen: isAiChatOpen, openChat, closeChat, status: chatStatus, anchor: chatAnchor, setAnchor: setChatAnchor } = useChatController();
   const { isInstructionAvatarVisible, isResultAvatarVisible } = useCompanionPresentation();
   const navigate = useNavigate();
   const loc = useLocation();
@@ -448,6 +448,7 @@ export default function CompanionAvatar() {
       rootRef.current.style.top = '';
       rootRef.current.style.right = '';
       rootRef.current.style.bottom = '';
+      delete rootRef.current.dataset.pinned;
     }
     if (ctx !== 'home') {
       contextResetTimerRef.current = setTimeout(() => {
@@ -626,9 +627,9 @@ export default function CompanionAvatar() {
     if (flight) setFlight(null);
     /* eslint-enable react-hooks/set-state-in-effect */
     const el = rootRef.current;
-    // When the AI chat is open the mascot must STAY frozen where it was clicked
-    // (openChatAtAvatar set an inline transform), so the bubble stays anchored to
-    // it. Only reset the position for the other suppression reasons.
+    // For non-chat suppression (instructions / results / journey) clear any
+    // leftover inline positioning. The AI-chat freeze is handled purely by the
+    // CSS pause, so nothing to undo here for that case.
     if (el && !isAiChatOpen) {
       el.style.animation = '';
       el.style.transition = '';
@@ -639,20 +640,6 @@ export default function CompanionAvatar() {
       el.style.bottom = '';
     }
   }, [suppressCompanion, open, flight, isAiChatOpen]);
-
-  // When the chat closes, the mascot STAYS exactly where it was (its left/top
-  // pin is kept, so it never snaps to the corner). We only re-enable animation
-  // so it can idle/fly again from that spot. The pin is fully cleared on the
-  // next navigation (resetCompanionContext).
-  useEffect(() => {
-    if (isAiChatOpen) return;
-    const el = rootRef.current;
-    if (el && el.style.left) {
-      el.style.animation = '';
-      el.style.transition = '';
-      el.style.transform = '';
-    }
-  }, [isAiChatOpen]);
 
   useEffect(() => {
     // Once the mascot is idle and unused (no open message, not already flying),
@@ -680,12 +667,11 @@ export default function CompanionAvatar() {
         el.style.transition = '';
         el.style.transform = '';
         el.style.animation = '';
-        // Release any left/top pin from a just-closed chat so the mascot roams
-        // the FULL right gutter again (the reposition is masked by the take-off).
         el.style.left = '';
         el.style.top = '';
         el.style.right = '';
         el.style.bottom = '';
+        delete el.dataset.pinned;
       }
       setFlight('launch');
     }, FLIGHT_DELAY_MS);
@@ -707,33 +693,22 @@ export default function CompanionAvatar() {
     setFlight('land');
   };
 
-  // Freeze the mascot exactly where it is on screen RIGHT NOW and open the chat
-  // anchored to that spot, so the bubble appears right above wherever it roamed
-  // to. The frozen inline transform is preserved while the chat stays open (see
-  // the suppress effect) and cleared when it closes so roaming resumes.
-  // Pin the mascot to its EXACT current viewport spot via left/top (not a
-  // transform), so removing the flight class/animation can't make it drift or
-  // snap to the corner. It stops dead where it is; the returned anchor tells the
-  // chat bubble to open directly above that spot. Shared by every open path.
-  const pinAvatarAndMeasure = useCallback((): ChatAnchor | null => {
+  // MEASURE the mascot's current on-screen spot and return the chat anchor for
+  // it. We do NOT touch its transform: the freeze is done purely by PAUSING the
+  // CSS roam (the `companion--ai-chat-open` class), which holds the mascot at its
+  // current frame and — crucially — RESUMES from that same frame on close, so
+  // there's no snap on open OR close.
+  const measureAvatarAnchor = useCallback((): ChatAnchor | null => {
     const el = rootRef.current;
     if (!el) return null;
     const rect = el.getBoundingClientRect();
     // Guard against a degenerate measurement (e.g. a not-yet-laid-out or
-    // backgrounded viewport reporting 0 width) — never pin the mascot off-screen.
+    // backgrounded viewport reporting 0 width).
     const vw = window.innerWidth;
     const vh = window.innerHeight;
     if (vw <= 0 || vh <= 0 || rect.width === 0 || rect.right <= 0 || rect.left >= vw) {
       return null;
     }
-    el.style.animation = 'none';
-    el.style.transition = 'none';
-    el.style.transform = 'none';
-    el.style.left = `${Math.round(rect.left)}px`;
-    el.style.top = `${Math.round(rect.top)}px`;
-    el.style.right = 'auto';
-    el.style.bottom = 'auto';
-
     const gap = 12;
     const right = Math.max(12, Math.round(vw - rect.right));
     // Prefer opening the chat ABOVE the mascot; but if it's roamed too high to
@@ -746,20 +721,17 @@ export default function CompanionAvatar() {
   }, []);
 
   const openChatAtAvatar = useCallback(() => {
-    openChat('avatar', pinAvatarAndMeasure());
-  }, [openChat, pinAvatarAndMeasure]);
+    openChat('avatar', measureAvatarAnchor());
+  }, [openChat, measureAvatarAnchor]);
 
-  // Any OTHER way the chat opens (launcher button, a message CTA) won't have
-  // pinned the mascot — so pin it where it is and anchor the bubble to it too,
-  // on every page. This keeps the chat above the avatar and stops the avatar
-  // from snapping to the bottom-right corner when the chat opens.
+  // When the chat opens by any OTHER route (launcher button, a message CTA),
+  // anchor the bubble to the avatar's current spot too. Runs after the pause has
+  // applied, so it measures the exact frozen position. Only sets it if the open
+  // path didn't already provide an anchor.
   useEffect(() => {
-    if (!isAiChatOpen) return;
-    const el = rootRef.current;
-    if (el && !el.style.left) {
-      setChatAnchor(pinAvatarAndMeasure());
-    }
-  }, [isAiChatOpen, pinAvatarAndMeasure, setChatAnchor]);
+    if (!isAiChatOpen || chatAnchor) return;
+    setChatAnchor(measureAvatarAnchor());
+  }, [isAiChatOpen, chatAnchor, measureAvatarAnchor, setChatAnchor]);
 
   // One-shot clips chain here: launch → cruise loop; land → grounded in place
   // (and open the chat if the landing was user-initiated); celebrate → idle.
@@ -893,17 +865,12 @@ export default function CompanionAvatar() {
     if (isAiChatOpen) { closeChat(); return; }
     if (suppressCompanion) return;
 
-    // On EVERY page, clicking the mascot opens the AI chat anchored to it — so
-    // players can consult it mid-game (e.g. ask about the instructions), not
-    // just on home. If it's flying, play the LAND clip in place first, then open
-    // the chat when touchdown completes; otherwise open it where it stands.
-    if (flight === 'land') return;
-    if (flying) {
-      pendingChatAnchor.current = pinAvatarAndMeasure();
-      openChatAfterLand.current = true;
-      setFlight('land');
-      return;
-    }
+    // On EVERY page, clicking the mascot freezes it EXACTLY where it is and opens
+    // the AI chat right there. We deliberately do NOT play the jet-land clip on
+    // click: cruise→land is a video seam that made the robot hop up-then-down.
+    // Freezing the transform and cross-fading straight to the idle/talk clip
+    // (which shares the hub pose) is seamless — no jump.
+    if (flying) setFlight(null);
     openChatAtAvatar();
   };
 

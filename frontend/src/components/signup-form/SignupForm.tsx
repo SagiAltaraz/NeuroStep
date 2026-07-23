@@ -34,7 +34,6 @@ export function SignupForm({ ...props }: React.ComponentProps<typeof Card>) {
   const [language, setLanguage] = useState<Lang>(currentLang);
   const [isLoading, setIsLoading] = useState(false);
   const [showPersonalizationForm, setShowPersonalizationForm] = useState(false);
-  const [isPreviewMode, setIsPreviewMode] = useState(false);
   const [token, setToken] = useState<string | null>(null);
 
   const handleSubmit = async (e: React.FormEvent) => {
@@ -92,14 +91,6 @@ export function SignupForm({ ...props }: React.ComponentProps<typeof Card>) {
     answers: Record<number, string>
   ) => {
     try {
-      if (isPreviewMode) {
-        console.log("Questionnaire preview output:", { prompt, answers });
-        setShowPersonalizationForm(false);
-        setIsPreviewMode(false);
-        alert("Preview complete. The questionnaire flow is working.");
-        return;
-      }
-
       if (!token) {
         throw new Error("No token available");
       }
@@ -128,7 +119,6 @@ export function SignupForm({ ...props }: React.ComponentProps<typeof Card>) {
         isOpen={true}
         onClose={() => {
           setShowPersonalizationForm(false);
-          setIsPreviewMode(false);
           navigate("/");
         }}
         onSubmit={handleProfileGenerated}
@@ -279,21 +269,6 @@ export function SignupForm({ ...props }: React.ComponentProps<typeof Card>) {
                   {t('signup.signin.link')}
                 </Link>
               </FieldDescription>
-
-              <Field>
-                <Button
-                  variant="outline"
-                  type="button"
-                  className="w-full"
-                  onClick={() => {
-                    setIsPreviewMode(true);
-                    setShowPersonalizationForm(true);
-                  }}
-                  disabled={isLoading}
-                >
-                  Preview onboarding questionnaire
-                </Button>
-              </Field>
             </FieldGroup>
           </FieldGroup>
         </form>
