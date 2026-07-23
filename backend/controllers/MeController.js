@@ -4,7 +4,7 @@
 // is scoped to req.user.id (set by the `protect` middleware) — a user can never
 // read another user's data here (that's what the admin routes are for).
 import { firestore } from '../config/firebase.js';
-import { buildTrainingPlan } from '../services/trainingPlan.js';
+import { buildTrainingPlan, targetMinutesForGame } from '../services/trainingPlan.js';
 import { chatSessionRepository } from '../repositories/chatSessionRepository.ts';
 import {
    buildCompanionSuggestions,

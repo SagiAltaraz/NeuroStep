@@ -5,6 +5,7 @@ import {
    getMyProgression,
    getMyReport,
    getMyGameStats,
+   getMyTargetTime,
    getMyCompanion,
    getMyChatSessionRecommendation,
    updateMyChatSessionMood,
