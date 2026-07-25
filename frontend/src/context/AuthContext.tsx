@@ -1,6 +1,13 @@
 import { createContext, useContext, useState, useEffect, useCallback } from "react";
 import type { ReactNode } from "react";
-import { signInWithPopup, type AuthError } from "firebase/auth";
+import { useNavigate } from "react-router-dom";
+import {
+  signInWithPopup,
+  signInWithRedirect,
+  getRedirectResult,
+  type AuthError,
+  type User as FirebaseUser,
+} from "firebase/auth";
 import { auth, googleProvider, isFirebaseConfigured } from "../config/firebase";
 import * as authAPI from "../api/auth";
 import { useLang } from "./LanguageContext";
@@ -36,6 +43,7 @@ const AuthContext = createContext<AuthContextType | undefined>(undefined);
 
 export const AuthProvider = ({ children }: { children: ReactNode }) => {
   const { setLang } = useLang();
+  const navigate = useNavigate();
 
   const [token, setToken] = useState<string | null>(
     () => localStorage.getItem("token")
@@ -108,6 +116,39 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
     return data;
   };
 
+  // Exchange a signed-in Firebase user for our backend JWT + session. Shared by
+  // the popup flow and the redirect flow.
+  const completeGoogleLogin = useCallback(
+    async (firebaseUser: FirebaseUser): Promise<AuthResponse> => {
+      const idToken = await firebaseUser.getIdToken();
+      const data = await authAPI.googleAuth(idToken);
+      if (data.token && data.user) {
+        resetClientSession();
+        setUser(data.user);
+        setToken(data.token);
+        localStorage.setItem("token", data.token);
+        localStorage.setItem("user", JSON.stringify(data.user));
+      }
+      return data;
+    },
+    [resetClientSession],
+  );
+
+  // When we come BACK from a redirect-based Google sign-in (used as a fallback
+  // when the popup is blocked — common on mobile), finish the login here.
+  useEffect(() => {
+    if (!isFirebaseConfigured) return;
+    getRedirectResult(auth)
+      .then((result) => {
+        if (result?.user) {
+          completeGoogleLogin(result.user).then((data) => {
+            if (data.token) navigate("/");
+          });
+        }
+      })
+      .catch((error) => console.error("Google redirect result error:", error));
+  }, [completeGoogleLogin, navigate]);
+
   const loginWithGoogle = async (): Promise<AuthResponse> => {
     if (!isFirebaseConfigured) {
       return {
@@ -116,30 +157,25 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
       };
     }
     try {
-      // Sign in with Google using Firebase
       const result = await signInWithPopup(auth, googleProvider);
-
-      // Get the ID token from the signed-in user
-      const idToken = await result.user.getIdToken();
-
-      // Send the ID token to our backend for verification and JWT generation
-      const data = await authAPI.googleAuth(idToken);
-
-      if (data.token && data.user) {
-        resetClientSession();
-        setUser(data.user);
-        setToken(data.token);
-        localStorage.setItem("token", data.token);
-        localStorage.setItem("user", JSON.stringify(data.user));
-      }
-
-      return data;
+      return await completeGoogleLogin(result.user);
     } catch (error) {
       console.error("Google sign-in error:", error);
       const code = (error as AuthError)?.code;
       // Silent when the user simply closed/cancelled the popup.
       if (code === "auth/popup-closed-by-user" || code === "auth/cancelled-popup-request") {
         return {};
+      }
+      // Popup blocked (frequent on mobile / strict browsers) → fall back to a
+      // full-page redirect; completion is handled by getRedirectResult on return.
+      if (code === "auth/popup-blocked") {
+        try {
+          await signInWithRedirect(auth, googleProvider);
+          return {};
+        } catch (redirectError) {
+          console.error("Google redirect error:", redirectError);
+          return { error: "Google sign-in failed. Please try again." };
+        }
       }
       const messages: Record<string, string> = {
         "auth/operation-not-allowed":
@@ -148,8 +184,6 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
           "This domain isn't authorized for Google sign-in. Add it in Firebase Console → Authentication → Settings → Authorized domains.",
         "auth/invalid-api-key":
           "The Firebase API key is invalid. Check VITE_FIREBASE_API_KEY in frontend/.env.",
-        "auth/popup-blocked":
-          "The sign-in popup was blocked by the browser. Allow popups for this site and try again.",
       };
       return { error: (code && messages[code]) || "Google sign-in failed. Please try again." };
     }
