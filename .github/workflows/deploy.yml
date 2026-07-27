@@ -2,7 +2,7 @@
 # On push → SSH into the DigitalOcean droplet → sync to main → rebuild & restart.
 #
 # Add these repo secrets (GitHub → Settings → Secrets and variables → Actions):
-#   SSH_HOST  = droplet public IP (165.22.85.201)
+#   SSH_HOST  = droplet public IP
 #   SSH_USER  = root
 #   SSH_KEY   = the PRIVATE deploy key whose public half is in the droplet's authorized_keys
 #   APP_DIR   = /root/NeuroStep
