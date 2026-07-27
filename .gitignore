@@ -23,6 +23,10 @@ build/
 # Claude Code local state
 .claude/
 
+# Editor / IDE settings (.cursor/rules stays tracked — shared project convention)
+.idea/
+.vscode/
+
 # Local project dump tooling
 dump-project.ps1
 project-dump.txt

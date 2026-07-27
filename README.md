@@ -370,7 +370,7 @@ NeuroStep/
 │  └─ config/firebase.js     Firestore / Auth admin init
 ├─ game-server/              WebSocket loop + agents (TypeScript)
 │  ├─ server.ts              connection handling + post-session pipeline
-│  ├─ agents/                the ten agents + progression.config.ts + tests
+│  ├─ agents/                the thirteen agents + progression.config.ts + tests
 │  ├─ kafka/                 producer + consumers
 │  └─ sessions/              per-connection session store
 ├─ docker-compose.yml        local stack (app + game-server + kafka + ui)
@@ -431,6 +431,8 @@ agents only add Firestore I/O around them.
 # Backend
 PORT=3000
 JWT_SECRET=change-me
+# Comma-separated origins allowed by CORS. Defaults to localhost:3000 when unset.
+CORS_ORIGINS=https://your-domain.com
 
 # LLM (single provider — Claude)
 ANTHROPIC_API_KEY=sk-ant-...
