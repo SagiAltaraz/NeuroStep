@@ -2,6 +2,7 @@ import { useEffect, useMemo, useState } from "react";
 import { useNavigate } from "react-router-dom";
 import { TrendingUp, Search, ChevronLeft } from "lucide-react";
 import { useAuth } from "../../../context/AuthContext";
+import { useAdminT } from "../adminI18n";
 import "./TrendsUserList.css";
 
 interface User {
@@ -25,6 +26,7 @@ interface Props {
 const TrendsUserList: React.FC<Props> = ({ onBack }) => {
   const { token } = useAuth();
   const navigate = useNavigate();
+  const { t, dir } = useAdminT();
 
   const [users, setUsers] = useState<User[]>([]);
   const [loading, setLoading] = useState(true);
@@ -66,33 +68,33 @@ const TrendsUserList: React.FC<Props> = ({ onBack }) => {
   const initial = (name: string) => (name?.trim()?.[0] ?? "?").toUpperCase();
 
   return (
-    <div className="trends-list" dir="rtl">
+    <div className="trends-list" dir={dir}>
       <div className="trends-list-head">
         <button className="trends-back-btn" onClick={onBack}>
           <ChevronLeft size={16} />
-          <span>חזרה</span>
+          <span>{t('common.backArrow')}</span>
         </button>
         <h2 className="trends-list-title">
-          <TrendingUp size={20} /> מגמות קוגניטיביות
+          <TrendingUp size={20} /> {t('tl.title')}
         </h2>
       </div>
 
-      <p className="trends-list-sub">בחרו משתמש כדי לראות את המגמה הקוגניטיבית שלו</p>
+      <p className="trends-list-sub">{t('tl.subtitle')}</p>
 
       <div className="trends-search">
         <Search size={16} />
         <input
           type="text"
-          placeholder="חיפוש לפי שם או אימייל…"
+          placeholder={t('tl.search')}
           value={query}
           onChange={(e) => setQuery(e.target.value)}
         />
       </div>
 
-      {loading && <div className="trends-state">טוען משתמשים…</div>}
+      {loading && <div className="trends-state">{t('tl.loading')}</div>}
       {error && <div className="trends-state trends-state--error">{error}</div>}
       {!loading && !error && filtered.length === 0 && (
-        <div className="trends-state">לא נמצאו משתמשים</div>
+        <div className="trends-state">{t('tl.empty')}</div>
       )}
 
       {!loading && !error && filtered.length > 0 && (
@@ -102,14 +104,14 @@ const TrendsUserList: React.FC<Props> = ({ onBack }) => {
               <button
                 className="trends-user-row"
                 onClick={() => navigate(`/admin/users/${u.id}/trend`)}
-                title={`צפה במגמה של ${u.name}`}
+                title={`${t('tl.viewFor')} ${u.name}`}
               >
                 <span className="trends-user-avatar">{initial(u.name)}</span>
                 <span className="trends-user-info">
                   <span className="trends-user-name">{u.name || "—"}</span>
                   <span className="trends-user-email">{u.email}</span>
                 </span>
-                {u.role === "admin" && <span className="trends-user-badge">מנהל</span>}
+                {u.role === "admin" && <span className="trends-user-badge">{t('common.admin')}</span>}
                 <TrendingUp className="trends-user-cta" size={18} />
               </button>
             </li>

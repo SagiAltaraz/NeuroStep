@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useState } from 'react';
+import { useCallback, useEffect, useMemo, useState } from 'react';
 import { Navigate, useNavigate, useParams } from 'react-router-dom';
 import {
   CartesianGrid, Legend, Line, LineChart, ReferenceLine,
@@ -6,11 +6,12 @@ import {
 } from 'recharts';
 import { ChevronRight } from 'lucide-react';
 import { useAuth } from '../../../context/AuthContext';
+import { useAdminT, ADMIN_GAME_IDS, type AdminGameId } from '../adminI18n';
 import './CognitiveTrendPage.css';
 
 // ─── Types ────────────────────────────────────────────────────────
 
-type GameId = 'shapes-click' | 'color-trains' | 'tictactoe' | 'memory';
+type GameId = AdminGameId;
 type GameFilter   = GameId | 'all';
 type PeriodFilter = '7d' | '30d' | '90d' | 'all';
 
@@ -36,27 +37,19 @@ interface TrendResponse {
 
 // ─── Constants ────────────────────────────────────────────────────
 
-const GAME_LABELS_HE: Record<GameId, string> = {
-  'shapes-click': 'איתור צורות',
-  'color-trains': 'רכבות צבעוניות',
-  'tictactoe':    'איקס עיגול',
-  'memory':       'זיכרון',
-};
-
-// Distinct colors for the multi-line "all games" view
+// Distinct colors for the multi-line "all games" view — one per game.
 const GAME_COLORS: Record<GameId, string> = {
-  'shapes-click': '#0284c7',  // blue
-  'color-trains': '#16a34a',  // green
-  'tictactoe':    '#9333ea',  // purple
-  'memory':       '#ea580c',  // orange
+  'shapes-click':    '#0284c7',  // blue
+  'color-trains':    '#16a34a',  // green
+  'tictactoe':       '#9333ea',  // purple
+  'memory':          '#ea580c',  // orange
+  'green-light':     '#0d9488',  // teal
+  'spot-difference': '#db2777',  // pink
+  'where-was-it':    '#ca8a04',  // amber
+  'find-letter':     '#4f46e5',  // indigo
 };
 
-const PERIOD_OPTIONS: { value: PeriodFilter; label: string }[] = [
-  { value: '7d',  label: '7 ימים' },
-  { value: '30d', label: '30 ימים' },
-  { value: '90d', label: '90 ימים' },
-  { value: 'all', label: 'הכול' },
-];
+const PERIOD_VALUES: PeriodFilter[] = ['7d', '30d', '90d', 'all'];
 
 // ─── Helpers ──────────────────────────────────────────────────────
 
@@ -67,19 +60,13 @@ function scoreClass(score: number | null): 'good' | 'mid' | 'low' | 'na' {
   return 'low';
 }
 
-function formatDate(ts: number | null): string {
-  if (ts === null) return '—';
-  return new Date(ts).toLocaleDateString('he-IL', {
-    day: 'numeric', month: 'numeric', year: 'numeric',
-  });
-}
-
 // ─── Component ────────────────────────────────────────────────────
 
 export default function CognitiveTrendPage() {
   const { userId } = useParams<{ userId: string }>();
   const { token, isAdmin } = useAuth();
   const navigate = useNavigate();
+  const { t, lang, dir, locale, gameLabel } = useAdminT();
 
   const [game,    setGame]    = useState<GameFilter>('all');
   const [period,  setPeriod]  = useState<PeriodFilter>('30d');
@@ -88,11 +75,17 @@ export default function CognitiveTrendPage() {
   const [error,   setError]   = useState<string | null>(null);
   const [expanded, setExpanded] = useState<Set<string>>(new Set());
 
-  // ── Auth gate (admin-only) ────────────────────────────────────
-  if (!isAdmin) return <Navigate to="/" />;
+  const formatDate = useCallback((ts: number | null): string => {
+    if (ts === null) return '—';
+    return new Date(ts).toLocaleDateString(locale, {
+      day: 'numeric', month: 'numeric', year: 'numeric',
+    });
+  }, [locale]);
+
+  const periodLabel = useCallback((p: PeriodFilter) => t(`tp.period.${p}` as const), [t]);
 
   const fetchTrend = async () => {
-    if (!userId || !token) return;
+    if (!userId || !token || !isAdmin) return;
     setLoading(true);
     setError(null);
     try {
@@ -103,7 +96,7 @@ export default function CognitiveTrendPage() {
       const json = (await res.json()) as TrendResponse;
       setData(json);
     } catch (err) {
-      setError(err instanceof Error ? err.message : 'שגיאה בטעינה');
+      setError(err instanceof Error ? err.message : t('common.loadError'));
     } finally {
       setLoading(false);
     }
@@ -136,7 +129,15 @@ export default function CognitiveTrendPage() {
       byTs.set(p.generatedAt, row);
     }
     return [...byTs.values()].sort((a, b) => (a.ts as number) - (b.ts as number));
-  }, [data, game]);
+  }, [data, game, formatDate]);
+
+  // Only plot lines for games this user actually has data for — otherwise the
+  // legend lists all eight games even when only two were played.
+  const gamesInData = useMemo(() => {
+    const seen = new Set<GameId>();
+    data?.series.forEach(p => { if (p.gameId) seen.add(p.gameId); });
+    return ADMIN_GAME_IDS.filter(g => seen.has(g));
+  }, [data]);
 
   const reversedSessions = useMemo(() => {
     if (!data) return [];
@@ -152,28 +153,33 @@ export default function CognitiveTrendPage() {
     });
   };
 
+  // ── Auth gate (admin-only) ────────────────────────────────────
+  // Must sit below every hook: bailing out earlier would render a different
+  // number of hooks if `isAdmin` ever flips, which React treats as an error.
+  if (!isAdmin) return <Navigate to="/" />;
+
   // ── Render: loading / error states ────────────────────────────
   const Header = (
     <div className="trend-header">
       <div>
-        <h1>מגמת ציון קוגניטיבי</h1>
+        <h1>{t('tp.title')}</h1>
         <p className="subtitle">
           {data?.user.displayName ? `${data.user.displayName} · ` : ''}{userId}
         </p>
       </div>
       <button className="trend-back-btn" onClick={() => navigate(-1)}>
         <ChevronRight size={14} />
-        חזור
+        {t('common.back')}
       </button>
     </div>
   );
 
   if (loading) {
     return (
-      <main className="trend-page" dir="rtl">
+      <main className="trend-page" dir={dir}>
         {Header}
         <div className="loading-state">
-          <p>טוען נתונים…</p>
+          <p>{t('common.loading')}</p>
         </div>
       </main>
     );
@@ -181,13 +187,13 @@ export default function CognitiveTrendPage() {
 
   if (error) {
     return (
-      <main className="trend-page" dir="rtl">
+      <main className="trend-page" dir={dir}>
         {Header}
         <div className="error-state">
           <span className="emoji">⚠️</span>
-          <h2>לא הצלחנו לטעון את הנתונים</h2>
+          <h2>{t('tp.loadError')}</h2>
           <p>{error}</p>
-          <button className="retry-btn" onClick={fetchTrend}>נסה שוב</button>
+          <button className="retry-btn" onClick={fetchTrend}>{t('common.retry')}</button>
         </div>
       </main>
     );
@@ -196,39 +202,38 @@ export default function CognitiveTrendPage() {
   const hasAnyData = (data?.series.length ?? 0) > 0;
 
   return (
-    <main className="trend-page" dir="rtl">
+    <main className="trend-page" dir={dir}>
       {Header}
 
       {/* ── Filters ── */}
       <div className="trend-filters">
         <div className="filter-group">
-          <label className="filter-label" htmlFor="game-filter">משחק</label>
+          <label className="filter-label" htmlFor="game-filter">{t('tp.filterGame')}</label>
           <select
             id="game-filter"
             className="filter-select"
             value={game}
             onChange={(e) => setGame(e.target.value as GameFilter)}
           >
-            <option value="all">הכול</option>
-            <option value="shapes-click">{GAME_LABELS_HE['shapes-click']}</option>
-            <option value="color-trains">{GAME_LABELS_HE['color-trains']}</option>
-            <option value="tictactoe">{GAME_LABELS_HE['tictactoe']}</option>
-            <option value="memory">{GAME_LABELS_HE['memory']}</option>
+            <option value="all">{t('common.all')}</option>
+            {ADMIN_GAME_IDS.map(g => (
+              <option key={g} value={g}>{gameLabel(g)}</option>
+            ))}
           </select>
         </div>
 
         <div className="filter-group">
-          <span className="filter-label">תקופה</span>
-          <div className="filter-pills" role="group" aria-label="בחירת תקופה">
-            {PERIOD_OPTIONS.map(opt => (
+          <span className="filter-label">{t('tp.filterPeriod')}</span>
+          <div className="filter-pills" role="group" aria-label={t('tp.periodPick')}>
+            {PERIOD_VALUES.map(value => (
               <button
-                key={opt.value}
+                key={value}
                 type="button"
-                className={`filter-pill${period === opt.value ? ' active' : ''}`}
-                aria-pressed={period === opt.value}
-                onClick={() => setPeriod(opt.value)}
+                className={`filter-pill${period === value ? ' active' : ''}`}
+                aria-pressed={period === value}
+                onClick={() => setPeriod(value)}
               >
-                {opt.label}
+                {periodLabel(value)}
               </button>
             ))}
           </div>
@@ -239,23 +244,23 @@ export default function CognitiveTrendPage() {
       {!hasAnyData ? (
         <div className="empty-state">
           <span className="emoji">📈</span>
-          <h2>עדיין אין דאטה</h2>
-          <p>שחקו כמה משחקים והדוחות יופיעו כאן</p>
+          <h2>{t('tp.emptyTitle')}</h2>
+          <p>{t('tp.emptyBody')}</p>
         </div>
       ) : (
         <>
           {/* ── Summary KPIs ── */}
           <div className="summary-row">
             <div className="summary-card">
-              <span className="summary-label">ציון אחרון</span>
+              <span className="summary-label">{t('tp.latestScore')}</span>
               <span className="summary-value">{data!.summary.latestScore ?? '—'}</span>
             </div>
             <div className="summary-card">
-              <span className="summary-label">ממוצע בתקופה</span>
+              <span className="summary-label">{t('tp.periodAvg')}</span>
               <span className="summary-value">{data!.summary.periodAverage ?? '—'}</span>
             </div>
             <div className="summary-card">
-              <span className="summary-label">שינוי</span>
+              <span className="summary-label">{t('tp.change')}</span>
               <span className={`summary-value ${
                 data!.summary.periodChange === null
                   ? 'neutral'
@@ -274,19 +279,20 @@ export default function CognitiveTrendPage() {
               </span>
             </div>
             <div className="summary-card">
-              <span className="summary-label">מספר משחקים</span>
+              <span className="summary-label">{t('tp.sessions')}</span>
               <span className="summary-value">{data!.summary.sessionsCount}</span>
             </div>
           </div>
 
           {/* ── Chart ── */}
           <div className="chart-card">
-            <h2 className="chart-title">ציון קוגניטיבי לאורך זמן</h2>
-            <p className="chart-subtitle">סולם 0–100 · קו 40 = ממוצע · קו 70 = ביצועים חזקים</p>
+            <h2 className="chart-title">{t('tp.chartTitle')}</h2>
+            <p className="chart-subtitle">{t('tp.chartSub')}</p>
             <ResponsiveContainer width="100%" height={300}>
               <LineChart data={chartData} margin={{ top: 8, right: 18, left: -6, bottom: 4 }}>
                 <CartesianGrid strokeDasharray="3 3" stroke="#e2e8f0" />
-                <XAxis dataKey="date" tick={{ fontSize: 12 }} reversed />
+                {/* Newest-first reads right-to-left in Hebrew, left-to-right in English. */}
+                <XAxis dataKey="date" tick={{ fontSize: 12 }} reversed={lang === 'he'} />
                 <YAxis
                   domain={[0, 100]}
                   ticks={[0, 20, 40, 60, 80, 100]}
@@ -295,22 +301,16 @@ export default function CognitiveTrendPage() {
                 <ReferenceLine y={40} stroke="#fbbf24" strokeDasharray="4 4" />
                 <ReferenceLine y={70} stroke="#16a34a" strokeDasharray="4 4" />
                 <Tooltip
-                  contentStyle={{ direction: 'rtl', textAlign: 'right' }}
+                  contentStyle={{ direction: dir, textAlign: lang === 'he' ? 'right' : 'left' }}
                   formatter={(value, name) => [
                     value === null || value === undefined ? '—' : `${value}/100`,
-                    typeof name === 'string' && name in GAME_LABELS_HE
-                      ? GAME_LABELS_HE[name as GameId]
-                      : 'ציון',
+                    typeof name === 'string' ? gameLabel(name) : t('common.score'),
                   ]}
                 />
                 {game === 'all' ? (
                   <>
-                    <Legend
-                      formatter={(value: string) =>
-                        value in GAME_LABELS_HE ? GAME_LABELS_HE[value as GameId] : value
-                      }
-                    />
-                    {(Object.keys(GAME_LABELS_HE) as GameId[]).map(g => (
+                    <Legend formatter={(value: string) => gameLabel(value)} />
+                    {gamesInData.map(g => (
                       <Line
                         key={g}
                         type="monotone"
@@ -326,7 +326,7 @@ export default function CognitiveTrendPage() {
                   <Line
                     type="monotone"
                     dataKey="score"
-                    name={GAME_LABELS_HE[game]}
+                    name={gameLabel(game)}
                     stroke={GAME_COLORS[game as GameId]}
                     strokeWidth={2.5}
                     dot={{ r: 4 }}
@@ -337,19 +337,19 @@ export default function CognitiveTrendPage() {
 
             {/* Accessible text fallback for the chart */}
             <table className="chart-fallback-table">
-              <caption>טבלה זמינה לקוראי מסך — נתוני הגרף לעיל</caption>
+              <caption>{t('tp.tableCaption')}</caption>
               <thead>
                 <tr>
-                  <th scope="col">תאריך</th>
-                  <th scope="col">משחק</th>
-                  <th scope="col">ציון</th>
+                  <th scope="col">{t('common.date')}</th>
+                  <th scope="col">{t('common.game')}</th>
+                  <th scope="col">{t('common.score')}</th>
                 </tr>
               </thead>
               <tbody>
                 {reversedSessions.slice(0, 30).map(p => (
                   <tr key={p.sessionId}>
                     <td>{formatDate(p.generatedAt)}</td>
-                    <td>{p.gameId ? GAME_LABELS_HE[p.gameId] : '—'}</td>
+                    <td>{gameLabel(p.gameId)}</td>
                     <td>{p.cognitiveScore ?? '—'}</td>
                   </tr>
                 ))}
@@ -358,7 +358,7 @@ export default function CognitiveTrendPage() {
           </div>
 
           {/* ── Session list ── */}
-          <h2 className="chart-title" style={{ marginBottom: 12 }}>משחקים אחרונים</h2>
+          <h2 className="chart-title" style={{ marginBottom: 12 }}>{t('tp.recent')}</h2>
           <div className="session-list">
             {reversedSessions.map(p => {
               const isExpanded = expanded.has(p.sessionId);
@@ -366,12 +366,10 @@ export default function CognitiveTrendPage() {
                 <div className="session-card" key={p.sessionId}>
                   <div className="session-row-1">
                     <div className="session-meta">
-                      <span className="session-game">
-                        {p.gameId ? GAME_LABELS_HE[p.gameId] : '—'}
-                      </span>
+                      <span className="session-game">{gameLabel(p.gameId)}</span>
                       <span>{formatDate(p.generatedAt)}</span>
                       <span>
-                        דיוק: {p.accuracy === null ? '—' : `${Math.round(p.accuracy * 100)}%`}
+                        {t('common.accuracy')}: {p.accuracy === null ? '—' : `${Math.round(p.accuracy * 100)}%`}
                       </span>
                     </div>
                     <span className={`session-score score-${scoreClass(p.cognitiveScore)}`}>
@@ -389,7 +387,7 @@ export default function CognitiveTrendPage() {
                           onClick={() => toggleExpand(p.sessionId)}
                           aria-expanded={isExpanded}
                         >
-                          {isExpanded ? 'כווץ' : 'הצג עוד'}
+                          {isExpanded ? t('tp.showLess') : t('tp.showMore')}
                         </button>
                       )}
                     </>

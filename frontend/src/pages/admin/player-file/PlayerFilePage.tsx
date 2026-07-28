@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useState } from 'react';
+import { useCallback, useEffect, useMemo, useState } from 'react';
 import { Navigate, useNavigate, useParams } from 'react-router-dom';
 import {
   CartesianGrid, Line, LineChart, PolarAngleAxis, PolarGrid, PolarRadiusAxis,
@@ -6,6 +6,7 @@ import {
 } from 'recharts';
 import { ChevronRight, X } from 'lucide-react';
 import { useAuth } from '../../../context/AuthContext';
+import { useAdminT, type AdminKey } from '../adminI18n';
 import './PlayerFilePage.css';
 
 // ─── Types ────────────────────────────────────────────────────────
@@ -95,58 +96,11 @@ interface SessionReport {
 
 // ─── Constants ────────────────────────────────────────────────────
 
-const DOMAIN_HE: Record<string, string> = {
-  'working-memory':      'זיכרון עבודה',
-  'selective-attention': 'קשב סלקטיבי',
-  'divided-attention':   'קשב מחולק',
-  'processing-speed':    'מהירות עיבוד',
-  'reaction-time':       'זמן תגובה',
-  'response-inhibition': 'עיכוב תגובה',
-  'strategic-thinking':  'חשיבה אסטרטגית',
-  'visual-spatial':      'חשיבה חזותית-מרחבית',
-};
-
-// Shorter labels so the radar axis stays legible.
-const DOMAIN_SHORT_HE: Record<string, string> = {
-  'working-memory':      'זיכרון',
-  'selective-attention': 'קשב סלקטיבי',
-  'divided-attention':   'קשב מחולק',
-  'processing-speed':    'מהירות',
-  'reaction-time':       'תגובה',
-  'response-inhibition': 'עיכוב',
-  'strategic-thinking':  'אסטרטגיה',
-  'visual-spatial':      'מרחבי',
-};
-
 // Canonical domain order (matches the 8-game cognitive model).
 const DOMAIN_ORDER = [
   'working-memory', 'selective-attention', 'divided-attention', 'processing-speed',
   'reaction-time', 'response-inhibition', 'strategic-thinking', 'visual-spatial',
 ];
-
-const GAME_HE: Record<string, string> = {
-  'memory':          'זיכרון',
-  'find-letter':     'מצא את האותיות',
-  'color-trains':    'רכבות צבעוניות',
-  'spot-difference': 'מצא את ההבדל',
-  'green-light':     'אור ירוק',
-  'shapes-click':    'צורות קופצות',
-  'tictactoe':       'איקס עיגול',
-  'where-was-it':    'איפה זה היה',
-};
-
-const RANK_HE: Record<string, string> = {
-  beginner:     'מתחיל',
-  intermediate: 'מתקדם',
-  advanced:     'מומחה',
-  expert:       'אלוף',
-};
-
-const NET_DIR_HE: Record<string, string> = {
-  harder: 'הוקשה',
-  easier: 'הוקלה',
-  stable: 'יציבה',
-};
 
 // ─── Helpers ──────────────────────────────────────────────────────
 
@@ -157,22 +111,19 @@ function scoreClass(score: number | null): 'good' | 'mid' | 'low' | 'na' {
   return 'low';
 }
 
-function formatDate(ts: number | null | undefined): string {
-  if (ts === null || ts === undefined) return '—';
-  return new Date(ts).toLocaleDateString('he-IL', {
-    day: 'numeric', month: 'numeric', year: 'numeric',
-  });
-}
-
 function trendArrow(trend?: string): { char: string; cls: string } {
   if (trend === 'up')   return { char: '▲', cls: 'up' };
   if (trend === 'down') return { char: '▼', cls: 'down' };
   return { char: '=', cls: 'flat' };
 }
 
-function gameHe(id: string | null): string {
-  if (!id) return '—';
-  return GAME_HE[id] ?? id;
+/** Mirrors reasonHe() in backend/services/trainingPlan.js. */
+function reasonKey(it: TrainingPlanItem): AdminKey {
+  if (it.deterioration)   return 'reason.decline';
+  if (it.trend === 'down') return 'reason.trendDown';
+  if (it.level < 40)      return 'reason.weak';
+  if (it.level < 70)      return 'reason.moderate';
+  return 'reason.strong';
 }
 
 // ─── Component ────────────────────────────────────────────────────
@@ -181,6 +132,10 @@ export default function PlayerFilePage() {
   const { userId } = useParams<{ userId: string }>();
   const { token, isAdmin } = useAuth();
   const navigate = useNavigate();
+  const {
+    t, tdg, lang, dir, locale,
+    gameLabel, domainLabel, domainShort, rankLabel, netDirLabel, priorityLabel,
+  } = useAdminT();
 
   const [data,    setData]    = useState<PlayerFile | null>(null);
   const [loading, setLoading] = useState(true);
@@ -192,11 +147,15 @@ export default function PlayerFilePage() {
   const [reportLoading, setReportLoading] = useState(false);
   const [reportError,   setReportError]   = useState<string | null>(null);
 
-  // ── Auth gate (admin-only) ────────────────────────────────────
-  if (!isAdmin) return <Navigate to="/" />;
+  const formatDate = useCallback((ts: number | null | undefined): string => {
+    if (ts === null || ts === undefined) return '—';
+    return new Date(ts).toLocaleDateString(locale, {
+      day: 'numeric', month: 'numeric', year: 'numeric',
+    });
+  }, [locale]);
 
   const fetchPlayerFile = async () => {
-    if (!userId || !token) return;
+    if (!userId || !token || !isAdmin) return;
     setLoading(true);
     setError(null);
     try {
@@ -206,7 +165,7 @@ export default function PlayerFilePage() {
       if (!res.ok) throw new Error(`HTTP ${res.status}`);
       setData((await res.json()) as PlayerFile);
     } catch (err) {
-      setError(err instanceof Error ? err.message : 'שגיאה בטעינה');
+      setError(err instanceof Error ? err.message : t('common.loadError'));
     } finally {
       setLoading(false);
     }
@@ -230,7 +189,7 @@ export default function PlayerFilePage() {
       if (!res.ok) throw new Error(`HTTP ${res.status}`);
       setReport((await res.json()) as SessionReport);
     } catch (err) {
-      setReportError(err instanceof Error ? err.message : 'שגיאה בטעינת הדוח');
+      setReportError(err instanceof Error ? err.message : t('pf.reportError'));
     } finally {
       setReportLoading(false);
     }
@@ -251,9 +210,9 @@ export default function PlayerFilePage() {
 
   const radarData = useMemo(() =>
     DOMAIN_ORDER.map((id) => ({
-      domain: DOMAIN_SHORT_HE[id] ?? id,
+      domain: domainShort(id),
       level:  domainMap.get(id)?.level ?? 0,
-    })), [domainMap]);
+    })), [domainMap, domainShort]);
 
   const trendData = useMemo(() => {
     if (!data) return [];
@@ -261,43 +220,48 @@ export default function PlayerFilePage() {
       .filter((s) => s.generatedAt !== null && typeof s.cognitiveScore === 'number')
       .sort((a, b) => (a.generatedAt ?? 0) - (b.generatedAt ?? 0))
       .map((s) => ({ date: formatDate(s.generatedAt), score: s.cognitiveScore }));
-  }, [data]);
+  }, [data, formatDate]);
+
+  // ── Auth gate (admin-only) ────────────────────────────────────
+  // Must sit below every hook: bailing out earlier would render a different
+  // number of hooks if `isAdmin` ever flips, which React treats as an error.
+  if (!isAdmin) return <Navigate to="/" />;
 
   // ── Render: header (used across states) ───────────────────────
   const rank = data?.progression.rank;
   const Header = (
     <div className="pf-header">
       <div>
-        <h1>תיק שחקן</h1>
+        <h1>{t('pf.title')}</h1>
         <p className="pf-subtitle">
           {data?.user.name ? `${data.user.name} · ` : ''}{userId}
         </p>
       </div>
       <button className="pf-back-btn" onClick={() => navigate(-1)}>
         <ChevronRight size={14} />
-        חזור
+        {t('common.back')}
       </button>
     </div>
   );
 
   if (loading) {
     return (
-      <main className="pf-page" dir="rtl">
+      <main className="pf-page" dir={dir}>
         {Header}
-        <div className="pf-state"><p>טוען נתונים…</p></div>
+        <div className="pf-state"><p>{t('common.loading')}</p></div>
       </main>
     );
   }
 
   if (error) {
     return (
-      <main className="pf-page" dir="rtl">
+      <main className="pf-page" dir={dir}>
         {Header}
         <div className="pf-state pf-error">
           <span className="pf-emoji">⚠️</span>
-          <h2>לא הצלחנו לטעון את התיק</h2>
+          <h2>{t('pf.loadError')}</h2>
           <p>{error}</p>
-          <button className="pf-retry-btn" onClick={fetchPlayerFile}>נסה שוב</button>
+          <button className="pf-retry-btn" onClick={fetchPlayerFile}>{t('common.retry')}</button>
         </div>
       </main>
     );
@@ -305,8 +269,13 @@ export default function PlayerFilePage() {
 
   if (!data) return null;
 
+  const plan = data.trainingPlan;
+  const focusDomain = lang === 'he'
+    ? plan?.focusDomainHe
+    : (plan?.items[0] ? domainLabel(plan.items[0].domainId) : null);
+
   return (
-    <main className="pf-page" dir="rtl">
+    <main className="pf-page" dir={dir}>
       {Header}
 
       {/* ── Identity strip ── */}
@@ -318,39 +287,39 @@ export default function PlayerFilePage() {
           <div className="pf-identity-name">{data.user.name ?? '—'}</div>
           <div className="pf-identity-sub">{data.user.email ?? ''}</div>
           <div className="pf-identity-meta">
-            <span>הצטרף: {formatDate(data.user.createdAt)}</span>
+            <span>{t('pf.joined')}: {formatDate(data.user.createdAt)}</span>
             <span className={`pf-role ${data.user.role ?? 'user'}`}>
-              {data.user.role === 'admin' ? 'מנהל' : 'משתמש'}
+              {data.user.role === 'admin' ? t('common.admin') : t('common.user')}
             </span>
           </div>
         </div>
         <div className="pf-identity-stats">
           <div className="pf-stat">
             <span className="pf-stat-value">{data.progression.overallLevel ?? 0}</span>
-            <span className="pf-stat-label">רמה כללית</span>
+            <span className="pf-stat-label">{t('pf.overallLevel')}</span>
           </div>
           <div className="pf-stat">
-            <span className="pf-stat-value">{rank ? (RANK_HE[rank] ?? rank) : '—'}</span>
-            <span className="pf-stat-label">דרגה</span>
+            <span className="pf-stat-value">{rank ? rankLabel(rank) : '—'}</span>
+            <span className="pf-stat-label">{t('pf.rank')}</span>
           </div>
           <div className="pf-stat">
             <span className="pf-stat-value">{data.sessions.length}</span>
-            <span className="pf-stat-label">משחקים אחרונים</span>
+            <span className="pf-stat-label">{t('pf.recentGames')}</span>
           </div>
         </div>
       </section>
 
       {/* ── Quick links to the deeper per-user pages ── */}
       <div className="pf-quicklinks">
-        <button onClick={() => navigate(`/admin/users/${userId}/trend`)}>מגמה קוגניטיבית</button>
-        <button onClick={() => navigate(`/admin/users/${userId}/coach-reports`)}>דוחות מאמן</button>
+        <button onClick={() => navigate(`/admin/users/${userId}/trend`)}>{t('pf.linkTrend')}</button>
+        <button onClick={() => navigate(`/admin/users/${userId}/coach-reports`)}>{t('pf.linkReports')}</button>
       </div>
 
       {/* ── Cognitive profile (radar + per-domain bars) ── */}
       <section className="pf-card">
-        <h2 className="pf-card-title">פרופיל קוגניטיבי</h2>
+        <h2 className="pf-card-title">{t('pf.profile')}</h2>
         {data.profile.domains.length === 0 ? (
-          <p className="pf-muted">עדיין אין פרופיל — המשתמש טרם השלים משחקים.</p>
+          <p className="pf-muted">{t('pf.profileEmpty')}</p>
         ) : (
           <div className="pf-profile-grid">
             <div className="pf-radar-wrap">
@@ -361,8 +330,8 @@ export default function PlayerFilePage() {
                   <PolarRadiusAxis domain={[0, 100]} tick={{ fontSize: 10 }} angle={90} />
                   <Radar dataKey="level" stroke="#2f86d6" fill="#2f86d6" fillOpacity={0.35} />
                   <Tooltip
-                    contentStyle={{ direction: 'rtl', textAlign: 'right' }}
-                    formatter={(v) => [`${v}/100`, 'רמה']}
+                    contentStyle={{ direction: dir, textAlign: lang === 'he' ? 'right' : 'left' }}
+                    formatter={(v) => [`${v}/100`, t('pf.level')]}
                   />
                 </RadarChart>
               </ResponsiveContainer>
@@ -374,7 +343,7 @@ export default function PlayerFilePage() {
                 const arrow = trendArrow(d?.trend);
                 return (
                   <li className="pf-domain-row" key={id}>
-                    <span className="pf-domain-name">{DOMAIN_HE[id] ?? id}</span>
+                    <span className="pf-domain-name">{domainLabel(id)}</span>
                     <span className="pf-domain-bar">
                       <span
                         className={`pf-domain-fill score-${scoreClass(d ? level : null)}`}
@@ -382,7 +351,7 @@ export default function PlayerFilePage() {
                       />
                     </span>
                     <span className="pf-domain-level">{d ? level : '—'}</span>
-                    <span className={`pf-domain-trend ${arrow.cls}`} title="מגמה">
+                    <span className={`pf-domain-trend ${arrow.cls}`} title={t('pf.trendTitle')}>
                       {d?.deteriorationFlag ? '⚠' : arrow.char}
                     </span>
                   </li>
@@ -394,30 +363,36 @@ export default function PlayerFilePage() {
       </section>
 
       {/* ── Weekly training plan (derived from the profile) ── */}
-      {data.trainingPlan && data.trainingPlan.items.length > 0 && (
+      {plan && plan.items.length > 0 && (
         <section className="pf-card">
           <div className="pf-plan-head">
-            <h2 className="pf-card-title">תוכנית אימונים שבועית</h2>
+            <h2 className="pf-card-title">{t('pf.plan')}</h2>
             <span className="pf-plan-total">
-              {data.trainingPlan.weeklySessions} משחקים/שבוע
-              {data.trainingPlan.focusDomainHe ? ` · דגש: ${data.trainingPlan.focusDomainHe}` : ''}
+              {plan.weeklySessions} {t('pf.planPerWeek')}
+              {focusDomain ? ` · ${t('pf.planFocus')}: ${focusDomain}` : ''}
             </span>
           </div>
-          <p className="pf-card-subtitle">נגזרת מהפרופיל — דומיינים חלשים או במגמת ירידה מקבלים עדיפות ותדירות גבוהה יותר.</p>
+          <p className="pf-card-subtitle">{t('pf.planSub')}</p>
           <ul className="pf-plan-list">
-            {data.trainingPlan.items.map((it) => (
+            {plan.items.map((it) => (
               <li className={`pf-plan-row prio-${it.priority}`} key={it.domainId}>
-                <span className={`pf-plan-badge prio-${it.priority}`}>{it.priorityHe}</span>
+                <span className={`pf-plan-badge prio-${it.priority}`}>
+                  {lang === 'he' ? it.priorityHe : priorityLabel(it.priority)}
+                </span>
                 <div className="pf-plan-main">
                   <div className="pf-plan-title">
-                    <span className="pf-plan-domain">{it.domainHe}</span>
-                    <span className="pf-plan-game">→ {it.gameHe}</span>
+                    <span className="pf-plan-domain">{domainLabel(it.domainId)}</span>
+                    <span className="pf-plan-game">→ {gameLabel(it.gameId)}</span>
                   </div>
-                  <p className="pf-plan-reason">{it.reasonHe}</p>
+                  <p className="pf-plan-reason">
+                    {lang === 'he'
+                      ? it.reasonHe
+                      : tdg(reasonKey(it), domainLabel(it.domainId), gameLabel(it.gameId))}
+                  </p>
                 </div>
                 <span className="pf-plan-freq">
                   <span className="pf-plan-freq-num">{it.sessionsPerWeek}×</span>
-                  <span className="pf-plan-freq-label">בשבוע</span>
+                  <span className="pf-plan-freq-label">{t('pf.planWeekly')}</span>
                 </span>
               </li>
             ))}
@@ -428,18 +403,18 @@ export default function PlayerFilePage() {
       {/* ── Cognitive-score trend (recent sessions) ── */}
       {trendData.length > 0 && (
         <section className="pf-card">
-          <h2 className="pf-card-title">מגמת ציון קוגניטיבי</h2>
-          <p className="pf-card-subtitle">משחקים אחרונים · סולם 0–100 · 40 = ממוצע · 70 = חזק</p>
+          <h2 className="pf-card-title">{t('pf.scoreTrend')}</h2>
+          <p className="pf-card-subtitle">{t('pf.scoreTrendSub')}</p>
           <ResponsiveContainer width="100%" height={240}>
             <LineChart data={trendData} margin={{ top: 8, right: 18, left: -6, bottom: 4 }}>
               <CartesianGrid strokeDasharray="3 3" stroke="#e2e8f0" />
-              <XAxis dataKey="date" tick={{ fontSize: 12 }} reversed />
+              <XAxis dataKey="date" tick={{ fontSize: 12 }} reversed={lang === 'he'} />
               <YAxis domain={[0, 100]} ticks={[0, 20, 40, 60, 80, 100]} tick={{ fontSize: 12 }} />
               <ReferenceLine y={40} stroke="#fbbf24" strokeDasharray="4 4" />
               <ReferenceLine y={70} stroke="#16a34a" strokeDasharray="4 4" />
               <Tooltip
-                contentStyle={{ direction: 'rtl', textAlign: 'right' }}
-                formatter={(v) => [v === null || v === undefined ? '—' : `${v}/100`, 'ציון']}
+                contentStyle={{ direction: dir, textAlign: lang === 'he' ? 'right' : 'left' }}
+                formatter={(v) => [v === null || v === undefined ? '—' : `${v}/100`, t('common.score')]}
               />
               <Line type="monotone" dataKey="score" stroke="#2f86d6" strokeWidth={2.5} dot={{ r: 4 }} connectNulls />
             </LineChart>
@@ -450,18 +425,18 @@ export default function PlayerFilePage() {
       {/* ── Open alerts ── */}
       {data.alerts.length > 0 && (
         <section className="pf-card">
-          <h2 className="pf-card-title">התראות פתוחות</h2>
+          <h2 className="pf-card-title">{t('pf.openAlerts')}</h2>
           <ul className="pf-alert-list">
             {data.alerts.map((a, i) => (
               <li className="pf-alert-row" key={a.alertId ?? i}>
                 <span className="pf-alert-dot" aria-hidden>●</span>
-                <span className="pf-alert-game">{gameHe(a.gameId)}</span>
+                <span className="pf-alert-game">{gameLabel(a.gameId)}</span>
                 <span className="pf-alert-text">
                   {a.trigger === 'accuracy'
-                    ? `ירידה של ${a.accuracyDrop ?? '?'} נק' בדיוק`
+                    ? `${t('pf.alertAccuracy')}: ${a.accuracyDrop ?? '?'} ${t('pf.alertPoints')}`
                     : a.trigger === 'cognitive_score'
-                    ? 'ירידה בציון הקוגניטיבי'
-                    : 'דפוס ירידה זוהה'}
+                    ? t('pf.alertScore')
+                    : t('pf.alertPattern')}
                 </span>
                 <span className="pf-alert-date">{formatDate(a.createdAt)}</span>
               </li>
@@ -472,9 +447,9 @@ export default function PlayerFilePage() {
 
       {/* ── Session history (click → report drawer) ── */}
       <section className="pf-card">
-        <h2 className="pf-card-title">היסטוריית משחקים</h2>
+        <h2 className="pf-card-title">{t('pf.history')}</h2>
         {data.sessions.length === 0 ? (
-          <p className="pf-muted">אין עדיין משחקים.</p>
+          <p className="pf-muted">{t('pf.historyEmpty')}</p>
         ) : (
           <div className="pf-session-list">
             {data.sessions.map((s) => (
@@ -482,13 +457,13 @@ export default function PlayerFilePage() {
                 className="pf-session-card"
                 key={s.sessionId}
                 onClick={() => openReport(s.sessionId)}
-                aria-label={`פתח דוח ל${gameHe(s.gameId)}`}
+                aria-label={`${t('pf.openReport')}${gameLabel(s.gameId)}`}
               >
                 <div className="pf-session-meta">
-                  <span className="pf-session-game">{gameHe(s.gameId)}</span>
+                  <span className="pf-session-game">{gameLabel(s.gameId)}</span>
                   <span className="pf-session-date">{formatDate(s.generatedAt)}</span>
                   <span className="pf-session-acc">
-                    דיוק: {s.accuracy === null ? '—' : `${Math.round(s.accuracy * 100)}%`}
+                    {t('common.accuracy')}: {s.accuracy === null ? '—' : `${Math.round(s.accuracy * 100)}%`}
                   </span>
                 </div>
                 <span className={`pf-session-score score-${scoreClass(s.cognitiveScore)}`}>
@@ -503,21 +478,21 @@ export default function PlayerFilePage() {
       {/* ── Report drawer ── */}
       {openSessionId && (
         <div className="pf-drawer-overlay" onClick={closeReport}>
-          <aside className="pf-drawer" dir="rtl" onClick={(e) => e.stopPropagation()}>
+          <aside className="pf-drawer" dir={dir} onClick={(e) => e.stopPropagation()}>
             <div className="pf-drawer-head">
-              <h2>דוח סשן</h2>
-              <button className="pf-drawer-close" onClick={closeReport} aria-label="סגור">
+              <h2>{t('pf.reportTitle')}</h2>
+              <button className="pf-drawer-close" onClick={closeReport} aria-label={t('pf.close')}>
                 <X size={18} />
               </button>
             </div>
 
-            {reportLoading && <p className="pf-muted">טוען דוח…</p>}
+            {reportLoading && <p className="pf-muted">{t('pf.reportLoading')}</p>}
             {reportError && <p className="pf-error-text">{reportError}</p>}
 
             {report && (
               <div className="pf-report">
                 <div className="pf-report-top">
-                  <span className="pf-report-game">{gameHe(report.gameId)}</span>
+                  <span className="pf-report-game">{gameLabel(report.gameId)}</span>
                   <span className={`pf-session-score score-${scoreClass(report.cognitiveScore)}`}>
                     {report.cognitiveScore ?? '—'}/100
                   </span>
@@ -528,11 +503,11 @@ export default function PlayerFilePage() {
 
                 {report.domainScores && Object.keys(report.domainScores).length > 0 && (
                   <>
-                    <h3 className="pf-report-h3">ציוני דומיינים</h3>
+                    <h3 className="pf-report-h3">{t('pf.domainScores')}</h3>
                     <ul className="pf-report-domains">
                       {Object.entries(report.domainScores).map(([id, v]) => (
                         <li key={id}>
-                          <span>{DOMAIN_HE[id] ?? id}</span>
+                          <span>{domainLabel(id)}</span>
                           <span className={`score-${scoreClass(v)}`}>{v}</span>
                         </li>
                       ))}
@@ -542,32 +517,32 @@ export default function PlayerFilePage() {
 
                 {report.strengthsHe && report.strengthsHe.length > 0 && (
                   <>
-                    <h3 className="pf-report-h3">חוזקות</h3>
+                    <h3 className="pf-report-h3">{t('pf.strengths')}</h3>
                     <ul className="pf-report-bullets">
-                      {report.strengthsHe.map((t, i) => <li key={i}>{t}</li>)}
+                      {report.strengthsHe.map((line, i) => <li key={i}>{line}</li>)}
                     </ul>
                   </>
                 )}
 
                 {report.recommendationsHe && report.recommendationsHe.length > 0 && (
                   <>
-                    <h3 className="pf-report-h3">המלצות</h3>
+                    <h3 className="pf-report-h3">{t('pf.recommendations')}</h3>
                     <ul className="pf-report-bullets">
-                      {report.recommendationsHe.map((t, i) => <li key={i}>{t}</li>)}
+                      {report.recommendationsHe.map((line, i) => <li key={i}>{line}</li>)}
                     </ul>
                   </>
                 )}
 
                 {report.rawStats && (
                   <>
-                    <h3 className="pf-report-h3">נתונים גולמיים</h3>
+                    <h3 className="pf-report-h3">{t('pf.rawStats')}</h3>
                     <div className="pf-report-stats">
-                      <div><span>דיוק</span><span>{report.rawStats.accuracy != null ? `${Math.round(report.rawStats.accuracy * 100)}%` : '—'}</span></div>
-                      <div><span>זמן תגובה</span><span>{report.rawStats.avgReactionMs != null ? `${Math.round(report.rawStats.avgReactionMs)}ms` : '—'}</span></div>
-                      <div><span>רצף שיא</span><span>{report.rawStats.peakStreak ?? '—'}</span></div>
-                      <div><span>משך</span><span>{report.rawStats.durationMs != null ? `${Math.round(report.rawStats.durationMs / 1000)}s` : '—'}</span></div>
-                      <div><span>התאמות קושי</span><span>{report.rawStats.adjustmentCount ?? 0}</span></div>
-                      <div><span>מגמת קושי</span><span>{report.rawStats.netDirection ? (NET_DIR_HE[report.rawStats.netDirection] ?? report.rawStats.netDirection) : '—'}</span></div>
+                      <div><span>{t('common.accuracy')}</span><span>{report.rawStats.accuracy != null ? `${Math.round(report.rawStats.accuracy * 100)}%` : '—'}</span></div>
+                      <div><span>{t('pf.reactionTime')}</span><span>{report.rawStats.avgReactionMs != null ? `${Math.round(report.rawStats.avgReactionMs)}ms` : '—'}</span></div>
+                      <div><span>{t('pf.peakStreak')}</span><span>{report.rawStats.peakStreak ?? '—'}</span></div>
+                      <div><span>{t('pf.duration')}</span><span>{report.rawStats.durationMs != null ? `${Math.round(report.rawStats.durationMs / 1000)}s` : '—'}</span></div>
+                      <div><span>{t('pf.adjustments')}</span><span>{report.rawStats.adjustmentCount ?? 0}</span></div>
+                      <div><span>{t('pf.difficultyTrend')}</span><span>{report.rawStats.netDirection ? netDirLabel(report.rawStats.netDirection) : '—'}</span></div>
                     </div>
                   </>
                 )}

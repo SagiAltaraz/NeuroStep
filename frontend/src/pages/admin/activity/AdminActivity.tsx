@@ -1,5 +1,6 @@
 import { useEffect, useState } from "react";
 import { useAuth } from "../../../context/AuthContext";
+import { useAdminT } from "../adminI18n";
 import "./AdminActivity.css";
 
 interface ActivityLog {
@@ -13,12 +14,13 @@ interface ActivityLog {
 
 const AdminActivity: React.FC<{ onBack: () => void }> = ({ onBack }) => {
   const { token } = useAuth();
+  const { t, tn, dir, locale } = useAdminT();
   const [logs,    setLogs]    = useState<ActivityLog[]>([]);
   const [loading, setLoading] = useState(true);
   const [error,   setError]   = useState<string | null>(null);
 
   useEffect(() => {
-    if (!token) { setError("לא מחובר"); setLoading(false); return; }
+    if (!token) { setError(t('common.notAuth')); setLoading(false); return; }
     fetch("/api/admin/activity", { headers: { Authorization: `Bearer ${token}` } })
       .then(r => { if (!r.ok) throw new Error(`HTTP ${r.status}`); return r.json(); })
       .then(data => setLogs(data as ActivityLog[]))
@@ -41,40 +43,40 @@ const AdminActivity: React.FC<{ onBack: () => void }> = ({ onBack }) => {
   ).sort((a, b) => b.lastLogin - a.lastLogin);
 
   const fmt = (ms: number) =>
-    new Date(ms).toLocaleString("he-IL", {
+    new Date(ms).toLocaleString(locale, {
       day: "2-digit", month: "2-digit", year: "2-digit",
       hour: "2-digit", minute: "2-digit",
     });
 
   const timeAgo = (ms: number) => {
     const diff = Date.now() - ms;
-    if (diff < 60_000)     return 'לפני רגע';
-    if (diff < 3_600_000)  return `לפני ${Math.round(diff / 60_000)} דק'`;
-    if (diff < 86_400_000) return `לפני ${Math.round(diff / 3_600_000)} שע'`;
-    return `לפני ${Math.round(diff / 86_400_000)} ימים`;
+    if (diff < 60_000)     return t('ac.agoNow');
+    if (diff < 3_600_000)  return tn('ac.agoMin', Math.round(diff / 60_000));
+    if (diff < 86_400_000) return tn('ac.agoHour', Math.round(diff / 3_600_000));
+    return tn('ac.agoDay', Math.round(diff / 86_400_000));
   };
 
   return (
-    <div className="admin-view-page">
+    <div className="admin-view-page" dir={dir}>
       <div className="view-header">
-        <h2>פעילות משתמשים</h2>
-        <button className="back-btn" onClick={onBack}>← חזרה</button>
+        <h2>{t('ac.title')}</h2>
+        <button className="back-btn" onClick={onBack}>← {t('common.backArrow')}</button>
       </div>
 
-      {loading && <p className="act-state">טוען…</p>}
+      {loading && <p className="act-state">{t('ac.loading')}</p>}
       {error && (
         <div className="act-error">
-          <strong>שגיאה:</strong> {error}
-          <br /><small>ודא ש-backend/server.js רץ (port 3000)</small>
+          <strong>{t('common.error')}:</strong> {error}
+          <br /><small>{t('common.backendHint')}</small>
         </div>
       )}
 
       {!loading && !error && (
         <>
           {/* ── User summary cards ── */}
-          <h3 className="act-section-title">משתמשים פעילים</h3>
+          <h3 className="act-section-title">{t('ac.activeUsers')}</h3>
           {userSummary.length === 0
-            ? <p className="act-state">אין פעילות עדיין</p>
+            ? <p className="act-state">{t('ac.noActivity')}</p>
             : <div className="act-user-grid">
                 {userSummary.map(u => (
                   <div key={u.email} className="act-user-card">
@@ -82,18 +84,18 @@ const AdminActivity: React.FC<{ onBack: () => void }> = ({ onBack }) => {
                     <div className="act-user-info">
                       <span className="act-user-name">{u.name}</span>
                       <span className="act-user-email">{u.email}</span>
-                      <span className="act-user-last">כניסה אחרונה: {timeAgo(u.lastLogin)}</span>
+                      <span className="act-user-last">{t('ac.lastLogin')}: {timeAgo(u.lastLogin)}</span>
                     </div>
-                    <div className="act-login-count">{u.count} כניסות</div>
+                    <div className="act-login-count">{u.count} {t('ac.logins')}</div>
                   </div>
                 ))}
               </div>
           }
 
           {/* ── Recent login feed ── */}
-          <h3 className="act-section-title" style={{ marginTop: '2rem' }}>יומן כניסות</h3>
+          <h3 className="act-section-title" style={{ marginTop: '2rem' }}>{t('ac.loginLog')}</h3>
           {logs.length === 0
-            ? <p className="act-state">אין רשומות</p>
+            ? <p className="act-state">{t('ac.noRecords')}</p>
             : <div className="act-feed">
                 {logs.map(log => (
                   <div key={log.id} className="act-feed-row">

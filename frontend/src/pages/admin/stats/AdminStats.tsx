@@ -4,6 +4,7 @@ import {
   LineChart, Line, CartesianGrid,
 } from 'recharts';
 import { useAuth } from '../../../context/AuthContext';
+import { useAdminT } from '../adminI18n';
 import './AdminStats.css';
 
 // ── Types ──────────────────────────────────────────────────────────────────────
@@ -40,17 +41,11 @@ interface TokenUsage {
 const INPUT_COST_PER_TOKEN  = 0.80  / 1_000_000;  // $0.80 / 1M
 const OUTPUT_COST_PER_TOKEN = 4.00  / 1_000_000;  // $4.00 / 1M
 
-const GAME_LABELS: Record<string, string> = {
-  'shapes-click': 'צורות',
-  'color-trains': 'רכבות',
-  'tictactoe':    'איקס עיגול',
-  'memory':       'זיכרון',
-};
-
 // ── Component ──────────────────────────────────────────────────────────────────
 
 const AdminStats: React.FC<{ onBack: () => void }> = ({ onBack }) => {
   const { token } = useAuth();
+  const { t, gameLabel } = useAdminT();
   const [sessions,    setSessions]    = useState<SessionDoc[]>([]);
   const [tokenUsage,  setTokenUsage]  = useState<TokenUsage | null>(null);
   const [loading,     setLoading]     = useState(true);
@@ -110,7 +105,7 @@ const AdminStats: React.FC<{ onBack: () => void }> = ({ onBack }) => {
       return acc;
     }, {})
   ).map(([gameId, vals]) => ({
-    name:     GAME_LABELS[gameId] ?? gameId,
+    name:     gameLabel(gameId),
     accuracy: Math.round((vals.reduce((a, b) => a + b, 0) / vals.length) * 100),
   }));
 
@@ -121,7 +116,7 @@ const AdminStats: React.FC<{ onBack: () => void }> = ({ onBack }) => {
     .map((s, i) => ({
       idx:   i + 1,
       score: s.report!.cognitiveScore,
-      game:  GAME_LABELS[s.gameId] ?? s.gameId,
+      game:  gameLabel(s.gameId),
     }));
 
   // Token cost
@@ -183,7 +178,7 @@ const AdminStats: React.FC<{ onBack: () => void }> = ({ onBack }) => {
         <h2>Statistics</h2>
         <button className="back-btn" onClick={onBack}>← Back</button>
       </div>
-      <p className="stats-loading">טוען נתונים מ-Firestore…</p>
+      <p className="stats-loading">{t('st.loading')}</p>
     </div>
   );
 
@@ -194,9 +189,9 @@ const AdminStats: React.FC<{ onBack: () => void }> = ({ onBack }) => {
         <button className="back-btn" onClick={onBack}>← Back</button>
       </div>
       <div className="stats-error">
-        <strong>שגיאת טעינה:</strong>
+        <strong>{t('st.errorTitle')}</strong>
         <code>{error}</code>
-        <p>בדוק שה-backend פעיל ושיש לך הרשאות admin</p>
+        <p>{t('st.errorHint')}</p>
       </div>
     </div>
   );
@@ -219,19 +214,19 @@ const AdminStats: React.FC<{ onBack: () => void }> = ({ onBack }) => {
       {/* ── KPI row ── */}
       <div className="kpi-row">
         <div className="kpi-card">
-          <span className="kpi-label">סשנים</span>
+          <span className="kpi-label">{t('st.sessions')}</span>
           <span className="kpi-value">{totalSessions}</span>
         </div>
         <div className="kpi-card">
-          <span className="kpi-label">משתמשים ייחודיים</span>
+          <span className="kpi-label">{t('st.uniqueUsers')}</span>
           <span className="kpi-value">{uniqueUsers}</span>
         </div>
         <div className="kpi-card">
-          <span className="kpi-label">דיוק ממוצע</span>
+          <span className="kpi-label">{t('st.avgAccuracy')}</span>
           <span className="kpi-value">{avgAccuracy}%</span>
         </div>
         <div className="kpi-card kpi-highlight">
-          <span className="kpi-label">ציון קוגניטיבי ממוצע</span>
+          <span className="kpi-label">{t('st.avgScore')}</span>
           <span className="kpi-value">{avgCogScore ?? '—'}</span>
         </div>
       </div>
@@ -241,9 +236,9 @@ const AdminStats: React.FC<{ onBack: () => void }> = ({ onBack }) => {
 
         {/* Accuracy per game */}
         <div className="chart-card">
-          <h3 className="chart-title">דיוק לפי משחק</h3>
+          <h3 className="chart-title">{t('st.accByGame')}</h3>
           {byGame.length === 0
-            ? <p className="chart-empty">אין נתונים עדיין</p>
+            ? <p className="chart-empty">{t('st.noData')}</p>
             : <ResponsiveContainer width="100%" height={200}>
                 <BarChart data={byGame} margin={{ top: 4, right: 8, left: -20, bottom: 0 }}>
                   <CartesianGrid strokeDasharray="3 3" stroke="#f1f5f9" />
@@ -258,17 +253,17 @@ const AdminStats: React.FC<{ onBack: () => void }> = ({ onBack }) => {
 
         {/* Cognitive score over time */}
         <div className="chart-card">
-          <h3 className="chart-title">ציון קוגניטיבי לאורך זמן</h3>
+          <h3 className="chart-title">{t('st.scoreOverTime')}</h3>
           {scoreTimeline.length === 0
-            ? <p className="chart-empty">עדיין אין דוחות — שחק כדי ליצור</p>
+            ? <p className="chart-empty">{t('st.noReportsPlay')}</p>
             : <ResponsiveContainer width="100%" height={200}>
                 <LineChart data={scoreTimeline} margin={{ top: 4, right: 8, left: -20, bottom: 0 }}>
                   <CartesianGrid strokeDasharray="3 3" stroke="#f1f5f9" />
-                  <XAxis dataKey="idx" tick={{ fontSize: 12 }} label={{ value: 'סשן', position: 'insideBottom', offset: -2, fontSize: 11 }} />
+                  <XAxis dataKey="idx" tick={{ fontSize: 12 }} label={{ value: t('st.session'), position: 'insideBottom', offset: -2, fontSize: 11 }} />
                   <YAxis domain={[0, 100]} tick={{ fontSize: 12 }} />
                   <Tooltip
-                    formatter={(v) => [`${v ?? '—'}`, 'ציון']}
-                    labelFormatter={(l) => `סשן ${l}`}
+                    formatter={(v) => [`${v ?? '—'}`, t('common.score')]}
+                    labelFormatter={(l) => `${t('st.session')} ${l}`}
                   />
                   <Line type="monotone" dataKey="score" stroke="#10b981" strokeWidth={2} dot={{ r: 3 }} />
                 </LineChart>
@@ -279,11 +274,11 @@ const AdminStats: React.FC<{ onBack: () => void }> = ({ onBack }) => {
 
       {/* ── Claude token usage ── */}
       <div className="token-card">
-        <h3 className="chart-title">שימוש ב-Claude API</h3>
+        <h3 className="chart-title">{t('st.claudeUsage')}</h3>
         {tokenUsage ? (
           <div className="token-grid">
             <div className="token-stat">
-              <span className="token-label">דוחות שנוצרו</span>
+              <span className="token-label">{t('st.reportsGenerated')}</span>
               <span className="token-num">{tokenUsage.totalReports.toLocaleString()}</span>
             </div>
             <div className="token-stat">
@@ -295,24 +290,24 @@ const AdminStats: React.FC<{ onBack: () => void }> = ({ onBack }) => {
               <span className="token-num">{tokenUsage.totalOutputTokens.toLocaleString()}</span>
             </div>
             <div className="token-stat token-cost">
-              <span className="token-label">עלות משוערת (Haiku)</span>
+              <span className="token-label">{t('st.estCost')}</span>
               <span className="token-num">${tokenCost}</span>
             </div>
           </div>
         ) : (
-          <p className="chart-empty">אין שימוש עדיין — דוחות נוצרים בסוף כל סשן</p>
+          <p className="chart-empty">{t('st.noUsage')}</p>
         )}
       </div>
 
       {/* ── Recent Claude reports ── */}
       <div className="reports-card">
-        <h3 className="chart-title">דוחות קוגניטיביים אחרונים</h3>
+        <h3 className="chart-title">{t('st.recentReports')}</h3>
         {recentReports.length === 0
-          ? <p className="chart-empty">עדיין אין דוחות</p>
+          ? <p className="chart-empty">{t('st.noReports')}</p>
           : recentReports.map((s, i) => (
             <div key={i} className="report-row">
               <div className="report-meta">
-                <span className="report-game">{GAME_LABELS[s.gameId] ?? s.gameId}</span>
+                <span className="report-game">{gameLabel(s.gameId)}</span>
                 <span className={`report-score score-${scoreClass(s.report!.cognitiveScore)}`}>
                   {s.report!.cognitiveScore}/100
                 </span>
