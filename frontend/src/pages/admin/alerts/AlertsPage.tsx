@@ -2,11 +2,12 @@ import { useEffect, useState } from 'react';
 import { Navigate, useNavigate } from 'react-router-dom';
 import { ChevronRight } from 'lucide-react';
 import { useAuth } from '../../../context/AuthContext';
+import { useAdminT, type AdminGameId } from '../adminI18n';
 import './AlertsPage.css';
 
 // ─── Types ────────────────────────────────────────────────────────
 
-type GameId = 'shapes-click' | 'color-trains' | 'tictactoe' | 'memory';
+type GameId = AdminGameId;
 
 interface Alert {
   alertId:      string | null;
@@ -26,46 +27,34 @@ interface AlertConfig {
   windowSessions:  number;
 }
 
-const GAME_LABELS_HE: Record<GameId, string> = {
-  'shapes-click': 'איתור צורות',
-  'color-trains': 'רכבות צבעוניות',
-  'tictactoe':    'איקס עיגול',
-  'memory':       'זיכרון',
-};
-
-// ─── Helpers ──────────────────────────────────────────────────────
-
-function relativeTime(ts: number | null): string {
-  if (ts === null) return '—';
-  const diff = Date.now() - ts;
-  const min  = Math.round(diff / 60_000);
-  const hr   = Math.round(diff / 3_600_000);
-  const day  = Math.round(diff / 86_400_000);
-  if (min < 1)  return 'לפני רגע';
-  if (min < 60) return `לפני ${min} דקות`;
-  if (hr  < 24) return hr === 1 ? 'לפני שעה' : `לפני ${hr} שעות`;
-  if (day === 1) return 'לפני יום';
-  if (day === 2) return 'לפני יומיים';
-  if (day < 30)  return `לפני ${day} ימים`;
-  return new Date(ts).toLocaleDateString('he-IL');
-}
-
-function triggerText(alert: Alert): string {
-  if (alert.trigger === 'accuracy') {
-    const drop = alert.accuracyDrop ?? 0;
-    return `ירידה של ${drop} נקודות באחוזי דיוק לאורך 3 משחקים`;
-  }
-  if (alert.trigger === 'cognitive_score') {
-    return 'ציון קוגניטיבי ירד בעקביות לאורך 3 משחקים';
-  }
-  return 'דפוס ירידה זוהה לאורך 3 משחקים';
-}
-
 // ─── Component ────────────────────────────────────────────────────
 
 export default function AlertsPage() {
   const { token, isAdmin } = useAuth();
   const navigate = useNavigate();
+  const { t, tn, dir, locale, gameLabel } = useAdminT();
+
+  const relativeTime = (ts: number | null): string => {
+    if (ts === null) return '—';
+    const diff = Date.now() - ts;
+    const min  = Math.round(diff / 60_000);
+    const hr   = Math.round(diff / 3_600_000);
+    const day  = Math.round(diff / 86_400_000);
+    if (min < 1)   return t('al.justNow');
+    if (min < 60)  return tn('al.agoMin', min);
+    if (hr  < 24)  return hr === 1 ? t('al.agoHour') : tn('al.agoHours', hr);
+    if (day === 1) return t('al.agoDay');
+    if (day < 30)  return tn('al.agoDays', day);
+    return new Date(ts).toLocaleDateString(locale);
+  };
+
+  const triggerText = (alert: Alert): string => {
+    if (alert.trigger === 'accuracy') {
+      return `${t('al.trigAccuracyA')} ${alert.accuracyDrop ?? 0} ${t('al.trigAccuracyB')}`;
+    }
+    if (alert.trigger === 'cognitive_score') return t('al.trigScore');
+    return t('al.trigPattern');
+  };
 
   const [alerts,    setAlerts]    = useState<Alert[]>([]);
   const [loading,   setLoading]   = useState(true);
@@ -77,10 +66,8 @@ export default function AlertsPage() {
   const [cfgSaving, setCfgSaving] = useState(false);
   const [cfgStatus, setCfgStatus] = useState<'idle' | 'saved' | 'error'>('idle');
 
-  if (!isAdmin) return <Navigate to="/" />;
-
   const fetchAlerts = async () => {
-    if (!token) return;
+    if (!token || !isAdmin) return;
     setLoading(true);
     setError(null);
     try {
@@ -91,7 +78,7 @@ export default function AlertsPage() {
       const json = (await res.json()) as Alert[];
       setAlerts(json);
     } catch (err) {
-      setError(err instanceof Error ? err.message : 'שגיאה בטעינה');
+      setError(err instanceof Error ? err.message : t('common.loadError'));
     } finally {
       setLoading(false);
     }
@@ -165,40 +152,45 @@ export default function AlertsPage() {
       // Restore on failure (idempotent across tabs — second ack is harmless)
       console.warn('[AlertsPage] acknowledge failed, restoring:', err);
       setAlerts(prev);
-      setError('הפעולה נכשלה — נסה שוב');
+      setError(t('al.ackFailed'));
     } finally {
       setBusyKey(null);
     }
   };
+
+  // ── Auth gate (admin-only) ────────────────────────────────────
+  // Must sit below every hook: bailing out earlier would render a different
+  // number of hooks if `isAdmin` ever flips, which React treats as an error.
+  if (!isAdmin) return <Navigate to="/" />;
 
   // ── Render ────────────────────────────────────────────────────
   const Header = (
     <div className="alerts-header">
       <div>
         <h1>
-          אזעקות פעילות
+          {t('al.title')}
           {alerts.length > 0 && <span className="alerts-count">{alerts.length}</span>}
         </h1>
         <p className="alerts-subtitle">
-          התרעות על דפוסי ירידה בביצועים — לבדיקה על־ידי המטפל
+          {t('al.subtitle')}
         </p>
       </div>
       <button className="alerts-back-btn" onClick={() => navigate(-1)}>
         <ChevronRight size={14} />
-        חזור
+        {t('common.back')}
       </button>
     </div>
   );
 
   const ConfigPanel = cfg && (
-    <section className="alert-config" dir="rtl">
-      <h2 className="alert-config-title">ספי רגישות להתראה</h2>
+    <section className="alert-config" dir={dir}>
+      <h2 className="alert-config-title">{t('al.cfgTitle')}</h2>
       <p className="alert-config-sub">
-        התראה נפתחת כשמזוהה ירידה על פני {cfg.windowSessions} משחקים רצופים ומעבר לספים הבאים.
+        {t('al.cfgSubA')} {cfg.windowSessions} {t('al.cfgSubB')}
       </p>
       <div className="alert-config-fields">
         <label className="alert-config-field">
-          <span>ירידה בדיוק (נק׳ אחוז)</span>
+          <span>{t('al.cfgAccuracy')}</span>
           <input
             type="number" min={5} max={90}
             value={cfg.accuracyDropPct}
@@ -206,7 +198,7 @@ export default function AlertsPage() {
           />
         </label>
         <label className="alert-config-field">
-          <span>ירידה בציון קוגניטיבי</span>
+          <span>{t('al.cfgScore')}</span>
           <input
             type="number" min={5} max={90}
             value={cfg.scoreDrop}
@@ -214,32 +206,32 @@ export default function AlertsPage() {
           />
         </label>
         <button className="alert-config-save" onClick={saveConfig} disabled={cfgSaving}>
-          {cfgSaving ? 'שומר…' : 'שמור ספים'}
+          {cfgSaving ? t('al.cfgSaving') : t('al.cfgSave')}
         </button>
       </div>
-      {cfgStatus === 'saved' && <span className="alert-config-status ok">✓ נשמר</span>}
-      {cfgStatus === 'error' && <span className="alert-config-status err">השמירה נכשלה</span>}
+      {cfgStatus === 'saved' && <span className="alert-config-status ok">{t('al.cfgSaved')}</span>}
+      {cfgStatus === 'error' && <span className="alert-config-status err">{t('al.cfgFailed')}</span>}
     </section>
   );
 
   if (loading) {
     return (
-      <main className="alerts-page" dir="rtl">
+      <main className="alerts-page" dir={dir}>
         {Header}
-        <div className="loading-state"><p>טוען אזעקות…</p></div>
+        <div className="loading-state"><p>{t('al.loading')}</p></div>
       </main>
     );
   }
 
   if (error) {
     return (
-      <main className="alerts-page" dir="rtl">
+      <main className="alerts-page" dir={dir}>
         {Header}
         <div className="error-state">
           <span className="emoji">⚠️</span>
-          <h2>לא הצלחנו לטעון את האזעקות</h2>
+          <h2>{t('al.loadError')}</h2>
           <p>{error}</p>
-          <button className="retry-btn" onClick={fetchAlerts}>נסה שוב</button>
+          <button className="retry-btn" onClick={fetchAlerts}>{t('common.retry')}</button>
         </div>
       </main>
     );
@@ -247,20 +239,20 @@ export default function AlertsPage() {
 
   if (alerts.length === 0) {
     return (
-      <main className="alerts-page" dir="rtl">
+      <main className="alerts-page" dir={dir}>
         {Header}
         {ConfigPanel}
         <div className="empty-state">
           <span className="emoji">✓</span>
-          <h2>אין אזעקות ממתינות</h2>
-          <p>כל המטופלים שומרים על ביצועים יציבים — אין צורך בפעולה כרגע</p>
+          <h2>{t('al.emptyTitle')}</h2>
+          <p>{t('al.emptyBody')}</p>
         </div>
       </main>
     );
   }
 
   return (
-    <main className="alerts-page" dir="rtl">
+    <main className="alerts-page" dir={dir}>
       {Header}
       {ConfigPanel}
       <div className="alerts-list">
@@ -273,11 +265,11 @@ export default function AlertsPage() {
                 <button
                   className="alert-user"
                   onClick={() => navigate(`/admin/users/${a.userId}/trend`)}
-                  title="הצג מגמת ציון"
+                  title={t('al.viewTrend')}
                 >
                   {a.displayName ?? a.userId}
                 </button>
-                <span className="alert-game">{GAME_LABELS_HE[a.gameId] ?? a.gameId}</span>
+                <span className="alert-game">{gameLabel(a.gameId)}</span>
               </div>
               <p className="alert-trigger">{triggerText(a)}</p>
               <div className="alert-meta">
@@ -287,14 +279,14 @@ export default function AlertsPage() {
                     className="alert-btn secondary"
                     onClick={() => navigate(`/admin/users/${a.userId}/trend`)}
                   >
-                    צפה בפרטים
+                    {t('al.details')}
                   </button>
                   <button
                     className="alert-btn primary"
                     onClick={() => acknowledge(a)}
                     disabled={busy || !a.alertId}
                   >
-                    {busy ? '…' : 'אישור'}
+                    {busy ? '…' : t('al.acknowledge')}
                   </button>
                 </div>
               </div>

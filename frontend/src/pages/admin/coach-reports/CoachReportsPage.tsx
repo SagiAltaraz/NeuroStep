@@ -1,12 +1,13 @@
-import { useEffect, useMemo, useState } from 'react';
+import { useCallback, useEffect, useMemo, useState } from 'react';
 import { Navigate, useNavigate, useParams } from 'react-router-dom';
 import { ChevronRight } from 'lucide-react';
 import { useAuth } from '../../../context/AuthContext';
+import { useAdminT, type AdminGameId } from '../adminI18n';
 import './CoachReportsPage.css';
 
 // ─── Types ────────────────────────────────────────────────────────
 
-type GameId = 'shapes-click' | 'color-trains' | 'tictactoe' | 'memory';
+type GameId = AdminGameId;
 type Progress = 'improving' | 'stable' | 'needs_attention';
 
 // CoachReport from backend. Field suffixes are *En today; Phase 4D will
@@ -28,38 +29,11 @@ interface CoachReport {
   cognitiveInsightHe?: string;
 }
 
-const GAME_LABELS_HE: Record<GameId, string> = {
-  'shapes-click': 'איתור צורות',
-  'color-trains': 'רכבות צבעוניות',
-  'tictactoe':    'איקס עיגול',
-  'memory':       'זיכרון',
-};
-
-const PROGRESS_LABELS_HE: Record<Progress, string> = {
-  improving:        'התקדמות',
-  stable:           'יציב',
-  needs_attention:  'דורש תשומת לב',
-};
-
 const PROGRESS_ICONS: Record<Progress, string> = {
   improving:        '✓',
   stable:           '=',
   needs_attention:  '⚠',
 };
-
-// ─── Helpers ──────────────────────────────────────────────────────
-
-function formatDate(ts: number | null): string {
-  if (!ts) return '—';
-  return new Date(ts).toLocaleDateString('he-IL', {
-    day: 'numeric', month: 'numeric', year: 'numeric',
-  });
-}
-
-// Phase 4D-aware accessor: prefer Hebrew field if present, else English.
-function he<T>(heVal: T | undefined, enVal: T | undefined): T | undefined {
-  return heVal !== undefined ? heVal : enVal;
-}
 
 // ─── Component ────────────────────────────────────────────────────
 
@@ -67,6 +41,23 @@ export default function CoachReportsPage() {
   const { userId } = useParams<{ userId: string }>();
   const { token, isAdmin } = useAuth();
   const navigate = useNavigate();
+  const { t, tn, lang, dir, locale, gameLabel, progressLabel } = useAdminT();
+
+  const formatDate = useCallback((ts: number | null): string => {
+    if (!ts) return '—';
+    return new Date(ts).toLocaleDateString(locale, {
+      day: 'numeric', month: 'numeric', year: 'numeric',
+    });
+  }, [locale]);
+
+  // Reports carry both *He and *En variants — show the reader's language and
+  // fall back to the other so a report generated before a language was added
+  // still renders.
+  const pick = useCallback(
+    <T,>(heVal: T | undefined, enVal: T | undefined): T | undefined =>
+      lang === 'he' ? (heVal ?? enVal) : (enVal ?? heVal),
+    [lang],
+  );
 
   const [reports,  setReports]  = useState<CoachReport[]>([]);
   const [loading,  setLoading]  = useState(true);
@@ -74,10 +65,8 @@ export default function CoachReportsPage() {
   const [game,     setGame]     = useState<GameId | 'all'>('all');
   const [expanded, setExpanded] = useState<Set<string>>(new Set());
 
-  if (!isAdmin) return <Navigate to="/" />;
-
   const fetchReports = async () => {
-    if (!userId || !token) return;
+    if (!userId || !token || !isAdmin) return;
     setLoading(true);
     setError(null);
     try {
@@ -91,7 +80,7 @@ export default function CoachReportsPage() {
       const json = (await res.json()) as CoachReport[];
       setReports(json);
     } catch (err) {
-      setError(err instanceof Error ? err.message : 'שגיאה בטעינה');
+      setError(err instanceof Error ? err.message : t('common.loadError'));
     } finally {
       setLoading(false);
     }
@@ -118,38 +107,43 @@ export default function CoachReportsPage() {
     });
   };
 
+  // ── Auth gate (admin-only) ────────────────────────────────────
+  // Must sit below every hook: bailing out earlier would render a different
+  // number of hooks if `isAdmin` ever flips, which React treats as an error.
+  if (!isAdmin) return <Navigate to="/" />;
+
   // ── Render ────────────────────────────────────────────────────
   const Header = (
     <div className="cr-header">
       <div>
-        <h1>דוחות התקדמות</h1>
+        <h1>{t('cr.title')}</h1>
         <p className="subtitle">{userId}</p>
       </div>
       <button className="cr-back-btn" onClick={() => navigate(-1)}>
         <ChevronRight size={14} />
-        חזור
+        {t('common.back')}
       </button>
     </div>
   );
 
   if (loading) {
     return (
-      <main className="coach-reports-page" dir="rtl">
+      <main className="coach-reports-page" dir={dir}>
         {Header}
-        <div className="loading-state"><p>טוען דוחות…</p></div>
+        <div className="loading-state"><p>{t('cr.loading')}</p></div>
       </main>
     );
   }
 
   if (error) {
     return (
-      <main className="coach-reports-page" dir="rtl">
+      <main className="coach-reports-page" dir={dir}>
         {Header}
         <div className="error-state">
           <span className="emoji">⚠️</span>
-          <h2>לא הצלחנו לטעון את הדוחות</h2>
+          <h2>{t('cr.loadError')}</h2>
           <p>{error}</p>
-          <button className="retry-btn" onClick={fetchReports}>נסה שוב</button>
+          <button className="retry-btn" onClick={fetchReports}>{t('common.retry')}</button>
         </div>
       </main>
     );
@@ -157,12 +151,12 @@ export default function CoachReportsPage() {
 
   if (reports.length === 0) {
     return (
-      <main className="coach-reports-page" dir="rtl">
+      <main className="coach-reports-page" dir={dir}>
         {Header}
         <div className="empty-state">
           <span className="emoji">📋</span>
-          <h2>עדיין לא הופקו דוחות</h2>
-          <p>דרושים לפחות 5 משחקים מאותו סוג כדי להפיק דוח התקדמות</p>
+          <h2>{t('cr.emptyTitle')}</h2>
+          <p>{t('cr.emptyBody')}</p>
         </div>
       </main>
     );
@@ -172,18 +166,18 @@ export default function CoachReportsPage() {
   const showTabs = availableGames.length > 1 || game !== 'all';
 
   return (
-    <main className="coach-reports-page" dir="rtl">
+    <main className="coach-reports-page" dir={dir}>
       {Header}
 
       {showTabs && (
-        <div className="cr-game-tabs" role="group" aria-label="סינון לפי משחק">
+        <div className="cr-game-tabs" role="group" aria-label={t('cr.filterByGame')}>
           <button
             type="button"
             className={`cr-game-tab${game === 'all' ? ' active' : ''}`}
             aria-pressed={game === 'all'}
             onClick={() => setGame('all')}
           >
-            הכול
+            {t('common.all')}
           </button>
           {availableGames.map(g => (
             <button
@@ -193,7 +187,7 @@ export default function CoachReportsPage() {
               aria-pressed={game === g}
               onClick={() => setGame(g)}
             >
-              {GAME_LABELS_HE[g]}
+              {gameLabel(g)}
             </button>
           ))}
         </div>
@@ -203,21 +197,21 @@ export default function CoachReportsPage() {
         {reports.map(r => {
           const id           = r.id ?? `${r.gameId}-${r.generatedAt}`;
           const isOpen       = expanded.has(id);
-          const summary      = he(r.summaryHe,         r.summaryEn);
-          const highlights   = he(r.highlightsHe,      r.highlightsEn) ?? [];
-          const recs         = he(r.recommendationsHe, r.recommendationsEn) ?? [];
-          const insight      = he(r.cognitiveInsightHe, r.cognitiveInsightEn);
+          const summary      = pick(r.summaryHe,         r.summaryEn);
+          const highlights   = pick(r.highlightsHe,      r.highlightsEn) ?? [];
+          const recs         = pick(r.recommendationsHe, r.recommendationsEn) ?? [];
+          const insight      = pick(r.cognitiveInsightHe, r.cognitiveInsightEn);
 
           return (
             <div className="cr-card" key={id}>
               <div className="cr-card-head">
                 <div className="cr-card-meta">
-                  <span className="cr-card-game">{GAME_LABELS_HE[r.gameId] ?? r.gameId}</span>
+                  <span className="cr-card-game">{gameLabel(r.gameId)}</span>
                   <span>{formatDate(r.generatedAt)}</span>
                 </div>
                 <span className={`cr-progress-badge ${r.overallProgress}`}>
                   <span aria-hidden>{PROGRESS_ICONS[r.overallProgress]}</span>
-                  {PROGRESS_LABELS_HE[r.overallProgress]}
+                  {progressLabel(r.overallProgress)}
                 </span>
               </div>
 
@@ -228,26 +222,26 @@ export default function CoachReportsPage() {
                 onClick={() => toggle(id)}
                 aria-expanded={isOpen}
               >
-                {isOpen ? '▲ הסתר פרטים' : '▼ הצג פרטים'}
+                {isOpen ? t('cr.hideDetails') : t('cr.showDetails')}
               </button>
 
               {isOpen && (
                 <div className="cr-details">
                   {highlights.length > 0 && (
                     <div className="cr-section">
-                      <h3>נקודות חוזק</h3>
+                      <h3>{t('cr.highlights')}</h3>
                       <ul>{highlights.map((h, i) => <li key={i}>{h}</li>)}</ul>
                     </div>
                   )}
                   {recs.length > 0 && (
                     <div className="cr-section">
-                      <h3>המלצות</h3>
+                      <h3>{t('cr.recommendations')}</h3>
                       <ul>{recs.map((r, i) => <li key={i}>{r}</li>)}</ul>
                     </div>
                   )}
                   {insight && (
                     <div className="cr-section">
-                      <h3>תובנה קוגניטיבית</h3>
+                      <h3>{t('cr.insight')}</h3>
                       <p>{insight}</p>
                     </div>
                   )}
@@ -255,7 +249,7 @@ export default function CoachReportsPage() {
               )}
 
               <div className="cr-card-footer">
-                מבוסס על {r.sessionCount} משחקים שנערכו עד כה
+                {tn('cr.basedOn', r.sessionCount)}
               </div>
             </div>
           );
