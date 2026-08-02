@@ -1,17 +1,42 @@
 import { userFirebaseService } from "../services/user.js";
 import { generateToken } from "../utils/jwt.js";
 import { firebaseAuth, firestore } from "../config/firebase.js";
+import { FieldValue } from "firebase-admin/firestore";
 
+/**
+ * Record one entry into the system for the admin activity log.
+ *
+ * Every way IN gets logged — including 'signup', which used to be missed
+ * entirely, so a brand-new account was invisible in the log until its owner
+ * happened to log in a second time.
+ *
+ * The two writes are independent (a failed counter must not cost us the log
+ * row) and BOTH are awaited: a fire-and-forget write can be lost when the
+ * process recycles right after responding, and that is exactly the "the log
+ * isn't updating" symptom. Failures are logged, never swallowed — a silent
+ * catch here is why a broken audit log can look like an empty one for weeks.
+ */
 async function recordActivity(userId, name, email, method) {
-  try {
-    await firestore.collection('activityLogs').add({
-      userId, name, email, method,
-      timestamp: new Date(),
-    });
-    await firestore.collection('users').doc(userId).update({
-      lastLoginAt: new Date(),
-    });
-  } catch { /* non-blocking */ }
+  const timestamp = new Date();
+
+  const results = await Promise.allSettled([
+    firestore.collection('activityLogs').add({ userId, name, email, method, timestamp }),
+    // set+merge, not update: a user doc that is missing (or was written by an
+    // older flow) must still get its counters instead of throwing.
+    firestore.collection('users').doc(userId).set(
+      { lastLoginAt: timestamp, loginCount: FieldValue.increment(1) },
+      { merge: true },
+    ),
+  ]);
+
+  for (const result of results) {
+    if (result.status === 'rejected') {
+      console.error(
+        `[Activity] ${method} entry for ${userId} failed:`,
+        result.reason?.message ?? result.reason,
+      );
+    }
+  }
 }
 
 // ===== SIGNUP =====
@@ -28,6 +53,7 @@ export const signup = async (req, res) => {
     });
 
       const token = generateToken(user);
+    await recordActivity(user.id, user.name, user.email, 'signup');
 
     return res.status(201).json({
       user: {
@@ -62,7 +88,7 @@ export const login = async (req, res) => {
       }
 
     const token = generateToken(user);
-    recordActivity(user.id, user.name, user.email, 'email');
+    await recordActivity(user.id, user.name, user.email, 'email');
 
     return res.status(200).json({
       user: {
@@ -120,7 +146,7 @@ export const googleAuth = async (req, res) => {
       }
 
     const token = generateToken(user);
-    recordActivity(user.id, user.name, user.email, 'google');
+    await recordActivity(user.id, user.name, user.email, 'google');
 
     return res.status(200).json({
       user: {

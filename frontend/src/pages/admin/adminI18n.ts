@@ -299,6 +299,14 @@ const S = {
   'ac.agoMin':      { he: "לפני $ דק'",     en: '$ min ago' },
   'ac.agoHour':     { he: "לפני $ שע'",     en: '$ hr ago' },
   'ac.agoDay':      { he: 'לפני $ ימים',    en: '$ days ago' },
+  'ac.refresh':     { he: 'רענון',          en: 'Refresh' },
+  'ac.refreshing':  { he: 'מרענן…',         en: 'Refreshing…' },
+  'ac.updated':     { he: 'עודכן $',        en: 'Updated $' },
+  'ac.autoRefresh': { he: 'מתעדכן אוטומטית כל חצי דקה', en: 'Auto-refreshes every 30s' },
+  'ac.methodSignup':{ he: 'הרשמה',          en: 'Sign-up' },
+  'ac.neverLogged': { he: 'עוד לא נכנס',    en: 'Never signed in' },
+  'ac.showingLast': { he: 'מוצגות $ הכניסות האחרונות', en: 'Showing the latest $ entries' },
+  'ac.noUsers':     { he: 'אין משתמשים',    en: 'No users' },
 
   // ── Trends user list ────────────────────────────────────────────────────────
   'tl.title':    { he: 'מגמות קוגניטיביות', en: 'Cognitive Trends' },
