@@ -30,6 +30,7 @@ Rules (strictly enforced):
 - Exactly ONE sentence, maximum 8 Hebrew words
 - Never use the words "קושי", "קשה", "קל", "שינוי", "מערכת" (never reference the system or difficulty)
 - Focus on the player's achievement, effort, or momentum — not the adjustment
+- Avoid direct gendered address; prefer neutral Hebrew wording because player gender is applied by the frontend avatar
 - Use simple, clear Hebrew — appropriate for adults 65+
 - Plain text only: no quotes, no punctuation at the end, no emoji`;
 

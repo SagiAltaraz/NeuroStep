@@ -34,11 +34,15 @@ import { CompanionPresentationProvider } from './context/CompanionPresentationCo
 
 // Admin pages are lazy-loaded so they only weigh on the bundle when the panel
 // is enabled (see isAdminPanelEnabled in config/features).
-const AdminPage = isAdminPanelEnabled ? lazy(() => import('./pages/admin/AdminPage')) : null;
+const AdminPage = isAdminPanelEnabled
+   ? lazy(() => import('./pages/admin/AdminPage'))
+   : null;
 const CognitiveTrendPage = isAdminPanelEnabled
    ? lazy(() => import('./pages/admin/trend/CognitiveTrendPage'))
    : null;
-const AlertsPage = isAdminPanelEnabled ? lazy(() => import('./pages/admin/alerts/AlertsPage')) : null;
+const AlertsPage = isAdminPanelEnabled
+   ? lazy(() => import('./pages/admin/alerts/AlertsPage'))
+   : null;
 const CoachReportsPage = isAdminPanelEnabled
    ? lazy(() => import('./pages/admin/coach-reports/CoachReportsPage'))
    : null;
@@ -58,17 +62,20 @@ function SharedChatAssistant() {
    const { pathname } = useLocation();
    const { user } = useAuth();
    const { closeChat } = useChatController();
-   const isSupported = PUBLIC_CHAT_PATHS.has(pathname) || (pathname === '/journey' && !!user);
+   const isSupported =
+      PUBLIC_CHAT_PATHS.has(pathname) || (pathname === '/journey' && !!user);
 
    useEffect(() => {
       if (!isSupported) closeChat();
    }, [isSupported, closeChat]);
 
-   return isSupported
-      ? <ChatAssistant
-           showLauncher={pathname !== '/' && pathname !== '/journey' && pathname !== '/games'}
-        />
-      : null;
+   return isSupported ? (
+      <ChatAssistant
+         showLauncher={
+            pathname !== '/' && pathname !== '/journey' && pathname !== '/games'
+         }
+      />
+   ) : null;
 }
 
 function AppContent() {
@@ -91,10 +98,7 @@ function AppContent() {
             <Route path="/sign-up" element={<SignupPage />} />
             <Route path="/log-in" element={<LoginPage />} />
             <Route path="/about" element={<AboutPage />} />
-            <Route
-               path="/games"
-               element={<GamesPage />}
-            />
+            <Route path="/games" element={<GamesPage />} />
             <Route
                path="/games/colorTracking"
                element={
@@ -174,7 +178,10 @@ function AppContent() {
                PlayerFilePage &&
                AlertsPage && (
                   <>
-                     <Route path="/admin" element={renderAdminRoute(AdminPage)} />
+                     <Route
+                        path="/admin"
+                        element={renderAdminRoute(AdminPage)}
+                     />
                      <Route
                         path="/admin/users/:userId/player-file"
                         element={renderAdminRoute(PlayerFilePage)}
@@ -187,7 +194,10 @@ function AppContent() {
                         path="/admin/users/:userId/coach-reports"
                         element={renderAdminRoute(CoachReportsPage)}
                      />
-                     <Route path="/admin/alerts" element={renderAdminRoute(AlertsPage)} />
+                     <Route
+                        path="/admin/alerts"
+                        element={renderAdminRoute(AlertsPage)}
+                     />
                   </>
                )}
             <Route path="*" element={<div>404 - Page not found</div>} />

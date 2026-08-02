@@ -21,6 +21,17 @@ interface Question {
   options: Option[];
 }
 
+export interface QuestionnaireEntry {
+  questionId: number;
+  questionHe: string;
+  questionEn: string;
+  subtitleHe: string;
+  subtitleEn: string;
+  selectedOptionIds: string[];
+  answersHe: string[];
+  answersEn: string[];
+}
+
 const QUESTIONS: Question[] = [
   {
     id: 1,
@@ -452,7 +463,7 @@ const QUESTIONS: Question[] = [
 ];
 
 interface PersonalFormModalProps {
-  onSubmit: (prompt: string, answers: Record<number, string>) => void;
+  onSubmit: (prompt: string, answers: Record<number, string>, questionnaire: QuestionnaireEntry[]) => void;
   isOpen: boolean;
   onClose: () => void;
 }
@@ -469,8 +480,6 @@ const PersonalFormModal: React.FC<PersonalFormModalProps> = ({
   const [answers, setAnswers] = useState<Record<number, string[]>>({});
   const [isCompiling, setIsCompiling] = useState(false);
 
-  if (!isOpen) return null;
-
   const question = QUESTIONS[currentQuestion];
   const selectedOptionIds = answers[question.id] ?? [];
   const canProceed = selectedOptionIds.length >= question.minSelections;
@@ -482,6 +491,8 @@ const PersonalFormModal: React.FC<PersonalFormModalProps> = ({
     }
     return `${selectedOptionIds.length} of ${question.maxSelections} selected`;
   }, [locale, selectedOptionIds.length, question.maxSelections]);
+
+  if (!isOpen) return null;
 
   const toggleAnswer = (optionId: string) => {
     const existing = answers[question.id] ?? [];
@@ -526,9 +537,30 @@ const PersonalFormModal: React.FC<PersonalFormModalProps> = ({
     return translated;
   };
 
+  const buildQuestionnaireRecord = (finalAnswers: Record<number, string[]>): QuestionnaireEntry[] =>
+    QUESTIONS.map((q) => {
+      const selectedOptionIds = finalAnswers[q.id] ?? [];
+      const selectedOptions = selectedOptionIds
+        .map((id) => q.options.find((option) => option.id === id))
+        .filter((option): option is Option => Boolean(option));
+
+      return {
+        questionId: q.id,
+        questionHe: q.titleHe,
+        questionEn: q.titleEn,
+        subtitleHe: q.subtitleHe,
+        subtitleEn: q.subtitleEn,
+        selectedOptionIds,
+        answersHe: selectedOptions.map((option) => option.labelHe),
+        answersEn: selectedOptions.map((option) => option.labelEn),
+      };
+    });
+
+
   const compilePrompt = (finalAnswers: Record<number, string[]>) => {
     setIsCompiling(true);
     const translatedAnswers = buildAnswersRecord(finalAnswers);
+    const questionnaire = buildQuestionnaireRecord(finalAnswers);
 
     const promptParts =
       locale === "he"
@@ -562,7 +594,7 @@ const PersonalFormModal: React.FC<PersonalFormModalProps> = ({
     const finalPrompt = promptParts.join("\n");
 
     setTimeout(() => {
-      onSubmit(finalPrompt, translatedAnswers);
+      onSubmit(finalPrompt, translatedAnswers, questionnaire);
     }, 450);
   };
 

@@ -14,6 +14,7 @@ const USERS_COLLECTION = 'users';
  * - role: 'user' | 'admin'
  * - language: 'he' | 'en'   (default 'he')
  * - personalizationAnswers: object | null
+ * - personalizationQuestionnaire: array | null
  * - personalizationPrompt: string | null
  * - profileCompletedAt: Date | null
  * - createdAt: Date
@@ -48,6 +49,7 @@ export const userFirebaseService = {
       role,
       language: lang,
       personalizationAnswers: null,
+      personalizationQuestionnaire: null,
       personalizationPrompt: null,
       profileCompletedAt: null,
       createdAt: new Date(),
@@ -82,6 +84,7 @@ export const userFirebaseService = {
       role,
       language: lang,
       personalizationAnswers: null,
+      personalizationQuestionnaire: null,
       personalizationPrompt: null,
       profileCompletedAt: null,
       createdAt: new Date(),
@@ -163,9 +166,10 @@ export const userFirebaseService = {
   /**
    * עדכון personalization
    */
-  async updatePersonalization(userId, { answers, prompt }) {
+  async updatePersonalization(userId, { answers, prompt, questionnaire }) {
     return this.updateUser(userId, {
       personalizationAnswers: answers,
+      personalizationQuestionnaire: questionnaire ?? null,
       personalizationPrompt: prompt,
       profileCompletedAt: new Date(),
     });
