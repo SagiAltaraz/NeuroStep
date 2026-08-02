@@ -1,9 +1,10 @@
-﻿import React, { useCallback, useEffect, useRef, useState } from 'react';
+﻿import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import './ChatAssistant.css';
 import axios from 'axios';
 import { useAuth } from '../../context/AuthContext';
 import { useChatController } from '../../context/ChatControllerContext';
+import { useLang } from '../../context/LanguageContext';
 import {
    CHAT_RESET_EVENT,
    CHAT_STORAGE_KEY,
@@ -34,10 +35,10 @@ const newSessionId = () => {
    return `chat-${Date.now()}-${Math.random().toString(36).slice(2)}`;
 };
 
-const createChatSession = (): StoredChatSession => ({
+const createChatSession = (opening: Message = INITIAL_MESSAGE): StoredChatSession => ({
    sessionId: newSessionId(),
    lastMessageAt: Date.now(),
-   messages: [INITIAL_MESSAGE],
+   messages: [opening],
 });
 
 const isMessage = (value: unknown): value is Message => {
@@ -49,10 +50,10 @@ const isMessage = (value: unknown): value is Message => {
    );
 };
 
-const loadChatSession = (): StoredChatSession => {
+const loadChatSession = (opening: Message = INITIAL_MESSAGE): StoredChatSession => {
    try {
       const raw = window.localStorage.getItem(CHAT_STORAGE_KEY);
-      if (!raw) return createChatSession();
+      if (!raw) return createChatSession(opening);
 
       const parsed = JSON.parse(raw) as Partial<StoredChatSession>;
       const lastMessageAt = typeof parsed.lastMessageAt === 'number'
@@ -60,7 +61,7 @@ const loadChatSession = (): StoredChatSession => {
          : 0;
 
       if (Date.now() - lastMessageAt > CHAT_SESSION_TTL_MS) {
-         return createChatSession();
+         return createChatSession(opening);
       }
 
       const messages = Array.isArray(parsed.messages)
@@ -72,10 +73,10 @@ const loadChatSession = (): StoredChatSession => {
             ? parsed.sessionId
             : newSessionId(),
          lastMessageAt,
-         messages: messages.length > 0 ? messages : [INITIAL_MESSAGE],
+         messages: messages.length > 0 ? messages : [opening],
       };
    } catch {
-      return createChatSession();
+      return createChatSession(opening);
    }
 };
 
@@ -90,9 +91,23 @@ const recentHistory = (messages: Message[]) =>
 
 const ChatAssistant = ({ showLauncher = true }: ChatAssistantProps) => {
    const { token } = useAuth();
+   const { t } = useLang();
    const { isOpen, openChat, closeChat, status, setStatus, anchor } = useChatController();
    const navigate = useNavigate();
-   const [initialSession] = useState(loadChatSession);
+
+   // Logged out, the assistant gives no advice at all: it opens with a welcome +
+   // sign-in invitation, and every message the guest sends gets that same reply
+   // (the backend enforces the same rule for unauthenticated callers).
+   const isGuest = !token;
+   const guestReply = t('guest.welcome.chat');
+   const opening = useMemo<Message>(
+      () => (isGuest ? { sender: 'ai', text: guestReply } : INITIAL_MESSAGE),
+      [isGuest, guestReply]
+   );
+
+   const [initialSession] = useState(() =>
+      isGuest ? createChatSession(opening) : loadChatSession(opening)
+   );
    const [sessionId, setSessionId] = useState(initialSession.sessionId);
    const [lastMessageAt, setLastMessageAt] = useState(initialSession.lastMessageAt);
    const [messages, setMessages] = useState<Message[]>(initialSession.messages);
@@ -105,19 +120,29 @@ const ChatAssistant = ({ showLauncher = true }: ChatAssistantProps) => {
       persistChatSession({ sessionId, lastMessageAt, messages });
    }, [sessionId, lastMessageAt, messages]);
 
+   const startFreshSession = useCallback(() => {
+      const fresh = createChatSession(opening);
+      setSessionId(fresh.sessionId);
+      setLastMessageAt(fresh.lastMessageAt);
+      setMessages(fresh.messages);
+      setInput('');
+      setIsLoading(false);
+      return fresh;
+   }, [opening]);
+
    useEffect(() => {
-      const resetChatState = () => {
-         const fresh = createChatSession();
-         setSessionId(fresh.sessionId);
-         setLastMessageAt(fresh.lastMessageAt);
-         setMessages(fresh.messages);
-         setInput('');
-         setIsLoading(false);
-      };
+      const resetChatState = () => { startFreshSession(); };
 
       window.addEventListener(CHAT_RESET_EVENT, resetChatState);
       return () => window.removeEventListener(CHAT_RESET_EVENT, resetChatState);
-   }, []);
+   }, [startFreshSession]);
+
+   // Logging out (or landing here as a guest) must leave nothing behind: no
+   // stored conversation, no earlier advice — just the welcome line.
+   useEffect(() => {
+      if (!isGuest) return;
+      persistChatSession(startFreshSession());
+   }, [isGuest, startFreshSession]);
 
    useEffect(() => {
       if (!isOpen) return;
@@ -176,13 +201,13 @@ const ChatAssistant = ({ showLauncher = true }: ChatAssistantProps) => {
          return { sessionId, lastMessageAt, messages };
       }
 
-      const fresh = createChatSession();
+      const fresh = createChatSession(opening);
       setSessionId(fresh.sessionId);
       setLastMessageAt(fresh.lastMessageAt);
       setMessages(fresh.messages);
       persistChatSession(fresh);
       return fresh;
-   }, [lastMessageAt, messages, sessionId]);
+   }, [lastMessageAt, messages, sessionId, opening]);
 
    useEffect(() => {
       if (!isOpen) return;
@@ -216,9 +241,21 @@ const ChatAssistant = ({ showLauncher = true }: ChatAssistantProps) => {
       const messagesWithUser = [...activeSession.messages, userMessage];
 
       setInput('');
+      setSessionId(activeSession.sessionId);
+
+      // Guests never reach the AI: the same welcome + sign-in reply, every time.
+      if (isGuest) {
+         appendMessages(
+            [...messagesWithUser, { sender: 'ai', text: guestReply }],
+            Date.now(),
+            activeSession.sessionId
+         );
+         setStatus('answering');
+         return;
+      }
+
       setIsLoading(true);
       setStatus('thinking');                 // avatar plays 'think' while we wait
-      setSessionId(activeSession.sessionId);
       appendMessages(messagesWithUser, Date.now(), activeSession.sessionId);
 
       try {
@@ -281,13 +318,7 @@ const ChatAssistant = ({ showLauncher = true }: ChatAssistantProps) => {
    };
 
    const startNewChatSession = () => {
-      const fresh = createChatSession();
-      setSessionId(fresh.sessionId);
-      setLastMessageAt(fresh.lastMessageAt);
-      setMessages(fresh.messages);
-      setInput('');
-      setIsLoading(false);
-      persistChatSession(fresh);
+      persistChatSession(startFreshSession());
    };
 
    const handleCloseChat = () => {

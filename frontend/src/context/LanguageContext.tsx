@@ -360,6 +360,19 @@ const TRANSLATIONS = {
     he: 'עיין במשחקים',
     en: 'Browse games',
   },
+  // Guest (logged-out) bot — welcome only, no advice until sign-in
+  'guest.welcome.title': {
+    he: 'ברוכים הבאים ל-NeuroStep!',
+    en: 'Welcome to NeuroStep!',
+  },
+  'guest.welcome.text': {
+    he: 'התחבר או הירשם כדי להתחיל.',
+    en: 'Log in or sign up to get started.',
+  },
+  'guest.welcome.chat': {
+    he: 'ברוכים הבאים ל-NeuroStep! [התחבר](/log-in) או [הירשם](/sign-up) כדי להתחיל.',
+    en: 'Welcome to NeuroStep! [Log in](/log-in) or [sign up](/sign-up) to get started.',
+  },
   // Cognitive-domain trend
   'trend.up':     { he: 'עולה',  en: 'Improving' },
   'trend.stable': { he: 'יציב',  en: 'Steady' },
