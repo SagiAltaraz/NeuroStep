@@ -182,9 +182,15 @@ const GAME_TUNING: Record<GameId, GameTuning> = {
       discreteKeys: ['sequenceLength'],
    },
    memory: {
+      // Memory's "accuracy" is the pair-MATCH rate (matched / matched+missed).
+      // Because the first flips of every turn are blind, a human's match rate on
+      // any non-trivial board sits well below a 0.72 "success" target — so a
+      // 0.72 target made the controller lower the board every single eval until
+      // it hit the 6-card floor and stuck there. The realistic, challenging
+      // equilibrium is ~half the turns matching, so target the match rate itself.
       pMode: 'accuracy',
-      target: 0.72,
-      band: 0.08,
+      target: 0.5,
+      band: 0.1,
       evalEvery: 3,
       anchors: { cardCount: [6, 24], flipTimeMs: [1600, 450] },
       evenKeys: ['cardCount'],
