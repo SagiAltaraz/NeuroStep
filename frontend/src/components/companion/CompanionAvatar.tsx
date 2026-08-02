@@ -21,11 +21,13 @@ import {
   type CompanionResponse,
   type CompanionSuggestion,
 } from '../../api/me';
+import { getPersonalizationProfile } from '../../api/auth';
 import { getStoredChatSessionId } from '../chat-assistant/chatSessionStorage';
 import { GAME_INSTRUCTIONS } from '../../data/gameInstructions';
 import { COGNITIVE_PROBLEMS } from '../../data/cognitiveProblems';
 import AvatarClip, { type ClipName } from './AvatarClip';
 import { CELEBRATE_EVENT } from './celebrate';
+import { COACHING_TOAST_EVENT } from '../ui/CoachingToast';
 import './CompanionAvatar.css';
 
 // companion's kebab gameId → the camelCase route path used in App.tsx
@@ -65,6 +67,7 @@ const FLIGHT_DELAY_MS = 5000;   // how long after going quiet the jetpack comes 
 const GLIDE_HOME_MS = 1500;     // drift back to the anchor during the quiet gap
 
 type Ctx = 'home' | 'journey' | 'games' | 'game' | 'other';
+type UserGender = 'male' | 'female' | 'neutral';
 interface Reply { label: string; gameId: string }
 interface MoodReply { label: string; value: 'alert' | 'tired' }
 interface Msg {
@@ -84,6 +87,7 @@ type Translate = (key: TKey) => string;
 const readMs = (t: string) => Math.min(11000, Math.max(4200, 2400 + t.length * 55));
 // after the page's queue is done, stay quiet this long before a gentle re-engage.
 const QUIET_MS = 32000;
+const COACHING_TOAST_MS = 4000;
 
 // The "how are you feeling?" check-in is asked at most once per calendar day.
 const MOOD_ASK_KEY = 'neurostep:moodAskedDate';
@@ -92,16 +96,98 @@ const todayStr = () => new Date().toISOString().slice(0, 10);
 const askedMoodToday = () => {
   try { return localStorage.getItem(MOOD_ASK_KEY) === todayStr(); } catch { return false; }
 };
+function inferUserGender(profile: unknown): UserGender {
+  const record = profile as {
+    personalizationQuestionnaire?: Array<{
+      questionId?: unknown;
+      selectedOptionIds?: unknown;
+      answersEn?: unknown;
+      answersHe?: unknown;
+    }>;
+    personalizationAnswers?: Record<string, unknown>;
+  } | null;
 
+  const genderEntry = record?.personalizationQuestionnaire?.find((entry) => entry.questionId === 2);
+  const selectedIds = Array.isArray(genderEntry?.selectedOptionIds)
+    ? genderEntry.selectedOptionIds.filter((id): id is string => typeof id === 'string')
+    : [];
+  if (selectedIds.includes('female')) return 'female';
+  if (selectedIds.includes('male')) return 'male';
+
+  const answer = String(record?.personalizationAnswers?.[2] ?? record?.personalizationAnswers?.['2'] ?? '').toLowerCase();
+  if (answer.includes('female') || answer.includes('נקבה')) return 'female';
+  if (answer.includes('male') || answer.includes('זכר')) return 'male';
+  return 'neutral';
+}
+
+function adaptHebrewForGender(text: string, gender: UserGender, lang: Lang): string {
+  if (lang !== 'he' || gender !== 'female') return text;
+
+  return text
+    .replace(/אתה משקיע/g, 'את משקיעה')
+    .replace(/אתה במיטבך/g, 'את במיטבך')
+    .replace(/אתה בזרימה/g, 'את בזרימה')
+    .replace(/אתה תופס/g, 'את תופסת')
+    .replace(/אתה נע/g, 'את נעה')
+    .replace(/אתה עף/g, 'את עפה')
+    .replace(/אתה במצב/g, 'את במצב')
+    .replace(/אתה רגוע/g, 'את רגועה')
+    .replace(/אתה שולט/g, 'את שולטת')
+    .replace(/אתה רואה/g, 'את רואה')
+    .replace(/אתה ממש מדייק/g, 'את ממש מדייקת')
+    .replace(/אתה לא מוותר/g, 'את לא מוותרת')
+    .replace(/אתה ממשיך/g, 'את ממשיכה')
+    .replace(/אתה עושה/g, 'את עושה')
+    .replace(/אתה חזק/g, 'את חזקה')
+    .replace(/אתה מתמיד/g, 'את מתמידה')
+    .replace(/אתה עובר/g, 'את עוברת')
+    .replace(/אתה תצליח/g, 'את תצליחי')
+    .replace(/אתה מתקדם/g, 'את מתקדמת')
+    .replace(/אתה בדרך/g, 'את בדרך')
+    .replace(/אתה מסוגל/g, 'את מסוגלת')
+    .replace(/אתה לא לבד/g, 'את לא לבד')
+    .replace(/גאה בך שאתה כאן/g, 'גאה בך שאת כאן')
+    .replace(/שאתה עושה/g, 'שאת עושה')
+    .replace(/שאתה לומד/g, 'שאת לומדת')
+    .replace(/שאתה כאן/g, 'שאת כאן')
+    .replace(/תמשיך/g, 'תמשיכי')
+    .replace(/שמור/g, 'שמרי')
+    .replace(/המשך/g, 'המשיכי')
+    .replace(/תן לעצמך/g, 'תני לעצמך')
+    .replace(/נשום/g, 'נשמי')
+    .replace(/שאף/g, 'שאפי')
+    .replace(/תאמין/g, 'תאמיני')
+    .replace(/קח את הזמן שלך/g, 'קחי את הזמן שלך')
+    .replace(/בוא נתמקד/g, 'בואי נתמקד')
+    .replace(/בוא ננצל/g, 'בואי ננצל')
+    .replace(/בוא נתחיל/g, 'בואי נתחיל')
+    .replace(/בוא נשחק/g, 'בואי נשחק')
+    .replace(/בוא נמשיך/g, 'בואי נמשיך')
+    .replace(/בוא נחזק/g, 'בואי נחזק')
+    .replace(/בחר תחום/g, 'בחרי תחום')
+    .replace(/בחר אחד/g, 'בחרי אחד')
+    .replace(/לחץ עליי/g, 'לחצי עליי')
+    .replace(/פשוט לחץ/g, 'פשוט לחצי')
+    .replace(/התחל את/g, 'התחילי את')
+    .replace(/התחל/g, 'התחילי')
+    .replace(/פתח את/g, 'פתחי את')
+    .replace(/עיין/g, 'עייני')
+    .replace(/מוכן/g, 'מוכנה')
+    .replace(/עירני/g, 'עירנית')
+    .replace(/עֵר/g, 'עֵרה')
+    .replace(/עייף/g, 'עייפה')
+    .replace(/אתה/g, 'את');
+}
 // quick "what to work on" chooser — routes straight into a matching game.
 // Language-aware so the mascot speaks the selected UI language everywhere.
-function buildChoose(t: Translate): Msg {
+function buildChoose(t: Translate, lang: Lang, gender: UserGender): Msg {
+  const gt = (key: TKey) => adaptHebrewForGender(t(key), gender, lang);
   return {
-    text: t('companion.choose.title'),
+    text: gt('companion.choose.title'),
     replies: [
-      { label: t('companion.choose.memory'), gameId: 'memory' },
-      { label: t('companion.choose.attention'), gameId: 'find-letter' },
-      { label: t('companion.choose.reaction'), gameId: 'green-light' },
+      { label: gt('companion.choose.memory'), gameId: 'memory' },
+      { label: gt('companion.choose.attention'), gameId: 'find-letter' },
+      { label: gt('companion.choose.reaction'), gameId: 'green-light' },
     ],
   };
 }
@@ -115,24 +201,26 @@ function buildMessages(
   t: Translate,
   lang: Lang,
   gameName?: string,
+  gender: UserGender = 'neutral',
 ): Msg[] {
+  const gt = (key: TKey) => adaptHebrewForGender(t(key), gender, lang);
   const dir = lang === 'he' ? 'rtl' : 'ltr';
   const fmt = (key: TKey, params: Record<string, string>) =>
-    formatSuggestionText(t(key), params) ?? t(key);
+    adaptHebrewForGender(formatSuggestionText(t(key), params) ?? t(key), gender, lang);
 
   if (ctx === 'game') {
-    const g = gameName ?? t('companion.game.thisTraining');
+    const g = gameName ?? gt('companion.game.thisTraining');
     return [
       { text: fmt('companion.game.tip.focus', { game: g }), dir },
-      { text: t('companion.game.tip.breath'), dir },
+      { text: gt('companion.game.tip.breath'), dir },
       { text: fmt('companion.game.tip.strengthen', { game: g }), dir },
-      { text: t('companion.game.tip.learning'), dir },
+      { text: gt('companion.game.tip.learning'), dir },
     ];
   }
   if (ctx === 'games') {
     return [
-      { text: t('companion.games.intro'), dir },
-      buildChoose(t),
+      { text: gt('companion.games.intro'), dir },
+      buildChoose(t, lang, gender),
     ];
   }
   // home / journey / other — personalised from the DB profile, localized.
@@ -142,14 +230,14 @@ function buildMessages(
     ?? (lang === 'he' ? data?.suggestedGameHe : undefined)
     ?? GAME_INSTRUCTIONS.memory.title[lang];
   return [
-    { text: (lang === 'he' ? data?.greetingHe : undefined) ?? t('companion.home.greetingFallback'), dir },
+    { text: adaptHebrewForGender((lang === 'he' ? data?.greetingHe : undefined) ?? gt('companion.home.greetingFallback'), gender, lang), dir },
     {
-      text: (lang === 'he' ? data?.reasonHe : undefined) ?? t('companion.home.reasonFallback'),
+      text: adaptHebrewForGender((lang === 'he' ? data?.reasonHe : undefined) ?? gt('companion.home.reasonFallback'), gender, lang),
       cta: { label: fmt('companion.home.ctaPlay', { game: gameName2 }), gameId },
       dir,
     },
-    buildChoose(t),
-    { text: t('companion.home.coach'), dir },
+    buildChoose(t, lang, gender),
+    { text: gt('companion.home.coach'), dir },
   ];
 }
 
@@ -158,7 +246,9 @@ function buildFallbackSuggestions(
   data: CompanionResponse | null,
   lang: Lang,
   t: Translate,
+  gender: UserGender,
 ): Msg[] {
+  const gt = (key: TKey) => adaptHebrewForGender(t(key), gender, lang);
   const dir = lang === 'he' ? 'rtl' : 'ltr';
   const suggestedGameId = data?.suggestedGameId ?? 'memory';
   const gameKey = GAME_ROUTE[suggestedGameId] ?? 'memory';
@@ -166,18 +256,18 @@ function buildFallbackSuggestions(
     ?? (lang === 'he' ? data?.suggestedGameHe : undefined)
     ?? GAME_INSTRUCTIONS.memory.title[lang];
   const recommendation: Msg = {
-    text: `${t('companion.recommended')} ${gameName}`,
-    cta: { label: `${t('companion.play')} ${gameName}`, gameId: suggestedGameId },
+    text: `${gt('companion.recommended')} ${gameName}`,
+    cta: { label: `${gt('companion.play')} ${gameName}`, gameId: suggestedGameId },
     dir,
   };
 
   if (ctx === 'home') {
     return data
-      ? [recommendation, { text: t('companion.home.openAssistant'), dir }]
+      ? [recommendation, { text: gt('companion.home.openAssistant'), dir }]
       : [
-          { text: t('companion.home.openAssistant'), dir },
+          { text: gt('companion.home.openAssistant'), dir },
           {
-            text: t('companion.home.startTraining'),
+            text: gt('companion.home.startTraining'),
             cta: recommendation.cta,
             dir,
           },
@@ -187,7 +277,7 @@ function buildFallbackSuggestions(
   if (ctx === 'games') {
     return [
       ...(data ? [recommendation] : []),
-      { text: t('companion.games.select'), dir },
+      { text: gt('companion.games.select'), dir },
     ];
   }
 
@@ -276,13 +366,14 @@ function backendSuggestionMessage(
   suggestion: CompanionSuggestion,
   lang: Lang,
   t: Translate,
+  gender: UserGender,
 ): Msg | null {
   const messageKey = SUGGESTION_MESSAGE_KEYS[suggestion.messageKey];
   if (!messageKey) return null;
 
   const params = suggestionParams(suggestion, lang, t);
   if (!params) return null;
-  const text = formatSuggestionText(t(messageKey), params);
+  const text = adaptHebrewForGender(formatSuggestionText(t(messageKey), params) ?? '', gender, lang);
   if (!text) return null;
 
   // Same-domain pair: two games for one cognitive problem, shown as two
@@ -309,7 +400,7 @@ function backendSuggestionMessage(
   if (suggestion.action) {
     const labelKey = SUGGESTION_ACTION_KEYS[suggestion.action.labelKey];
     if (!labelKey) return null;
-    const label = formatSuggestionText(t(labelKey), params);
+    const label = adaptHebrewForGender(formatSuggestionText(t(labelKey), params) ?? '', gender, lang);
     if (!label) return null;
 
     if (suggestion.action.type === 'open-game') {
@@ -339,6 +430,7 @@ function buildBackendMessages(
   expectedContext: CompanionContext,
   lang: Lang,
   t: Translate,
+  gender: UserGender,
 ): Msg[] | null {
   if (
     data.dataVersion !== 'companion-suggestions-v1' ||
@@ -351,7 +443,7 @@ function buildBackendMessages(
 
   const messages: Msg[] = [];
   for (const suggestion of data.suggestions) {
-    const message = backendSuggestionMessage(suggestion, lang, t);
+    const message = backendSuggestionMessage(suggestion, lang, t, gender);
     if (!message) return null;
     messages.push(message);
   }
@@ -380,6 +472,8 @@ export default function CompanionAvatar() {
   const [videoOk, setVideoOk] = useState(true);       // false → fall back to the PNG poses
   const [flight, setFlight] = useState<Flight>(null);
   const [celebrating, setCelebrating] = useState(false); // level-up → plays the celebrate clip
+  const [profileGender, setProfileGender] = useState<{ userId: string | null; gender: UserGender } | null>(null);
+  const [coachingToastMessage, setCoachingToastMessage] = useState<string | null>(null);
   const openAfterLand = useRef(false);                // land was triggered by a click/re-engage
   const openAfterLaunch = useRef(false);
   const openChatAfterLand = useRef(false);            // land → open the AI chat (not the scripted bubble)
@@ -388,6 +482,7 @@ export default function CompanionAvatar() {
   const suppressCompanionRef = useRef(false);
   const pendingContextResetRef = useRef(false);
   const contextResetTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const coachingToastTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const reducedMotion = useMemo(
     () => window.matchMedia?.('(prefers-reduced-motion: reduce)').matches ?? false,
     [],
@@ -422,6 +517,47 @@ export default function CompanionAvatar() {
   useEffect(() => {
     suppressCompanionRef.current = suppressCompanion;
   }, [suppressCompanion]);
+
+  useEffect(() => {
+    if (!token) return;
+
+    const userId = user?.id ?? null;
+    let cancelled = false;
+    getPersonalizationProfile(token)
+      .then((profile) => {
+        if (cancelled) return;
+        setProfileGender({
+          userId,
+          gender: isApiError(profile) ? 'neutral' : inferUserGender(profile),
+        });
+      })
+      .catch(() => {
+        if (!cancelled) setProfileGender({ userId, gender: 'neutral' });
+      });
+
+    return () => {
+      cancelled = true;
+    };
+  }, [token, user?.id]);
+
+  useEffect(() => {
+    const onCoachingToast = (event: Event) => {
+      const message = (event as CustomEvent<{ message?: unknown }>).detail?.message;
+      if (typeof message !== 'string' || message.trim().length === 0) return;
+      if (coachingToastTimerRef.current) clearTimeout(coachingToastTimerRef.current);
+      setCoachingToastMessage(message);
+      coachingToastTimerRef.current = setTimeout(() => {
+        setCoachingToastMessage(null);
+        coachingToastTimerRef.current = null;
+      }, COACHING_TOAST_MS);
+    };
+
+    window.addEventListener(COACHING_TOAST_EVENT, onCoachingToast);
+    return () => {
+      window.removeEventListener(COACHING_TOAST_EVENT, onCoachingToast);
+      if (coachingToastTimerRef.current) clearTimeout(coachingToastTimerRef.current);
+    };
+  }, []);
 
   const cancelContextResetTimer = useCallback(() => {
     if (!contextResetTimerRef.current) return;
@@ -489,6 +625,8 @@ export default function CompanionAvatar() {
     };
   }, [token, backendContext]);
 
+  const effectiveGender = token && profileGender?.userId === (user?.id ?? null) ? profileGender.gender : 'neutral';
+
   const messages = useMemo(() => {
     // Logged out: no tips, no game recommendations — just a welcome and the way
     // in. Everything the mascot says is personal, and there is no one to talk to
@@ -496,7 +634,7 @@ export default function CompanionAvatar() {
     if (!token) {
       return [{
         title: t('guest.welcome.title'),
-        text: t('guest.welcome.text'),
+        text: adaptHebrewForGender(t('guest.welcome.text'), effectiveGender, lang),
         dir: lang === 'he' ? 'rtl' : 'ltr',
         links: [
           { label: t('header.login'), to: '/log-in' },
@@ -515,16 +653,16 @@ export default function CompanionAvatar() {
       title: user?.name
         ? `${t('companion.home.hello')} \u2068${user.name}\u2069`
         : t('companion.home.hello'),
-      text: t('companion.home.introduction'),
+      text: adaptHebrewForGender(t('companion.home.introduction'), effectiveGender, lang),
       dir: lang === 'he' ? 'rtl' : 'ltr',
     };
     const homeMood: Msg = {
-      title: t('companion.home.moodTitle'),
+      title: adaptHebrewForGender(t('companion.home.moodTitle'), effectiveGender, lang),
       text: '',
       durationMs: 16000,
       moodReplies: [
-        { label: t('companion.home.moodAlert'), value: 'alert' },
-        { label: t('companion.home.moodTired'), value: 'tired' },
+        { label: adaptHebrewForGender(t('companion.home.moodAlert'), effectiveGender, lang), value: 'alert' },
+        { label: adaptHebrewForGender(t('companion.home.moodTired'), effectiveGender, lang), value: 'tired' },
       ],
       dir: lang === 'he' ? 'rtl' : 'ltr',
     };
@@ -535,9 +673,9 @@ export default function CompanionAvatar() {
     const dir = lang === 'he' ? 'rtl' : 'ltr';
     const moodAck: Msg | null = moodPicked
       ? {
-          text: t(moodPicked === 'alert'
+          text: adaptHebrewForGender(t(moodPicked === 'alert'
             ? 'companion.home.moodAckAlert'
-            : 'companion.home.moodAckTired'),
+            : 'companion.home.moodAckTired'), effectiveGender, lang),
           dir,
         }
       : null;
@@ -551,9 +689,9 @@ export default function CompanionAvatar() {
     ));
     const homePlan: Msg | null = planDomains.length > 0
       ? {
-          text: formatSuggestionText(t('companion.home.planRecommendation'), {
+          text: adaptHebrewForGender(formatSuggestionText(t('companion.home.planRecommendation'), {
             domains: planDomains.join(', '),
-          }) ?? '',
+          }) ?? '', effectiveGender, lang),
           dir: lang === 'he' ? 'rtl' : 'ltr',
         }
       : null;
@@ -563,14 +701,14 @@ export default function CompanionAvatar() {
       ...(homePlan ? [homePlan] : []),
     ];
     if (data && backendContext) {
-      const backendMessages = buildBackendMessages(data, backendContext, lang, t);
+      const backendMessages = buildBackendMessages(data, backendContext, lang, t, effectiveGender);
       if (backendMessages) {
         return ctx === 'home' ? [...homeOpeningMessages, ...backendMessages] : backendMessages;
       }
     }
 
-    const baseMessages = buildMessages(ctx, null, t, lang, gameName);
-    const suggestions = buildFallbackSuggestions(ctx, null, lang, t);
+    const baseMessages = buildMessages(ctx, null, t, lang, gameName, effectiveGender);
+    const suggestions = buildFallbackSuggestions(ctx, null, lang, t, effectiveGender);
     if (ctx === 'home') {
       return [...homeOpeningMessages, ...baseMessages.slice(0, 2), ...suggestions, ...baseMessages.slice(2)];
     }
@@ -581,7 +719,7 @@ export default function CompanionAvatar() {
       return [baseMessages[0], ...suggestions, ...baseMessages.slice(1)];
     }
     return baseMessages;
-  }, [ctx, data, backendContext, lang, t, token, user, moodPicked, loc.pathname]);
+  }, [ctx, data, backendContext, lang, t, token, user, moodPicked, loc.pathname, effectiveGender]);
   // Route/data changes reset immediately unless AI chat temporarily owns the surface.
   useEffect(() => {
     if (suppressCompanionRef.current) {
@@ -898,6 +1036,11 @@ export default function CompanionAvatar() {
       className={`companion companion--${ctx} ${open && !suppressCompanion ? 'is-talking' : ''} ${flying ? 'companion--flying' : ''} ${activeFlight ? `companion--flight-${activeFlight}` : ''} ${suppressCompanion ? 'companion--ai-chat-open' : ''}`}
       dir="rtl"
     >
+      {coachingToastMessage && !suppressCompanion && ctx === 'game' && (
+        <div className="companion-coaching-toast" role="status" aria-live="polite">
+          {adaptHebrewForGender(coachingToastMessage, effectiveGender, lang)}
+        </div>
+      )}
       {open && msg && !suppressCompanion && (
         <div
           key={`${ctx}-${idx}-${msg.title ?? msg.text}`}
