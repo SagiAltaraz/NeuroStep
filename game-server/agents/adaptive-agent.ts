@@ -374,17 +374,26 @@ export async function seedLevelFromProfile(
          [...weights.keys()].map((d) => col.doc(d).get())
       );
 
-      let numerator = 0; // Σ level · weight · confidence
+      let numerator = 0; // Σ ability · weight · confidence
       let denominator = 0; // Σ weight · confidence
       for (const snap of snaps) {
          if (!snap.exists) continue;
          const d = snap.data()!;
-         const level = typeof d.level === 'number' ? d.level : null;
+         // Difficulty follows MEASURED ABILITY (the score EMA), not the journey
+         // step: the map is paced on purpose (JOURNEY_TUNING), and a player whose
+         // step is still low should not be handed a game below their level.
+         // Legacy docs without `_ema` fall back to the stored level.
+         const ability =
+            typeof d._ema === 'number'
+               ? d._ema
+               : typeof d.level === 'number'
+                 ? d.level
+                 : null;
          const confidence = typeof d.confidence === 'number' ? d.confidence : 0;
-         if (level === null || confidence < CROSSGAME_TUNING.MIN_CONFIDENCE)
+         if (ability === null || confidence < CROSSGAME_TUNING.MIN_CONFIDENCE)
             continue;
          const weight = weights.get(d.domainId) ?? weights.get(snap.id) ?? 0;
-         numerator += level * weight * confidence;
+         numerator += ability * weight * confidence;
          denominator += weight * confidence;
       }
 

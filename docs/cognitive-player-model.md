@@ -124,8 +124,10 @@ CREATE TABLE users (
 CREATE TABLE cognitive_profile (
   user_id            TEXT NOT NULL REFERENCES users(id),
   domain_id          TEXT NOT NULL REFERENCES cognitive_domains(id),
-  ema                NUMERIC NOT NULL,        -- smoothed internal signal
-  level              INT NOT NULL,            -- 0..100 ability score (used everywhere)
+  ema                NUMERIC NOT NULL,        -- measured ability (drives difficulty)
+  level              INT NOT NULL,            -- 0..100 journey step — paced, walks
+                                              -- toward the ema a few steps per
+                                              -- session (see JOURNEY_TUNING)
   confidence         NUMERIC NOT NULL,        -- 0..1, ramps over first 5 sessions
   sessions_count     INT NOT NULL DEFAULT 0,
   trend              TEXT NOT NULL,           -- 'up' | 'stable' | 'down'
@@ -325,11 +327,15 @@ CREATE TABLE prompt_snapshots (
 ```
 1. Player finishes Memory.
 2. session_domain_scores:  working-memory=78, selective-attention=71, visual-spatial=69
-3. cognitive_profile (per ability, EMA):  working-memory.level 62 → 66  (confidence 0.8)
-4. Player opens Where-Was-It (also trains working-memory).
-5. seedLevelFromProfile reads cognitive_profile via game_domains
+3. cognitive_profile (per ability, EMA):  working-memory.ema 62 → 66  (confidence 0.8)
+4. journey step: level walks toward the ema, at most a few steps per session and
+   never past what the sessions played justify (JOURNEY_TUNING) — the map is
+   climbed over ~20 sessions, not won in the first ten minutes.
+5. Player opens Where-Was-It (also trains working-memory).
+6. seedLevelFromProfile reads the ABILITY (ema) via game_domains
    → warm-starts Where-Was-It ABOVE cold start, weighted by confidence.
-6. Result: the ability, not the game, carries the player's level everywhere.
+7. Result: the ability, not the game, carries the player's level everywhere —
+   and difficulty follows the ability while the map follows the training done.
 ```
 
 Over weeks: `domain_timeline` + `trend` / `plateau_count` / `deterioration_flag` reveal
