@@ -74,6 +74,7 @@ interface Msg {
   cta?: { label: string; gameId?: string; action?: 'open-chat' | 'browse-games' };
   replies?: Reply[];
   moodReplies?: MoodReply[];
+  links?: { label: string; to: string }[];   // plain route buttons (log in / sign up)
   dir?: 'rtl' | 'ltr';
 }
 
@@ -489,6 +490,21 @@ export default function CompanionAvatar() {
   }, [token, backendContext]);
 
   const messages = useMemo(() => {
+    // Logged out: no tips, no game recommendations — just a welcome and the way
+    // in. Everything the mascot says is personal, and there is no one to talk to
+    // yet. The AI chat enforces the same rule.
+    if (!token) {
+      return [{
+        title: t('guest.welcome.title'),
+        text: t('guest.welcome.text'),
+        dir: lang === 'he' ? 'rtl' : 'ltr',
+        links: [
+          { label: t('header.login'), to: '/log-in' },
+          { label: t('header.signup'), to: '/sign-up' },
+        ],
+      } satisfies Msg];
+    }
+
     // Which specific game are we in? Lets the in-game voice name it.
     const gameKey = ctx === 'game'
       ? Object.values(GAME_ROUTE).find((k) => loc.pathname === `/games/${k}`)
@@ -565,7 +581,7 @@ export default function CompanionAvatar() {
       return [baseMessages[0], ...suggestions, ...baseMessages.slice(1)];
     }
     return baseMessages;
-  }, [ctx, data, backendContext, lang, t, user, moodPicked, loc.pathname]);
+  }, [ctx, data, backendContext, lang, t, token, user, moodPicked, loc.pathname]);
   // Route/data changes reset immediately unless AI chat temporarily owns the surface.
   useEffect(() => {
     if (suppressCompanionRef.current) {
@@ -898,6 +914,19 @@ export default function CompanionAvatar() {
             <button className="companion-cta" onClick={activateMessageCta}>
               {msg.cta.label} ←
             </button>
+          )}
+          {msg.links && (
+            <div className="companion-replies">
+              {msg.links.map((link) => (
+                <button
+                  key={link.to}
+                  className="companion-reply"
+                  onClick={() => { setOpen(false); navigate(link.to); }}
+                >
+                  {link.label}
+                </button>
+              ))}
+            </div>
           )}
           {msg.replies && (
             <div className="companion-replies">
