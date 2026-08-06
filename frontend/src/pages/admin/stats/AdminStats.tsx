@@ -1,7 +1,8 @@
 import { useEffect, useState } from 'react';
 import {
   BarChart, Bar, XAxis, YAxis, Tooltip, ResponsiveContainer,
-  LineChart, Line, CartesianGrid,
+  LineChart, Line, CartesianGrid, Legend,
+  RadarChart, Radar, PolarGrid, PolarAngleAxis, PolarRadiusAxis,
 } from 'recharts';
 import { useAuth } from '../../../context/AuthContext';
 import { useAdminT } from '../adminI18n';
@@ -23,6 +24,8 @@ interface SessionDoc {
   misses:       number;
   timeouts:     number;
   username?:    string | null;
+  ageGroup?:    string | null;   // from the onboarding questionnaire (Q1)
+  gender?:      string | null;   // from the onboarding questionnaire (Q2)
   report?: {
     cognitiveScore: number;
     summaryHe:      string;
@@ -50,6 +53,16 @@ const AdminStats: React.FC<{ onBack: () => void }> = ({ onBack }) => {
   const [tokenUsage,  setTokenUsage]  = useState<TokenUsage | null>(null);
   const [loading,     setLoading]     = useState(true);
   const [error,       setError]       = useState<string | null>(null);
+
+  // ── Compare controls (section 2) ──
+  const [cmpMode,   setCmpMode]   = useState<'users' | 'groups'>('users');
+  const [cmpMetric, setCmpMetric] = useState<'accuracy' | 'score' | 'reaction'>('accuracy');
+  const [cmpGame,   setCmpGame]   = useState<string>('all');
+  const [cmpUserA,  setCmpUserA]  = useState<string>('');
+  const [cmpUserB,  setCmpUserB]  = useState<string>('');
+  // Group mode: a free-form set of demographic buckets to compare, across BOTH
+  // dimensions (e.g. "Male" vs "Female", or "61-70" vs "71-80", or a mix).
+  const [cmpGroupSpecs, setCmpGroupSpecs] = useState<{ dim: 'age' | 'gender'; bucket: string }[]>([]);
 
   useEffect(() => {
     if (!token) return;
@@ -108,6 +121,193 @@ const AdminStats: React.FC<{ onBack: () => void }> = ({ onBack }) => {
     name:     gameLabel(gameId),
     accuracy: Math.round((vals.reduce((a, b) => a + b, 0) / vals.length) * 100),
   }));
+
+  // Per-game success breakdown (section 1): one row per game with the key
+  // metrics — success (accuracy), reaction time, cognitive score, volume.
+  const mean = (a: number[]) => a.reduce((x, y) => x + y, 0) / a.length;
+  const perGame = Object.entries(
+    sessions.reduce<Record<string, SessionDoc[]>>((acc, s) => {
+      (acc[s.gameId] ??= []).push(s);
+      return acc;
+    }, {})
+  ).map(([gameId, list]) => {
+    const acc = list.filter(
+      (s): s is SessionDoc & { accuracy: number } => typeof s.accuracy === 'number'
+    );
+    const scored = list.filter(s => s.report?.cognitiveScore != null);
+    return {
+      gameId,
+      name:     gameLabel(gameId),
+      sessions: list.length,
+      users:    new Set(list.map(s => s.userId)).size,
+      accuracy: acc.length ? Math.round(mean(acc.map(s => s.accuracy)) * 100) : null,
+      reaction: acc.length ? Math.round(mean(acc.map(s => s.avgReactionMs))) : null,
+      score:    scored.length ? Math.round(mean(scored.map(s => s.report!.cognitiveScore))) : null,
+    };
+  }).sort((a, b) => b.sessions - a.sessions);
+
+  // ── Compare (section 2): user-vs-user OR group-vs-group, with real per-game
+  //    graphs. Two "entities" (two chosen users, or two+ demographic buckets)
+  //    are each reduced to a per-game metric mean from the loaded sessions.
+  const CMP_COLORS = ['#6366f1', '#f59e0b', '#0ea5e9', '#10b981', '#ec4899'];
+  const cmpUnit = cmpMetric === 'accuracy' ? '%' : cmpMetric === 'reaction' ? 'ms' : '';
+  const cmpLowerBetter = cmpMetric === 'reaction';   // faster reaction = better
+
+  const metricOf = (s: SessionDoc): number | null => {
+    if (cmpMetric === 'accuracy') return typeof s.accuracy === 'number' ? s.accuracy * 100 : null;
+    if (cmpMetric === 'score')    return s.report?.cognitiveScore ?? null;
+    return typeof s.accuracy === 'number' && s.avgReactionMs > 0 ? s.avgReactionMs : null; // reaction
+  };
+  const meanMetric = (list: SessionDoc[]): number | null => {
+    const vals = list.map(metricOf).filter((v): v is number => v != null);
+    return vals.length ? Math.round(vals.reduce((a, b) => a + b, 0) / vals.length) : null;
+  };
+
+  const cmpLabel = (dim: 'gender' | 'age', id: string) =>
+    id === '__unknown__'
+      ? t('cmp.unknown')
+      : t(`${dim === 'age' ? 'age' : 'gender'}.${id}` as Parameters<typeof t>[0]);
+
+  // Canonical demographic buckets (both dimensions).
+  const AGE_BUCKETS = ['under-50', '50-60', '61-70', '71-80', 'over-80'];
+  const GENDER_BUCKETS = ['male', 'female', 'other-undisclosed'];
+  const demoValue = (dim: 'age' | 'gender', s: SessionDoc) =>
+    (dim === 'age' ? s.ageGroup : s.gender) || '__unknown__';
+  const specKey = (sp: { dim: 'age' | 'gender'; bucket: string }) => `${sp.dim}:${sp.bucket}`;
+
+  // Users present in the loaded sessions (+ their demographics for the tiles).
+  const userDemo = (id: string) => {
+    const s = sessions.find(x => x.userId === id);
+    return { ageGroup: s?.ageGroup ?? null, gender: s?.gender ?? null };
+  };
+  const cmpUsers = Object.values(
+    sessions.reduce<Record<string, { id: string; label: string }>>((acc, s) => {
+      if (s.userId && !acc[s.userId]) {
+        acc[s.userId] = { id: s.userId, label: s.username || s.userId.slice(0, 6) };
+      }
+      return acc;
+    }, {})
+  ).sort((a, b) => a.label.localeCompare(b.label));
+
+  // Catalog of every demographic group with its session count — powers the
+  // "add a group" picker and the sensible defaults. Includes both dimensions
+  // plus an "unknown" bucket per dimension when present.
+  const groupCatalog = ([
+    ...AGE_BUCKETS.map(b => ({ dim: 'age' as const, bucket: b })),
+    { dim: 'age' as const, bucket: '__unknown__' },
+    ...GENDER_BUCKETS.map(b => ({ dim: 'gender' as const, bucket: b })),
+    { dim: 'gender' as const, bucket: '__unknown__' },
+  ])
+    .map(sp => ({ ...sp, count: sessions.filter(s => demoValue(sp.dim, s) === sp.bucket).length }))
+    .filter(sp => sp.count > 0);
+
+  // Default groups: the two largest by session count.
+  const defaultSpecs = groupCatalog
+    .slice()
+    .sort((a, b) => b.count - a.count)
+    .slice(0, 2)
+    .map(({ dim, bucket }) => ({ dim, bucket }));
+  const activeGroupSpecs = cmpGroupSpecs.length ? cmpGroupSpecs : defaultSpecs;
+
+  // Resolve user selections with sensible defaults (first two users).
+  const userA = cmpUserA || cmpUsers[0]?.id || '';
+  const userB = cmpUserB || cmpUsers[1]?.id || '';
+
+  type CmpEntity = { key: string; label: string; color: string; sessions: SessionDoc[] };
+  const cmpEntities: CmpEntity[] = cmpMode === 'users'
+    ? [userA, userB]
+        .filter((id, i, a) => id && a.indexOf(id) === i)
+        .map((id, i) => ({
+          key: id,
+          label: cmpUsers.find(u => u.id === id)?.label ?? id.slice(0, 6),
+          color: CMP_COLORS[i % CMP_COLORS.length],
+          sessions: sessions.filter(s => s.userId === id),
+        }))
+    : activeGroupSpecs.map((sp, i) => ({
+        key: specKey(sp),
+        label: cmpLabel(sp.dim, sp.bucket),
+        color: CMP_COLORS[i % CMP_COLORS.length],
+        sessions: sessions.filter(s => demoValue(sp.dim, s) === sp.bucket),
+      }));
+
+  const inScope = (list: SessionDoc[]) =>
+    cmpGame === 'all' ? list : list.filter(s => s.gameId === cmpGame);
+
+  // Games axis: the single chosen game, or every game any entity has played,
+  // ordered by overall popularity (perGame is already sorted by volume).
+  const cmpGames = cmpGame === 'all'
+    ? perGame.map(g => g.gameId).filter(gid => cmpEntities.some(e => e.sessions.some(s => s.gameId === gid)))
+    : [cmpGame];
+
+  // Per-game chart rows: { game, [entityKey]: metricMean } — feeds bars + radar.
+  const cmpChartData = cmpGames.map(gid => {
+    const row: Record<string, string | number | null> = { game: gameLabel(gid) };
+    cmpEntities.forEach(e => { row[e.key] = meanMetric(e.sessions.filter(s => s.gameId === gid)); });
+    return row;
+  });
+
+  // Over-time view: metric per DAY per entity, so improvement/retention shows.
+  const dayKey = (ts: number) => {
+    const d = new Date(ts);
+    return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`;
+  };
+  const fmtDay = (k: string) => { const [, m, d] = k.split('-'); return `${d}/${m}`; };
+  const cmpTimeline = (() => {
+    const dayMap = new Map<string, Record<string, string | number | null>>();
+    cmpEntities.forEach(e => {
+      const byDay = new Map<string, number[]>();
+      inScope(e.sessions).forEach(s => {
+        const v = metricOf(s);
+        if (v == null || !s.startedAt) return;
+        const k = dayKey(s.startedAt);
+        const arr = byDay.get(k) ?? [];
+        arr.push(v);
+        byDay.set(k, arr);
+      });
+      byDay.forEach((vals, k) => {
+        const row = dayMap.get(k) ?? { day: k, dayLabel: fmtDay(k) };
+        row[e.key] = Math.round(vals.reduce((a, b) => a + b, 0) / vals.length);
+        dayMap.set(k, row);
+      });
+    });
+    return [...dayMap.values()].sort((a, b) => String(a.day).localeCompare(String(b.day)));
+  })();
+  const cmpShowTimeline = cmpTimeline.length >= 2;
+
+  // Overall per entity (respecting the game filter) for the summary strip/table.
+  // In user mode we also surface each user's gender + age from the questionnaire.
+  const cmpOverall = cmpEntities.map(e => {
+    const demo = cmpMode === 'users' ? userDemo(e.key) : null;
+    return {
+      key: e.key,
+      label: e.label,
+      color: e.color,
+      value: meanMetric(inScope(e.sessions)),
+      sessionsCount: inScope(e.sessions).length,
+      demoHe: demo
+        ? [demo.gender ? cmpLabel('gender', demo.gender) : null,
+           demo.ageGroup ? cmpLabel('age', demo.ageGroup) : null]
+            .filter(Boolean).join(' · ') || t('cmp.noDemo')
+        : null,
+    };
+  });
+
+  const cmpHasData = cmpOverall.some(e => e.value != null);
+  const cmpShowRadar = cmpGame === 'all' && cmpGames.length >= 3 && cmpEntities.length >= 1;
+  const cmpAxisDomain: [number, number] | undefined =
+    cmpMetric === 'reaction' ? undefined : [0, 100];
+
+  const addGroupSpec = (value: string) => {
+    if (!value) return;
+    const [dim, bucket] = value.split(':') as ['age' | 'gender', string];
+    const base = cmpGroupSpecs.length ? cmpGroupSpecs : defaultSpecs;
+    if (base.some(sp => sp.dim === dim && sp.bucket === bucket)) return;
+    setCmpGroupSpecs([...base, { dim, bucket }]);
+  };
+  const removeGroupSpec = (key: string) => {
+    const base = cmpGroupSpecs.length ? cmpGroupSpecs : defaultSpecs;
+    setCmpGroupSpecs(base.filter(sp => specKey(sp) !== key));
+  };
 
   // Line chart: cognitive scores over last 20 sessions that have a report
   const scoreTimeline = reportsWithScore
@@ -168,6 +368,41 @@ const AdminStats: React.FC<{ onBack: () => void }> = ({ onBack }) => {
       sessions,
     };
     downloadBlob(`neurostep-stats-${Date.now()}.json`, JSON.stringify(payload, null, 2), 'application/json');
+  };
+
+  // Per-game summary report (one row per game).
+  const exportPerGameCSV = () => {
+    const cols = ['gameId', 'name', 'sessions', 'users', 'accuracyPct', 'avgReactionMs', 'avgCognitiveScore'];
+    const rows = perGame.map(g => [g.gameId, g.name, g.sessions, g.users, g.accuracy ?? '', g.reaction ?? '', g.score ?? '']);
+    const csv = [cols.join(','), ...rows.map(r => r.map(csvEscape).join(','))].join('\n');
+    downloadBlob(`neurostep-per-game-${Date.now()}.csv`, '﻿' + csv, 'text/csv;charset=utf-8;');
+  };
+
+  // Detailed report for ONE game: every session of that game.
+  const exportGameSessionsCSV = (gameId: string) => {
+    const cols = ['id', 'userId', 'username', 'startedAt', 'accuracy', 'avgReactionMs',
+      'peakStreak', 'hits', 'misses', 'timeouts', 'cognitiveScore'];
+    const rows = sessions.filter(s => s.gameId === gameId).map(s => [
+      s.id ?? '', s.userId, s.username ?? '',
+      s.startedAt ? new Date(s.startedAt).toISOString() : '',
+      s.accuracy ?? '', s.avgReactionMs, s.peakStreak, s.hits, s.misses, s.timeouts,
+      s.report?.cognitiveScore ?? '',
+    ]);
+    const csv = [cols.join(','), ...rows.map(r => r.map(csvEscape).join(','))].join('\n');
+    downloadBlob(`neurostep-${gameId}-${Date.now()}.csv`, '﻿' + csv, 'text/csv;charset=utf-8;');
+  };
+
+  // Comparison report: a matrix of game rows × one column per entity (plus an
+  // OVERALL row), for the current mode/metric/game selection.
+  const exportComparisonCSV = () => {
+    const cols = ['metric', 'unit', 'game', ...cmpEntities.map(e => e.label)];
+    const gameRows = cmpChartData.map(row => [
+      cmpMetric, cmpUnit, row.game,
+      ...cmpEntities.map(e => (row[e.key] ?? '')),
+    ]);
+    const overallRow = [cmpMetric, cmpUnit, 'OVERALL', ...cmpOverall.map(o => o.value ?? '')];
+    const csv = [cols, ...gameRows, overallRow].map(r => r.map(csvEscape).join(',')).join('\n');
+    downloadBlob(`neurostep-compare-${cmpMode}-${cmpMetric}-${Date.now()}.csv`, '﻿' + csv, 'text/csv;charset=utf-8;');
   };
 
   // ── Render ───────────────────────────────────────────────────────────────────
@@ -270,6 +505,278 @@ const AdminStats: React.FC<{ onBack: () => void }> = ({ onBack }) => {
               </ResponsiveContainer>
           }
         </div>
+      </div>
+
+      {/* ── Per-game success breakdown (section 1) ── */}
+      <div className="pergame-card">
+        <div className="pergame-head">
+          <div>
+            <h3 className="chart-title">{t('sg.title')}</h3>
+            <p className="pergame-sub">{t('sg.sub')}</p>
+          </div>
+          <button className="export-btn" onClick={exportPerGameCSV} disabled={perGame.length === 0}>
+            {t('sg.reportAll')}
+          </button>
+        </div>
+        {perGame.length === 0 ? (
+          <p className="chart-empty">{t('sg.empty')}</p>
+        ) : (
+          <div className="pergame-scroll">
+            <table className="pergame-table">
+              <thead>
+                <tr>
+                  <th>{t('sg.game')}</th>
+                  <th>{t('sg.sessions')}</th>
+                  <th>{t('sg.users')}</th>
+                  <th>{t('sg.accuracy')}</th>
+                  <th>{t('sg.reaction')}</th>
+                  <th>{t('sg.score')}</th>
+                  <th aria-label={t('sg.report')} />
+                </tr>
+              </thead>
+              <tbody>
+                {perGame.map((g) => (
+                  <tr key={g.gameId}>
+                    <td className="pg-game">{g.name}</td>
+                    <td>{g.sessions}</td>
+                    <td>{g.users}</td>
+                    <td>
+                      {g.accuracy == null ? '—' : (
+                        <span className={`pg-acc pg-${scoreClass(g.accuracy)}`}>{g.accuracy}%</span>
+                      )}
+                    </td>
+                    <td>{g.reaction == null ? '—' : g.reaction}</td>
+                    <td>{g.score == null ? '—' : (
+                      <span className={`pg-acc pg-${scoreClass(g.score)}`}>{g.score}</span>
+                    )}</td>
+                    <td>
+                      <button
+                        className="pg-report-btn"
+                        onClick={() => exportGameSessionsCSV(g.gameId)}
+                        title={t('sg.report')}
+                      >
+                        {t('sg.report')}
+                      </button>
+                    </td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
+        )}
+      </div>
+
+      {/* ── Compare users (section 2) ── */}
+      <div className="pergame-card">
+        <div className="pergame-head">
+          <div>
+            <h3 className="chart-title">{t('cmp.title')}</h3>
+            <p className="pergame-sub">{t('cmp.sub')}</p>
+          </div>
+          <button className="export-btn" onClick={exportComparisonCSV} disabled={!cmpHasData}>
+            {t('cmp.report')}
+          </button>
+        </div>
+
+        {/* mode toggle: user-vs-user or group-vs-group */}
+        <div className="cmp-modes" role="tablist">
+          <button
+            role="tab" aria-selected={cmpMode === 'users'}
+            className={`cmp-mode ${cmpMode === 'users' ? 'active' : ''}`}
+            onClick={() => setCmpMode('users')}
+          >{t('cmp.mode.users')}</button>
+          <button
+            role="tab" aria-selected={cmpMode === 'groups'}
+            className={`cmp-mode ${cmpMode === 'groups' ? 'active' : ''}`}
+            onClick={() => setCmpMode('groups')}
+          >{t('cmp.mode.groups')}</button>
+        </div>
+
+        {/* controls: metric + game, plus the mode-specific pickers */}
+        <div className="cmp-controls">
+          <label className="cmp-field">
+            <span>{t('cmp.metric')}</span>
+            <select value={cmpMetric} onChange={e => setCmpMetric(e.target.value as 'accuracy' | 'score' | 'reaction')}>
+              <option value="accuracy">{t('cmp.metric.accuracy')}</option>
+              <option value="score">{t('cmp.metric.score')}</option>
+              <option value="reaction">{t('cmp.metric.reaction')}</option>
+            </select>
+          </label>
+          <label className="cmp-field">
+            <span>{t('cmp.game')}</span>
+            <select value={cmpGame} onChange={e => setCmpGame(e.target.value)}>
+              <option value="all">{t('cmp.allGames')}</option>
+              {perGame.map(g => <option key={g.gameId} value={g.gameId}>{g.name}</option>)}
+            </select>
+          </label>
+
+          {cmpMode === 'users' ? (
+            <>
+              <label className="cmp-field">
+                <span>{t('cmp.userA')}</span>
+                <select value={userA} onChange={e => setCmpUserA(e.target.value)}>
+                  {cmpUsers.map(u => <option key={u.id} value={u.id}>{u.label}</option>)}
+                </select>
+              </label>
+              <label className="cmp-field">
+                <span>{t('cmp.userB')}</span>
+                <select value={userB} onChange={e => setCmpUserB(e.target.value)}>
+                  {cmpUsers.map(u => <option key={u.id} value={u.id}>{u.label}</option>)}
+                </select>
+              </label>
+            </>
+          ) : null}
+        </div>
+
+        {/* group mode: freely build the groups to compare (any age/gender bucket,
+            even mixing dimensions — e.g. "Male" vs "61-70") */}
+        {cmpMode === 'groups' && (
+          <div className="cmp-builder">
+            <div className="cmp-chips">
+              <span className="cmp-chips-label">{t('cmp.selectGroups')}</span>
+              {cmpEntities.map(e => (
+                <span key={e.key} className="cmp-chip active" style={{ borderColor: e.color }}>
+                  <span className="cmp-tile-dot" style={{ background: e.color }} />
+                  {e.label}
+                  <button
+                    className="cmp-chip-x"
+                    aria-label={t('cmp.remove')}
+                    onClick={() => removeGroupSpec(e.key)}
+                  >×</button>
+                </span>
+              ))}
+            </div>
+            <label className="cmp-field">
+              <span>{t('cmp.addGroup')}</span>
+              <select value="" onChange={e => { addGroupSpec(e.target.value); e.target.value = ''; }}>
+                <option value="">+ {t('cmp.addGroup')}</option>
+                <optgroup label={t('cmp.dim.age')}>
+                  {groupCatalog.filter(g => g.dim === 'age').map(g => (
+                    <option key={specKey(g)} value={specKey(g)}>
+                      {cmpLabel('age', g.bucket)} ({g.count})
+                    </option>
+                  ))}
+                </optgroup>
+                <optgroup label={t('cmp.dim.gender')}>
+                  {groupCatalog.filter(g => g.dim === 'gender').map(g => (
+                    <option key={specKey(g)} value={specKey(g)}>
+                      {cmpLabel('gender', g.bucket)} ({g.count})
+                    </option>
+                  ))}
+                </optgroup>
+              </select>
+            </label>
+          </div>
+        )}
+
+        {/* legend + overall summary tiles */}
+        {cmpHasData && (
+          <div className="cmp-summary">
+            {cmpOverall.map(o => (
+              <div key={o.key} className="cmp-tile" style={{ borderColor: o.color }}>
+                <span className="cmp-tile-dot" style={{ background: o.color }} />
+                <span className="cmp-tile-label">{o.label}</span>
+                {o.demoHe != null && <span className="cmp-tile-demo">{o.demoHe}</span>}
+                <span className="cmp-tile-value">{o.value == null ? '—' : `${o.value}${cmpUnit}`}</span>
+                <span className="cmp-tile-sub">{o.sessionsCount} {t('cmp.sessions')}</span>
+              </div>
+            ))}
+            {cmpLowerBetter && <span className="cmp-note">{t('cmp.lowerBetter')}</span>}
+          </div>
+        )}
+
+        {!cmpHasData ? (
+          <p className="chart-empty">
+            {cmpMode === 'users' && cmpUsers.length < 2 ? t('cmp.needUsers') : t('cmp.empty')}
+          </p>
+        ) : (
+          <>
+            {/* grouped bars: per game, one bar per entity */}
+            <h4 className="cmp-chart-title">{t('cmp.byGame')}</h4>
+            <ResponsiveContainer width="100%" height={260}>
+              <BarChart data={cmpChartData} margin={{ top: 4, right: 8, left: -20, bottom: 0 }}>
+                <CartesianGrid strokeDasharray="3 3" stroke="#f1f5f9" />
+                <XAxis dataKey="game" tick={{ fontSize: 12 }} />
+                <YAxis tick={{ fontSize: 12 }} unit={cmpUnit} domain={cmpAxisDomain} />
+                <Tooltip formatter={(v) => `${v ?? '—'}${cmpUnit}`} />
+                <Legend wrapperStyle={{ fontSize: 12 }} />
+                {cmpEntities.map(e => (
+                  <Bar key={e.key} dataKey={e.key} name={e.label} fill={e.color} radius={[4, 4, 0, 0]} />
+                ))}
+              </BarChart>
+            </ResponsiveContainer>
+
+            {/* radar: holistic profile across games (only when comparing many games) */}
+            {cmpShowRadar && (
+              <>
+                <h4 className="cmp-chart-title">{t('cmp.radarTitle')}</h4>
+                <ResponsiveContainer width="100%" height={300}>
+                  <RadarChart data={cmpChartData} outerRadius="72%">
+                    <PolarGrid stroke="#e2e8f0" />
+                    <PolarAngleAxis dataKey="game" tick={{ fontSize: 11 }} />
+                    <PolarRadiusAxis domain={cmpAxisDomain} tick={{ fontSize: 10 }} angle={90} />
+                    <Tooltip formatter={(v) => `${v ?? '—'}${cmpUnit}`} />
+                    <Legend wrapperStyle={{ fontSize: 12 }} />
+                    {cmpEntities.map(e => (
+                      <Radar key={e.key} dataKey={e.key} name={e.label}
+                        stroke={e.color} fill={e.color} fillOpacity={0.22} />
+                    ))}
+                  </RadarChart>
+                </ResponsiveContainer>
+              </>
+            )}
+
+            {/* over time: metric per day per entity — improvement & retention */}
+            {cmpShowTimeline && (
+              <>
+                <h4 className="cmp-chart-title">{t('cmp.overTime')}</h4>
+                <ResponsiveContainer width="100%" height={260}>
+                  <LineChart data={cmpTimeline} margin={{ top: 4, right: 8, left: -20, bottom: 0 }}>
+                    <CartesianGrid strokeDasharray="3 3" stroke="#f1f5f9" />
+                    <XAxis dataKey="dayLabel" tick={{ fontSize: 12 }} />
+                    <YAxis tick={{ fontSize: 12 }} unit={cmpUnit} domain={cmpAxisDomain} />
+                    <Tooltip formatter={(v) => `${v ?? '—'}${cmpUnit}`} />
+                    <Legend wrapperStyle={{ fontSize: 12 }} />
+                    {cmpEntities.map(e => (
+                      <Line key={e.key} type="monotone" dataKey={e.key} name={e.label}
+                        stroke={e.color} strokeWidth={2} dot={{ r: 3 }} connectNulls />
+                    ))}
+                  </LineChart>
+                </ResponsiveContainer>
+              </>
+            )}
+
+            {/* matrix table: game rows × entity columns */}
+            <div className="pergame-scroll">
+              <table className="pergame-table">
+                <thead>
+                  <tr>
+                    <th>{t('cmp.game')}</th>
+                    {cmpEntities.map(e => (
+                      <th key={e.key}><span className="cmp-th-dot" style={{ background: e.color }} />{e.label}</th>
+                    ))}
+                  </tr>
+                </thead>
+                <tbody>
+                  {cmpChartData.map((row, i) => (
+                    <tr key={i}>
+                      <td className="pg-game">{row.game}</td>
+                      {cmpEntities.map(e => (
+                        <td key={e.key}>{row[e.key] == null ? '—' : `${row[e.key]}${cmpUnit}`}</td>
+                      ))}
+                    </tr>
+                  ))}
+                  <tr className="cmp-overall-row">
+                    <td className="pg-game">{t('cmp.overall')}</td>
+                    {cmpOverall.map(o => (
+                      <td key={o.key}>{o.value == null ? '—' : `${o.value}${cmpUnit}`}</td>
+                    ))}
+                  </tr>
+                </tbody>
+              </table>
+            </div>
+          </>
+        )}
       </div>
 
       {/* ── Claude token usage ── */}

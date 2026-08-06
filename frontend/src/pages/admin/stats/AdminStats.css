@@ -72,6 +72,214 @@
   direction: rtl;
 }
 
+/* ── Per-game success breakdown (section 1) ─────────────────────────────────── */
+.pergame-card {
+  background: #fff;
+  border: 1px solid #e2e8f0;
+  border-radius: 12px;
+  padding: 1.25rem;
+  margin-bottom: 1rem;
+}
+.pergame-head {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 0.75rem;
+  flex-wrap: wrap;
+  margin-bottom: 0.75rem;
+}
+.pergame-head .chart-title { margin: 0; }
+.pergame-sub {
+  font-size: 0.78rem;
+  color: #64748b;
+  margin: 0.25rem 0 0;
+  direction: rtl;
+  max-width: 46ch;
+}
+/* horizontal scroll so the table never breaks the layout on phones/tablets */
+.pergame-scroll { overflow-x: auto; -webkit-overflow-scrolling: touch; }
+.pergame-table {
+  width: 100%;
+  border-collapse: collapse;
+  min-width: 520px;
+  direction: rtl;
+  font-size: 0.85rem;
+}
+.pergame-table th,
+.pergame-table td {
+  padding: 0.6rem 0.7rem;
+  text-align: right;
+  white-space: nowrap;
+  border-bottom: 1px solid #f1f5f9;
+}
+.pergame-table th {
+  font-weight: 600;
+  color: #64748b;
+  font-size: 0.75rem;
+  border-bottom: 1px solid #e2e8f0;
+}
+.pergame-table tbody tr:hover { background: #f8fafc; }
+.pergame-table .pg-game { font-weight: 600; color: #1a1a2e; }
+.pg-acc {
+  display: inline-block;
+  padding: 0.1rem 0.5rem;
+  border-radius: 999px;
+  font-weight: 700;
+  font-variant-numeric: tabular-nums;
+}
+.pg-good { background: #dcfce7; color: #15803d; }
+.pg-mid  { background: #fef9c3; color: #a16207; }
+.pg-low  { background: #fee2e2; color: #b91c1c; }
+.pg-report-btn {
+  border: 1px solid #e2e8f0;
+  background: #fff;
+  border-radius: 8px;
+  padding: 0.25rem 0.6rem;
+  font-size: 0.75rem;
+  font-weight: 600;
+  color: #4338ca;
+  cursor: pointer;
+  white-space: nowrap;
+}
+.pg-report-btn:hover { background: #eef2ff; }
+
+/* ── Compare users controls (section 2) ─────────────────────────────────────── */
+.cmp-controls {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.75rem;
+  margin-bottom: 1rem;
+  direction: rtl;
+}
+.cmp-field {
+  display: flex;
+  flex-direction: column;
+  gap: 0.25rem;
+  font-size: 0.72rem;
+  font-weight: 600;
+  color: #64748b;
+  min-width: 8rem;
+  flex: 1 1 8rem;
+}
+.cmp-field select {
+  border: 1px solid #cbd5e1;
+  border-radius: 8px;
+  padding: 0.45rem 0.6rem;
+  font-size: 0.85rem;
+  font-weight: 500;
+  color: #1a1a2e;
+  background: #fff;
+  cursor: pointer;
+}
+.cmp-field select:focus-visible {
+  outline: 2px solid #6366f1;
+  outline-offset: 1px;
+}
+
+/* mode toggle (user-vs-user / group-vs-group) */
+.cmp-modes {
+  display: inline-flex;
+  gap: 0.25rem;
+  background: #f1f5f9;
+  border-radius: 10px;
+  padding: 0.25rem;
+  margin-bottom: 0.9rem;
+  direction: rtl;
+}
+.cmp-mode {
+  border: none;
+  background: transparent;
+  border-radius: 8px;
+  padding: 0.4rem 0.9rem;
+  font-size: 0.82rem;
+  font-weight: 600;
+  color: #64748b;
+  cursor: pointer;
+  transition: background 0.15s, color 0.15s;
+}
+.cmp-mode.active { background: #fff; color: #4338ca; box-shadow: 0 1px 2px rgba(0,0,0,0.06); }
+
+/* group chips */
+.cmp-chips {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 0.4rem;
+  margin-bottom: 1rem;
+  direction: rtl;
+}
+.cmp-chips-label { font-size: 0.75rem; font-weight: 600; color: #64748b; margin-inline-end: 0.25rem; }
+.cmp-chip {
+  border: 1px solid #cbd5e1;
+  background: #fff;
+  border-radius: 999px;
+  padding: 0.3rem 0.75rem;
+  font-size: 0.8rem;
+  font-weight: 600;
+  color: #475569;
+  cursor: pointer;
+  transition: background 0.15s, border-color 0.15s;
+}
+.cmp-chip.active { background: #eef2ff; border-color: #6366f1; color: #4338ca; }
+.cmp-chip { display: inline-flex; align-items: center; gap: 0.35rem; }
+.cmp-chip-x {
+  border: none;
+  background: transparent;
+  color: #94a3b8;
+  font-size: 1rem;
+  line-height: 1;
+  cursor: pointer;
+  padding: 0 0.1rem;
+}
+.cmp-chip-x:hover { color: #dc2626; }
+
+/* group builder: selected chips + "add group" picker on one row */
+.cmp-builder {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: flex-end;
+  gap: 0.75rem;
+  margin-bottom: 1rem;
+}
+.cmp-builder .cmp-chips { margin-bottom: 0; flex: 1 1 auto; }
+
+.cmp-tile-demo { font-size: 0.7rem; color: #64748b; font-weight: 500; }
+
+/* overall summary tiles / legend */
+.cmp-summary {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 0.6rem;
+  margin-bottom: 0.75rem;
+  direction: rtl;
+}
+.cmp-tile {
+  display: flex;
+  flex-direction: column;
+  gap: 0.15rem;
+  border: 1px solid #e2e8f0;
+  border-inline-start-width: 4px;
+  border-radius: 10px;
+  padding: 0.5rem 0.8rem;
+  min-width: 7rem;
+}
+.cmp-tile-dot { width: 10px; height: 10px; border-radius: 50%; }
+.cmp-tile-label { font-size: 0.78rem; font-weight: 600; color: #1a1a2e; }
+.cmp-tile-value { font-size: 1.35rem; font-weight: 700; color: #1a1a2e; font-variant-numeric: tabular-nums; }
+.cmp-tile-sub { font-size: 0.7rem; color: #94a3b8; }
+.cmp-note { font-size: 0.72rem; color: #94a3b8; align-self: flex-end; }
+
+.cmp-chart-title {
+  font-size: 0.8rem;
+  font-weight: 600;
+  color: #475569;
+  margin: 1rem 0 0.25rem;
+  direction: rtl;
+}
+.cmp-th-dot { display: inline-block; width: 8px; height: 8px; border-radius: 50%; margin-inline-end: 5px; }
+.cmp-overall-row td { font-weight: 700; border-top: 2px solid #e2e8f0; background: #f8fafc; }
+
 /* ── Token usage ─────────────────────────────────────────────────────────────── */
 .token-card {
   background: #fff;

@@ -1,5 +1,6 @@
 import { firestore } from '../config/firebase.js';
 import { buildTrainingPlan } from '../services/trainingPlan.js';
+import { syntheticDomainsFromFocus } from '../services/personalizationFocus.js';
 
 export type AgentDataRequest =
    | 'progression'
@@ -71,6 +72,20 @@ export const gameAgentDataRepository = {
       const userRef = firestore.collection('users').doc(userId);
       const result: CollectedAgentData = { requested };
 
+      // A brand-new user has no cognitiveProfile yet, but they DID fill the
+      // onboarding questionnaire — load its derived focus so the chat assistant
+      // can still ground its recommendations in what they told us. Fetched once,
+      // only when a profile/plan-shaped request needs it.
+      const needsFocusFallback =
+         requested.includes('profile') || requested.includes('trainingPlan');
+      const focusDomains = needsFocusFallback
+         ? await userRef.get().then((snap) =>
+              syntheticDomainsFromFocus(
+                 snap.exists ? (snap.data()?.personalizationFocus ?? null) : null
+              )
+           )
+         : [];
+
       await Promise.all(
          requested.map(async (request) => {
             if (request === 'progression') {
@@ -84,13 +99,17 @@ export const gameAgentDataRepository = {
 
             if (request === 'profile') {
                const snap = await userRef.collection('cognitiveProfile').get();
-               result.profile = snap.docs.map(dataOf);
+               const domains = snap.docs.map(dataOf);
+               // Fall back to the questionnaire-derived focus for a new user.
+               result.profile = domains.length ? domains : focusDomains;
                return;
             }
 
             if (request === 'trainingPlan') {
                const snap = await userRef.collection('cognitiveProfile').get();
-               const domains = snap.docs.map(dataOf);
+               const realDomains = snap.docs.map(dataOf);
+               // New user with no play history → plan from the questionnaire focus.
+               const domains = realDomains.length ? realDomains : focusDomains;
                const plan = buildTrainingPlan(domains);
                const planWithRoutes = {
                   ...plan,

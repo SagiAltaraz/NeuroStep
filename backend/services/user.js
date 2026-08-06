@@ -1,5 +1,6 @@
 import { firestore } from '../config/firebase.js';
 import bcrypt from 'bcryptjs';
+import { derivePersonalizationFocus } from './personalizationFocus.js';
 
 const USERS_COLLECTION = 'users';
 
@@ -165,12 +166,23 @@ export const userFirebaseService = {
 
   /**
    * עדכון personalization
+   *
+   * `answers`    — human-readable labels, keyed by question id (for display).
+   * `answersRaw` — the raw option ids, keyed by question id. These are what the
+   *                logic reads: we derive a machine-readable cognitive `focus`
+   *                (weakest / most-wanted domains → a recommended starting game)
+   *                so the questionnaire actually drives the new-user experience.
    */
   async updatePersonalization(userId, { answers, prompt, questionnaire }) {
     return this.updateUser(userId, {
       personalizationAnswers: answers,
       personalizationQuestionnaire: questionnaire ?? null,
       personalizationPrompt: prompt,
+      personalizationFocus: focus,
+      // Surface age/gender as top-level fields too — handy for the admin
+      // cross-user comparison (section 2) without re-parsing the answers.
+      ageGroup: focus?.ageGroup ?? null,
+      gender: focus?.gender ?? null,
       profileCompletedAt: new Date(),
     });
   },
