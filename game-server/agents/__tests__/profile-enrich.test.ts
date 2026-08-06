@@ -6,14 +6,27 @@ import { PROFILE_TUNING } from '../progression.config.js';
 const PRIMARY = 1.0;
 const NOW = 1_750_000_000_000;
 
+// A settled profile: enough sessions behind it that the journey pacing
+// (JOURNEY_TUNING) no longer gates the level, so these tests exercise the
+// health signals rather than the climb.
 function prevState(over: Partial<ProfileState> = {}): ProfileState {
   return {
-    _ema: 60, level: 60, confidence: 1, sessionsCount: 10, trend: 'stable',
+    _ema: 60, level: 60, confidence: 1, sessionsCount: 20, trend: 'stable',
     lastDomainScores: [60, 60, 60],
     volatility: 0, plateauCount: 0, deteriorationFlag: false,
     bestLevel: 60, bestAt: NOW - 1000,
     ...over,
   };
+}
+
+// Play `sessions` sessions at a constant score, from a cold start — the honest
+// way to reach a high journey level now that a single session cannot.
+function playedUpTo(score: number, sessions: number): ProfileState {
+  let s = computeProfileUpdate(null, score, PRIMARY, PROFILE_TUNING, NOW);
+  for (let i = 1; i < sessions; i++) {
+    s = computeProfileUpdate(s, score, PRIMARY, PROFILE_TUNING, NOW);
+  }
+  return s;
 }
 
 describe('computeVolatility', () => {
@@ -40,21 +53,22 @@ describe('plateau counting', () => {
 
 describe('peak tracking', () => {
   it('bestLevel never decays and bestAt marks the climb', () => {
-    let s = computeProfileUpdate(null, 70, PRIMARY, PROFILE_TUNING, NOW);
-    expect(s.bestLevel).toBe(70);
+    let s = playedUpTo(70, 15);           // climbed honestly to their ability
+    const peak = s.level;
+    expect(s.bestLevel).toBe(peak);
     expect(s.bestAt).toBe(NOW);
-    // Scores collapse — level EMAs down but the peak stays.
+    // Scores collapse — the journey walks back down but the peak stays.
     for (let i = 0; i < 5; i++) s = computeProfileUpdate(s, 30, PRIMARY, PROFILE_TUNING, NOW + 1);
-    expect(s.level).toBeLessThan(70);
-    expect(s.bestLevel).toBe(70);
+    expect(s.level).toBeLessThan(peak);
+    expect(s.bestLevel).toBe(peak);
     expect(s.bestAt).toBe(NOW);
   });
 });
 
 describe('deterioration flag', () => {
   it('fires on a sustained drop below the peak with no recovery in sight', () => {
-    // Start high, then sustained low scores — the player falls AND stays low.
-    let s = computeProfileUpdate(null, 80, PRIMARY, PROFILE_TUNING, NOW);
+    // A player who climbed to ~80, then sustained low scores — they fall AND stay low.
+    let s = playedUpTo(80, 20);
     for (let i = 0; i < 5; i++) s = computeProfileUpdate(s, 40, PRIMARY, PROFILE_TUNING, NOW);
     expect(s.confidence).toBe(1);
     expect(s.bestLevel - s.level).toBeGreaterThanOrEqual(PROFILE_TUNING.DETERIORATION_DROP);
@@ -62,7 +76,7 @@ describe('deterioration flag', () => {
   });
 
   it('clears as soon as the player starts recovering', () => {
-    let s = computeProfileUpdate(null, 80, PRIMARY, PROFILE_TUNING, NOW);
+    let s = playedUpTo(80, 20);
     for (let i = 0; i < 5; i++) s = computeProfileUpdate(s, 40, PRIMARY, PROFILE_TUNING, NOW);
     expect(s.deteriorationFlag).toBe(true);
     // Two strongly rising sessions flip the trend window upward.

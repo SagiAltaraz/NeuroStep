@@ -21,6 +21,30 @@ export const PROFILE_TUNING = {
   TIMELINE_MAX_POINTS:    120,  // per-domain time-series cap (~2 years at 5/month)
 } as const;
 
+// ── Journey pacing ──────────────────────────────────────────────────────────
+// The journey step (cognitiveProfile.level, 0..100 — the number the map draws a
+// walking character on) is EARNED progress, not a snapshot of one session.
+//
+// It used to be seeded straight from the session score, so a single strong
+// 10-minute first game landed the player on step 68 of 100 and the map had
+// almost nothing left to climb. Now the measured ability (the score EMA) is the
+// TARGET the step walks toward, gated by two rules:
+//
+//   1. a per-session step cap  — no session can move the journey more than a few
+//      steps, up or down, however well (or badly) it went;
+//   2. an experience ceiling   — the step can never exceed what the number of
+//      sessions actually trained in that domain justifies.
+//
+// Ability itself (`_ema`) stays uncapped, so difficulty adaptation still meets
+// the player exactly where they are — only the journey pacing is deliberate.
+// With these numbers a domain needs ~20 sessions to reach step 100.
+export const JOURNEY_TUNING = {
+  FIRST_SESSION_CAP:    5,   // highest step a domain's very first session can reach
+  CEILING_PER_SESSION:  5,   // the experience ceiling grows this much per session
+  MAX_GAIN_PER_SESSION: 5,   // never climb more than this in one session
+  MAX_DROP_PER_SESSION: 4,   // ...and never fall more than this either
+} as const;
+
 export const PROGRESSION_TUNING = {
   NODES_PER_REGION:         10,   // level 0..100 maps to node 1..10 (10 per region)
   PROMOTE_BUFFER:           0,    // promote as soon as level crosses a node boundary

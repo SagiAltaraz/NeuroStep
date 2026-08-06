@@ -123,21 +123,65 @@ export const getSessions = async (req, res) => {
 };
 
 // ===== USER ACTIVITY (login history) =====
+// Returns two things, deliberately from two different sources:
+//   logs  — the recent login feed, newest first (a WINDOW, not everything)
+//   users — the per-user summary, built from the users collection so the login
+//           count and "last login" stay right no matter how far back the user's
+//           logins fall. Summarising the window instead (what the client used to
+//           do) quietly under-counted busy users and dropped anyone whose last
+//           login had scrolled out of it.
+const ACTIVITY_DEFAULT_LIMIT = 100;
+const ACTIVITY_MAX_LIMIT     = 500;
+
 export const getActivity = async (req, res) => {
   try {
-    const snap = await firestore
-      .collection('activityLogs')
-      .orderBy('timestamp', 'desc')
-      .limit(100)
-      .get();
+    const requested = Number.parseInt(req.query.limit, 10);
+    const limit = Number.isFinite(requested)
+      ? Math.min(Math.max(requested, 1), ACTIVITY_MAX_LIMIT)
+      : ACTIVITY_DEFAULT_LIMIT;
 
-    const logs = snap.docs.map(doc => ({
+    const [logSnap, userSnap] = await Promise.all([
+      firestore.collection('activityLogs').orderBy('timestamp', 'desc').limit(limit + 1).get(),
+      firestore.collection('users').get(),
+    ]);
+
+    // One extra row was fetched purely to detect truncation — don't serve it.
+    const truncated = logSnap.docs.length > limit;
+    const logs = logSnap.docs.slice(0, limit).map(doc => ({
       id: doc.id,
       ...doc.data(),
-      timestamp: doc.data().timestamp?.toDate?.()?.getTime() ?? doc.data().timestamp,
+      timestamp: toMs(doc.data().timestamp),
     }));
 
-    res.json(logs);
+    // Fallbacks for accounts that predate the loginCount/lastLoginAt counters:
+    // count what we can see in the window and flag the number as a lower bound.
+    const windowCounts = new Map();
+    const windowLatest = new Map();
+    for (const log of logs) {
+      if (!log.userId) continue;
+      windowCounts.set(log.userId, (windowCounts.get(log.userId) ?? 0) + 1);
+      if (!windowLatest.has(log.userId)) windowLatest.set(log.userId, log.timestamp);
+    }
+
+    const users = userSnap.docs
+      .map(doc => {
+        const d = doc.data();
+        const storedCount = typeof d.loginCount === 'number' ? d.loginCount : null;
+        return {
+          id:          doc.id,
+          name:        d.name ?? null,
+          email:       d.email ?? null,
+          role:        d.role ?? 'user',
+          createdAt:   toMs(d.createdAt),
+          lastLoginAt: toMs(d.lastLoginAt) ?? windowLatest.get(doc.id) ?? null,
+          loginCount:  storedCount ?? windowCounts.get(doc.id) ?? 0,
+          // true → the count is what we could see, not what the user actually did
+          countApprox: storedCount === null,
+        };
+      })
+      .sort((a, b) => (b.lastLoginAt ?? 0) - (a.lastLoginAt ?? 0));
+
+    res.json({ logs, users, truncated, generatedAt: Date.now() });
   } catch (err) {
     res.status(500).json({ message: "Failed to fetch activity", error: err.message });
   }

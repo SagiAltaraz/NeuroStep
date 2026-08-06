@@ -14,11 +14,8 @@ const USERS_COLLECTION = 'users';
  * - password: string (bcrypt hash)
  * - role: 'user' | 'admin'
  * - language: 'he' | 'en'   (default 'he')
- * - personalizationAnswers: object | null      (question id → display label)
- * - personalizationAnswersRaw: object | null   (question id → raw option ids)
- * - personalizationFocus: object | null        (derived cognitive focus)
- * - ageGroup: string | null
- * - gender: string | null
+ * - personalizationAnswers: object | null
+ * - personalizationQuestionnaire: array | null
  * - personalizationPrompt: string | null
  * - profileCompletedAt: Date | null
  * - createdAt: Date
@@ -53,10 +50,7 @@ export const userFirebaseService = {
       role,
       language: lang,
       personalizationAnswers: null,
-      personalizationAnswersRaw: null,
-      personalizationFocus: null,
-      ageGroup: null,
-      gender: null,
+      personalizationQuestionnaire: null,
       personalizationPrompt: null,
       profileCompletedAt: null,
       createdAt: new Date(),
@@ -91,10 +85,7 @@ export const userFirebaseService = {
       role,
       language: lang,
       personalizationAnswers: null,
-      personalizationAnswersRaw: null,
-      personalizationFocus: null,
-      ageGroup: null,
-      gender: null,
+      personalizationQuestionnaire: null,
       personalizationPrompt: null,
       profileCompletedAt: null,
       createdAt: new Date(),
@@ -182,11 +173,10 @@ export const userFirebaseService = {
    *                (weakest / most-wanted domains → a recommended starting game)
    *                so the questionnaire actually drives the new-user experience.
    */
-  async updatePersonalization(userId, { answers, prompt, answersRaw }) {
-    const focus = derivePersonalizationFocus(answersRaw);
+  async updatePersonalization(userId, { answers, prompt, questionnaire }) {
     return this.updateUser(userId, {
       personalizationAnswers: answers,
-      personalizationAnswersRaw: answersRaw ?? null,
+      personalizationQuestionnaire: questionnaire ?? null,
       personalizationPrompt: prompt,
       personalizationFocus: focus,
       // Surface age/gender as top-level fields too — handy for the admin

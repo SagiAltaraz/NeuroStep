@@ -31,7 +31,8 @@ export const PLAN_SCHEMA_VERSION = 1;
 // The slice of a domain profile the planner needs (subset of ProfileState + id).
 export interface DomainSnapshot {
   domainId:          ProblemId;
-  level:             number;      // 0..100
+  level:             number;      // 0..100 — journey step (paced, see JOURNEY_TUNING)
+  ability?:          number;      // 0..100 — measured ability (score EMA); defaults to level
   confidence:        number;      // 0..1
   trend:             Trend;
   plateauCount:      number;
@@ -119,7 +120,9 @@ export function computeTrainingPlan(
     for (const [dom, w] of parts) {
       const p = byId.get(dom);
       if (!p || p.confidence < CROSSGAME_TUNING.MIN_CONFIDENCE) continue;
-      num += p.level * w * p.confidence;
+      // Ability, not the paced journey step — mirrors seedLevelFromProfile so the
+      // plan's number is exactly where the controller would open the game.
+      num += (p.ability ?? p.level) * w * p.confidence;
       den += w * p.confidence;
     }
     if (den > 0) {
@@ -157,6 +160,7 @@ function readSnapshot(d: Record<string, unknown>): DomainSnapshot | null {
   return {
     domainId:          d.domainId as ProblemId,
     level:             num(d.level, 0),
+    ability:           num(d._ema, num(d.level, 0)),
     confidence:        num(d.confidence, 0),
     trend:             d.trend === 'up' || d.trend === 'down' ? d.trend : 'stable',
     plateauCount:      num(d.plateauCount, 0),

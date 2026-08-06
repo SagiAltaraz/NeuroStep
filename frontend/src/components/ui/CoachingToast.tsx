@@ -1,14 +1,19 @@
+import { useEffect } from 'react';
 import './CoachingToast.css';
+
+export const COACHING_TOAST_EVENT = 'neurostep:coaching-toast';
 
 interface Props {
   message: string | null;
 }
 
 export default function CoachingToast({ message }: Props) {
-  if (!message) return null;
-  return (
-    <div className="coaching-toast" role="status" aria-live="polite">
-      {message}
-    </div>
-  );
+  useEffect(() => {
+    if (!message) return;
+    window.dispatchEvent(new CustomEvent(COACHING_TOAST_EVENT, {
+      detail: { message },
+    }));
+  }, [message]);
+
+  return null;
 }

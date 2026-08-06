@@ -6,11 +6,11 @@ const router = express.Router();
 
 router.post("/profile/save", protect, async (req, res) => {
   try {
-    const { answers, prompt, answersRaw } = req.body;
+    const { answers, prompt, questionnaire } = req.body;
     const updatedUser = await userFirebaseService.updatePersonalization(req.user.id, {
       answers,
       prompt,
-      answersRaw,
+      questionnaire,
     });
 
     const { password, ...userWithoutPassword } = updatedUser;
@@ -39,6 +39,7 @@ router.get("/profile", protect, async (req, res) => {
       email: user.email,
       name: user.name,
       personalizationAnswers: user.personalizationAnswers,
+      personalizationQuestionnaire: user.personalizationQuestionnaire,
       personalizationPrompt: user.personalizationPrompt,
       profileCompletedAt: user.profileCompletedAt,
     });

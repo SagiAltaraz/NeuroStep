@@ -37,11 +37,22 @@ export async function googleAuth(idToken: string) {
   return data;
 }
 
+export interface PersonalizationQuestionnaireEntry {
+  questionId: number;
+  questionHe: string;
+  questionEn: string;
+  subtitleHe: string;
+  subtitleEn: string;
+  selectedOptionIds: string[];
+  answersHe: string[];
+  answersEn: string[];
+}
+
 export async function savePersonalizationProfile(
   token: string,
   answers: Record<number, string>,
   prompt: string,
-  answersRaw?: Record<number, string[]>
+  questionnaire: PersonalizationQuestionnaireEntry[]
 ) {
   const res = await fetch("/api/personalization/profile/save", {
     method: "POST",
@@ -49,7 +60,7 @@ export async function savePersonalizationProfile(
       "Content-Type": "application/json",
       Authorization: `Bearer ${token}`,
     },
-    body: JSON.stringify({ answers, prompt, answersRaw }),
+    body: JSON.stringify({ answers, prompt, questionnaire }),
   });
   const data = await res.json();
   if (!res.ok) {

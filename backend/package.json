@@ -5,6 +5,7 @@
   "type": "module",
   "scripts": {
     "start": "bun server.js",
+    "test": "bun test",
     "dev": "nodemon --legacy-watch --watch . --ext js,ts,json --exec bun server.js"
   },
   "keywords": [],

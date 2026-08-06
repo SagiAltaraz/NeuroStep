@@ -19,7 +19,7 @@ import {
   FieldSeparator,
 } from "../ui/field";
 import { Input } from "../ui/input";
-import PersonalFormModal from "../start-form/PersonalFormModal";
+import PersonalFormModal, { type QuestionnaireEntry } from "../start-form/PersonalFormModal";
 import * as authAPI from "../../api/auth";
 
 export function SignupForm({ ...props }: React.ComponentProps<typeof Card>) {
@@ -89,7 +89,7 @@ export function SignupForm({ ...props }: React.ComponentProps<typeof Card>) {
   const handleProfileGenerated = async (
     prompt: string,
     answers: Record<number, string>,
-    answersRaw: Record<number, string[]>
+    questionnaire: QuestionnaireEntry[]
   ) => {
     try {
       if (!token) {
@@ -100,7 +100,7 @@ export function SignupForm({ ...props }: React.ComponentProps<typeof Card>) {
         token,
         answers,
         prompt,
-        answersRaw
+        questionnaire
       );
 
       if (!response.success) {

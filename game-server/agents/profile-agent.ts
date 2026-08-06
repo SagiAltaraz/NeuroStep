@@ -21,7 +21,7 @@ import { getDb } from '../firebase.js';
 import type { GameId } from '../types/game.types.js';
 import { GAME_DOMAINS } from '../types/domains.js';
 import type { ProblemId } from '../types/domains.js';
-import { PROFILE_TUNING } from './progression.config.js';
+import { PROFILE_TUNING, JOURNEY_TUNING } from './progression.config.js';
 
 export type Trend = 'up' | 'stable' | 'down';
 
@@ -68,6 +68,41 @@ export function computeTrend(scores: number[], tuning = PROFILE_TUNING): Trend {
    return 'stable';
 }
 
+// ── Journey pacing ───────────────────────────────────────────────────────────
+// `_ema` is the measured ability and moves as fast as the evidence does.
+// `level` is the JOURNEY STEP — what the map draws — and is deliberately slower:
+// it walks toward the ability a few steps per session and can never run ahead of
+// the training actually done. See JOURNEY_TUNING for the reasoning.
+
+// The highest step the player's experience in this domain justifies.
+export function journeyCeiling(
+   sessionsCount: number,
+   tuning = JOURNEY_TUNING
+): number {
+   const sessions = Math.max(1, Math.round(sessionsCount));
+   const ceiling =
+      tuning.FIRST_SESSION_CAP + tuning.CEILING_PER_SESSION * (sessions - 1);
+   return Math.min(100, ceiling);
+}
+
+// One session's move along the journey: toward `ability`, never past the
+// experience ceiling, never more than the per-session step cap in either
+// direction. Pure and exported so the backfill script reuses the exact rule.
+export function nextJourneyLevel(
+   prevLevel: number,
+   ability: number,
+   sessionsCount: number,
+   tuning = JOURNEY_TUNING
+): number {
+   const from = Math.max(0, Math.round(prevLevel));
+   const target = Math.max(0, Math.min(100, Math.round(ability)));
+   const allowed = Math.min(target, journeyCeiling(sessionsCount, tuning));
+
+   if (allowed > from) return Math.min(allowed, from + tuning.MAX_GAIN_PER_SESSION);
+   if (allowed < from) return Math.max(allowed, from - tuning.MAX_DROP_PER_SESSION);
+   return from;
+}
+
 // Std-dev of the recent score window — how NOISY this ability is session to
 // session. High volatility = unstable performance (a health signal on its own,
 // and a reason to trust single-session dips less).
@@ -89,12 +124,13 @@ export function computeProfileUpdate(
    tuning = PROFILE_TUNING,
    now: number = Date.now()
 ): ProfileState {
-   // Cold start — first ever score for this domain seeds the EMA directly, so the
-   // stored level reflects the player's ability. (The per-session "ease-in" lives
-   // in the adaptive warm-up, which starts each session a touch BELOW this level
-   // and ramps up to it — see RESUME_FACTOR in adaptive-agent.)
+   // Cold start — the first ever score seeds the ABILITY estimate directly (it is
+   // the only evidence we have), but the journey step starts at the bottom of the
+   // map: one good session is not a climbed mountain. (The per-session "ease-in"
+   // lives in the adaptive warm-up, which starts each session a touch BELOW the
+   // player's ability and ramps up to it — see RESUME_FACTOR in adaptive-agent.)
    if (prev === null) {
-      const level = Math.round(domainScore);
+      const level = nextJourneyLevel(0, domainScore, 1);
       return {
          _ema: domainScore,
          level,
@@ -120,7 +156,11 @@ export function computeProfileUpdate(
       alpha = Math.min(tuning.ALPHA_MAX, alpha * tuning.WARMUP_ALPHA_BOOST);
 
    const _ema = prev._ema * (1 - alpha) + domainScore * alpha;
-   const level = Math.round(_ema);
+   // The journey walks toward the ability instead of jumping to it — a few steps
+   // per session at most, and never beyond what this many sessions justify. This
+   // also pulls legacy profiles (seeded straight from a session score, before the
+   // gating existed) back onto the honest path without losing their ability.
+   const level = nextJourneyLevel(prev.level, _ema, sessionsCount);
 
    const lastDomainScores = [...prev.lastDomainScores, domainScore].slice(
       -tuning.TREND_WINDOW
@@ -134,15 +174,25 @@ export function computeProfileUpdate(
    const plateauCount =
       level > prev.level + tuning.PLATEAU_EPSILON ? 0 : prev.plateauCount + 1;
 
-   // Peak tracking — never decays; deterioration is judged against it.
-   const bestLevel = Math.max(prev.bestLevel, level);
-   const bestAt = level > prev.bestLevel ? now : prev.bestAt;
+   // A legacy profile sitting above its experience ceiling is being walked back
+   // DOWN to the honest path — that is bookkeeping, not a player getting worse,
+   // and it must never raise a caregiver-facing decline flag.
+   const pacingCorrection = prev.level > journeyCeiling(sessionsCount);
+
+   // Peak tracking — never decays; deterioration is judged against it. The one
+   // exception is a peak that was never earned (recorded above the ceiling by the
+   // old un-paced rule): it walks down with the level, or every later session
+   // would measure the player against a summit they never climbed.
+   const bestLevel = pacingCorrection ? level : Math.max(prev.bestLevel, level);
+   const bestAt =
+      pacingCorrection || level > prev.bestLevel ? now : prev.bestAt;
 
    // Deterioration: meaningfully below the personal peak with NO sign of
    // recovery (still falling, or stuck low — both are the sustained pattern a
    // caregiver should watch), on a profile we actually trust. Clears the moment
    // the trend turns up. Never a single-session verdict.
    const deteriorationFlag =
+      !pacingCorrection &&
       confidence >= tuning.MIN_CONFIDENCE_TO_FLAG &&
       bestLevel - level >= tuning.DETERIORATION_DROP &&
       trend !== 'up';

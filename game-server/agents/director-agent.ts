@@ -211,6 +211,7 @@ export async function loadDomainSnapshots(userId: string): Promise<DomainSnapsho
       return [{
         domainId:          d.domainId as DomainSnapshot['domainId'],
         level:             num(d.level, 0),
+        ability:           num(d._ema, num(d.level, 0)),
         confidence:        num(d.confidence, 0),
         trend:             d.trend === 'up' || d.trend === 'down' ? d.trend : 'stable',
         plateauCount:      num(d.plateauCount, 0),
