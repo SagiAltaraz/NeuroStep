@@ -60,8 +60,9 @@ const AdminStats: React.FC<{ onBack: () => void }> = ({ onBack }) => {
   const [cmpGame,   setCmpGame]   = useState<string>('all');
   const [cmpUserA,  setCmpUserA]  = useState<string>('');
   const [cmpUserB,  setCmpUserB]  = useState<string>('');
-  const [cmpDim,    setCmpDim]    = useState<'gender' | 'age'>('age');
-  const [cmpGroups, setCmpGroups] = useState<string[]>([]);   // selected demographic buckets
+  // Group mode: a free-form set of demographic buckets to compare, across BOTH
+  // dimensions (e.g. "Male" vs "Female", or "61-70" vs "71-80", or a mix).
+  const [cmpGroupSpecs, setCmpGroupSpecs] = useState<{ dim: 'age' | 'gender'; bucket: string }[]>([]);
 
   useEffect(() => {
     if (!token) return;
@@ -167,7 +168,18 @@ const AdminStats: React.FC<{ onBack: () => void }> = ({ onBack }) => {
       ? t('cmp.unknown')
       : t(`${dim === 'age' ? 'age' : 'gender'}.${id}` as Parameters<typeof t>[0]);
 
-  // Users present in the loaded sessions (for the two user pickers).
+  // Canonical demographic buckets (both dimensions).
+  const AGE_BUCKETS = ['under-50', '50-60', '61-70', '71-80', 'over-80'];
+  const GENDER_BUCKETS = ['male', 'female', 'other-undisclosed'];
+  const demoValue = (dim: 'age' | 'gender', s: SessionDoc) =>
+    (dim === 'age' ? s.ageGroup : s.gender) || '__unknown__';
+  const specKey = (sp: { dim: 'age' | 'gender'; bucket: string }) => `${sp.dim}:${sp.bucket}`;
+
+  // Users present in the loaded sessions (+ their demographics for the tiles).
+  const userDemo = (id: string) => {
+    const s = sessions.find(x => x.userId === id);
+    return { ageGroup: s?.ageGroup ?? null, gender: s?.gender ?? null };
+  };
   const cmpUsers = Object.values(
     sessions.reduce<Record<string, { id: string; label: string }>>((acc, s) => {
       if (s.userId && !acc[s.userId]) {
@@ -177,18 +189,29 @@ const AdminStats: React.FC<{ onBack: () => void }> = ({ onBack }) => {
     }, {})
   ).sort((a, b) => a.label.localeCompare(b.label));
 
-  // Demographic buckets actually present, in canonical order.
-  const bucketOrder = cmpDim === 'age'
-    ? ['under-50', '50-60', '61-70', '71-80', 'over-80']
-    : ['male', 'female', 'other-undisclosed'];
-  const bucketOf = (s: SessionDoc) => (cmpDim === 'age' ? s.ageGroup : s.gender) || '__unknown__';
-  const cmpBucketsPresent = [...bucketOrder, '__unknown__']
-    .filter(id => sessions.some(s => bucketOf(s) === id));
+  // Catalog of every demographic group with its session count — powers the
+  // "add a group" picker and the sensible defaults. Includes both dimensions
+  // plus an "unknown" bucket per dimension when present.
+  const groupCatalog = ([
+    ...AGE_BUCKETS.map(b => ({ dim: 'age' as const, bucket: b })),
+    { dim: 'age' as const, bucket: '__unknown__' },
+    ...GENDER_BUCKETS.map(b => ({ dim: 'gender' as const, bucket: b })),
+    { dim: 'gender' as const, bucket: '__unknown__' },
+  ])
+    .map(sp => ({ ...sp, count: sessions.filter(s => demoValue(sp.dim, s) === sp.bucket).length }))
+    .filter(sp => sp.count > 0);
 
-  // Resolve selections with sensible defaults (first two users / all buckets).
+  // Default groups: the two largest by session count.
+  const defaultSpecs = groupCatalog
+    .slice()
+    .sort((a, b) => b.count - a.count)
+    .slice(0, 2)
+    .map(({ dim, bucket }) => ({ dim, bucket }));
+  const activeGroupSpecs = cmpGroupSpecs.length ? cmpGroupSpecs : defaultSpecs;
+
+  // Resolve user selections with sensible defaults (first two users).
   const userA = cmpUserA || cmpUsers[0]?.id || '';
   const userB = cmpUserB || cmpUsers[1]?.id || '';
-  const selectedGroups = cmpGroups.length ? cmpGroups : cmpBucketsPresent;
 
   type CmpEntity = { key: string; label: string; color: string; sessions: SessionDoc[] };
   const cmpEntities: CmpEntity[] = cmpMode === 'users'
@@ -200,11 +223,11 @@ const AdminStats: React.FC<{ onBack: () => void }> = ({ onBack }) => {
           color: CMP_COLORS[i % CMP_COLORS.length],
           sessions: sessions.filter(s => s.userId === id),
         }))
-    : selectedGroups.map((bucket, i) => ({
-        key: bucket,
-        label: cmpLabel(cmpDim, bucket),
+    : activeGroupSpecs.map((sp, i) => ({
+        key: specKey(sp),
+        label: cmpLabel(sp.dim, sp.bucket),
         color: CMP_COLORS[i % CMP_COLORS.length],
-        sessions: sessions.filter(s => bucketOf(s) === bucket),
+        sessions: sessions.filter(s => demoValue(sp.dim, s) === sp.bucket),
       }));
 
   const inScope = (list: SessionDoc[]) =>
@@ -223,24 +246,67 @@ const AdminStats: React.FC<{ onBack: () => void }> = ({ onBack }) => {
     return row;
   });
 
+  // Over-time view: metric per DAY per entity, so improvement/retention shows.
+  const dayKey = (ts: number) => {
+    const d = new Date(ts);
+    return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`;
+  };
+  const fmtDay = (k: string) => { const [, m, d] = k.split('-'); return `${d}/${m}`; };
+  const cmpTimeline = (() => {
+    const dayMap = new Map<string, Record<string, string | number | null>>();
+    cmpEntities.forEach(e => {
+      const byDay = new Map<string, number[]>();
+      inScope(e.sessions).forEach(s => {
+        const v = metricOf(s);
+        if (v == null || !s.startedAt) return;
+        const k = dayKey(s.startedAt);
+        const arr = byDay.get(k) ?? [];
+        arr.push(v);
+        byDay.set(k, arr);
+      });
+      byDay.forEach((vals, k) => {
+        const row = dayMap.get(k) ?? { day: k, dayLabel: fmtDay(k) };
+        row[e.key] = Math.round(vals.reduce((a, b) => a + b, 0) / vals.length);
+        dayMap.set(k, row);
+      });
+    });
+    return [...dayMap.values()].sort((a, b) => String(a.day).localeCompare(String(b.day)));
+  })();
+  const cmpShowTimeline = cmpTimeline.length >= 2;
+
   // Overall per entity (respecting the game filter) for the summary strip/table.
-  const cmpOverall = cmpEntities.map(e => ({
-    key: e.key,
-    label: e.label,
-    color: e.color,
-    value: meanMetric(inScope(e.sessions)),
-    sessionsCount: inScope(e.sessions).length,
-  }));
+  // In user mode we also surface each user's gender + age from the questionnaire.
+  const cmpOverall = cmpEntities.map(e => {
+    const demo = cmpMode === 'users' ? userDemo(e.key) : null;
+    return {
+      key: e.key,
+      label: e.label,
+      color: e.color,
+      value: meanMetric(inScope(e.sessions)),
+      sessionsCount: inScope(e.sessions).length,
+      demoHe: demo
+        ? [demo.gender ? cmpLabel('gender', demo.gender) : null,
+           demo.ageGroup ? cmpLabel('age', demo.ageGroup) : null]
+            .filter(Boolean).join(' · ') || t('cmp.noDemo')
+        : null,
+    };
+  });
 
   const cmpHasData = cmpOverall.some(e => e.value != null);
   const cmpShowRadar = cmpGame === 'all' && cmpGames.length >= 3 && cmpEntities.length >= 1;
   const cmpAxisDomain: [number, number] | undefined =
     cmpMetric === 'reaction' ? undefined : [0, 100];
 
-  const toggleGroup = (b: string) => {
-    const base = cmpGroups.length ? cmpGroups : cmpBucketsPresent;
-    const next = base.includes(b) ? base.filter(x => x !== b) : [...base, b];
-    setCmpGroups(next.length ? next : []);
+  const addGroupSpec = (value: string) => {
+    if (!value) return;
+    const [dim, bucket] = value.split(':') as ['age' | 'gender', string];
+    const base = cmpGroupSpecs.length ? cmpGroupSpecs : defaultSpecs;
+    if (base.some(sp => sp.dim === dim && sp.bucket === bucket)) return;
+    setCmpGroupSpecs([...base, { dim, bucket }]);
+  };
+  const removeGroupSpec = (key: string) => {
+    const base = cmpGroupSpecs.length ? cmpGroupSpecs : defaultSpecs;
+    setCmpGroupSpecs(base.filter(sp => specKey(sp) !== key));
   };
 
   // Line chart: cognitive scores over last 20 sessions that have a report
@@ -559,28 +625,47 @@ const AdminStats: React.FC<{ onBack: () => void }> = ({ onBack }) => {
                 </select>
               </label>
             </>
-          ) : (
-            <label className="cmp-field">
-              <span>{t('cmp.dim')}</span>
-              <select value={cmpDim} onChange={e => { setCmpDim(e.target.value as 'gender' | 'age'); setCmpGroups([]); }}>
-                <option value="age">{t('cmp.dim.age')}</option>
-                <option value="gender">{t('cmp.dim.gender')}</option>
-              </select>
-            </label>
-          )}
+          ) : null}
         </div>
 
-        {/* group mode: pick which buckets to compare (chips) */}
+        {/* group mode: freely build the groups to compare (any age/gender bucket,
+            even mixing dimensions — e.g. "Male" vs "61-70") */}
         {cmpMode === 'groups' && (
-          <div className="cmp-chips">
-            <span className="cmp-chips-label">{t('cmp.selectGroups')}</span>
-            {cmpBucketsPresent.map(b => (
-              <button
-                key={b}
-                className={`cmp-chip ${selectedGroups.includes(b) ? 'active' : ''}`}
-                onClick={() => toggleGroup(b)}
-              >{cmpLabel(cmpDim, b)}</button>
-            ))}
+          <div className="cmp-builder">
+            <div className="cmp-chips">
+              <span className="cmp-chips-label">{t('cmp.selectGroups')}</span>
+              {cmpEntities.map(e => (
+                <span key={e.key} className="cmp-chip active" style={{ borderColor: e.color }}>
+                  <span className="cmp-tile-dot" style={{ background: e.color }} />
+                  {e.label}
+                  <button
+                    className="cmp-chip-x"
+                    aria-label={t('cmp.remove')}
+                    onClick={() => removeGroupSpec(e.key)}
+                  >×</button>
+                </span>
+              ))}
+            </div>
+            <label className="cmp-field">
+              <span>{t('cmp.addGroup')}</span>
+              <select value="" onChange={e => { addGroupSpec(e.target.value); e.target.value = ''; }}>
+                <option value="">+ {t('cmp.addGroup')}</option>
+                <optgroup label={t('cmp.dim.age')}>
+                  {groupCatalog.filter(g => g.dim === 'age').map(g => (
+                    <option key={specKey(g)} value={specKey(g)}>
+                      {cmpLabel('age', g.bucket)} ({g.count})
+                    </option>
+                  ))}
+                </optgroup>
+                <optgroup label={t('cmp.dim.gender')}>
+                  {groupCatalog.filter(g => g.dim === 'gender').map(g => (
+                    <option key={specKey(g)} value={specKey(g)}>
+                      {cmpLabel('gender', g.bucket)} ({g.count})
+                    </option>
+                  ))}
+                </optgroup>
+              </select>
+            </label>
           </div>
         )}
 
@@ -591,6 +676,7 @@ const AdminStats: React.FC<{ onBack: () => void }> = ({ onBack }) => {
               <div key={o.key} className="cmp-tile" style={{ borderColor: o.color }}>
                 <span className="cmp-tile-dot" style={{ background: o.color }} />
                 <span className="cmp-tile-label">{o.label}</span>
+                {o.demoHe != null && <span className="cmp-tile-demo">{o.demoHe}</span>}
                 <span className="cmp-tile-value">{o.value == null ? '—' : `${o.value}${cmpUnit}`}</span>
                 <span className="cmp-tile-sub">{o.sessionsCount} {t('cmp.sessions')}</span>
               </div>
@@ -636,6 +722,26 @@ const AdminStats: React.FC<{ onBack: () => void }> = ({ onBack }) => {
                         stroke={e.color} fill={e.color} fillOpacity={0.22} />
                     ))}
                   </RadarChart>
+                </ResponsiveContainer>
+              </>
+            )}
+
+            {/* over time: metric per day per entity — improvement & retention */}
+            {cmpShowTimeline && (
+              <>
+                <h4 className="cmp-chart-title">{t('cmp.overTime')}</h4>
+                <ResponsiveContainer width="100%" height={260}>
+                  <LineChart data={cmpTimeline} margin={{ top: 4, right: 8, left: -20, bottom: 0 }}>
+                    <CartesianGrid strokeDasharray="3 3" stroke="#f1f5f9" />
+                    <XAxis dataKey="dayLabel" tick={{ fontSize: 12 }} />
+                    <YAxis tick={{ fontSize: 12 }} unit={cmpUnit} domain={cmpAxisDomain} />
+                    <Tooltip formatter={(v) => `${v ?? '—'}${cmpUnit}`} />
+                    <Legend wrapperStyle={{ fontSize: 12 }} />
+                    {cmpEntities.map(e => (
+                      <Line key={e.key} type="monotone" dataKey={e.key} name={e.label}
+                        stroke={e.color} strokeWidth={2} dot={{ r: 3 }} connectNulls />
+                    ))}
+                  </LineChart>
                 </ResponsiveContainer>
               </>
             )}
