@@ -5,6 +5,7 @@
 // read another user's data here (that's what the admin routes are for).
 import { firestore } from '../config/firebase.js';
 import { buildTrainingPlan, targetMinutesForGame } from '../services/trainingPlan.js';
+import { syntheticDomainsFromFocus } from '../services/personalizationFocus.js';
 import { chatSessionRepository } from '../repositories/chatSessionRepository.ts';
 import {
    buildCompanionSuggestions,
@@ -249,11 +250,21 @@ export const getMyCompanion = async (req, res) => {
 
       const name = (userSnap.exists && userSnap.data().name) || '';
       const hi = name ? `היי ${name}!` : 'היי!';
-      const domains = profSnap.docs.map((d) => ({ id: d.id, ...d.data() }));
-      const isNew = domains.length === 0;
+      const realDomains = profSnap.docs.map((d) => ({ id: d.id, ...d.data() }));
+      const isNew = realDomains.length === 0;
+
+      // A brand-new user has no play history yet, but they DID fill the onboarding
+      // questionnaire — so drive their first recommendation from it. We synthesise
+      // cognitiveProfile-shaped domains from the derived focus and feed them through
+      // the exact same plan/companion pipeline a returning player uses. This is what
+      // gives the questionnaire its purpose. Falls back to the cold-start default
+      // (memory) when the questionnaire was skipped or yielded nothing.
+      const focus = (isNew && userSnap.exists && userSnap.data().personalizationFocus) || null;
+      const domains = isNew ? syntheticDomainsFromFocus(focus) : realDomains;
+      const fromQuestionnaire = isNew && domains.length > 0;
 
       // Weakest domain = lowest level (ties broken by a 'down' trend).
-      const target = isNew
+      const target = domains.length === 0
          ? null
          : domains.slice().sort((a, b) => {
               const lv = (a.level ?? 0) - (b.level ?? 0);
@@ -276,7 +287,9 @@ export const getMyCompanion = async (req, res) => {
               `${hi} בוא נמשיך להתאמן 💪`,
            ]);
 
-      const reasonHe = isNew
+      const reasonHe = fromQuestionnaire
+         ? `לפי השאלון שמילאת, נתחיל ב"${suggestedGameHe}" לחיזוק ${domainHe}.`
+         : isNew
          ? `נתחיל ב"${suggestedGameHe}" — קל ונעים להתחלה.`
          : pick([
               `שמתי לב ש${domainHe} קצת מאחור — בוא נחזק אותו ב"${suggestedGameHe}".`,
@@ -295,9 +308,10 @@ export const getMyCompanion = async (req, res) => {
 
       // Persist the derived plan so it lives in the DB (queryable, auditable),
       // not only in the dashboard/companion view. Fire-and-forget — a write
-      // failure must never break the read. Skipped for brand-new users (no
-      // profile yet → an empty cold-start plan isn't worth storing).
-      if (!isNew) {
+      // failure must never break the read. Persisted whenever we have domains,
+      // including a new user's questionnaire-derived plan; skipped only for the
+      // empty cold-start case (questionnaire skipped → nothing worth storing).
+      if (domains.length > 0) {
          firestore
             .collection('users')
             .doc(userId)

@@ -452,7 +452,14 @@ const QUESTIONS: Question[] = [
 ];
 
 interface PersonalFormModalProps {
-  onSubmit: (prompt: string, answers: Record<number, string>) => void;
+  // `answers`    — display labels (localised) keyed by question id.
+  // `answersRaw` — the raw option ids keyed by question id; the backend derives
+  //                the user's cognitive focus from these.
+  onSubmit: (
+    prompt: string,
+    answers: Record<number, string>,
+    answersRaw: Record<number, string[]>
+  ) => void;
   isOpen: boolean;
   onClose: () => void;
 }
@@ -562,7 +569,7 @@ const PersonalFormModal: React.FC<PersonalFormModalProps> = ({
     const finalPrompt = promptParts.join("\n");
 
     setTimeout(() => {
-      onSubmit(finalPrompt, translatedAnswers);
+      onSubmit(finalPrompt, translatedAnswers, finalAnswers);
     }, 450);
   };
 

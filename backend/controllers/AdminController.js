@@ -93,16 +93,30 @@ export const getSessions = async (req, res) => {
         : null,
     }));
 
-    // Batch-fetch usernames for all unique userIds
+    // Batch-fetch user name + demographics (ageGroup/gender, from the onboarding
+    // questionnaire) for all unique userIds, so the admin can compare how a game
+    // performs across different kinds of players (section 2) from existing data.
     const uniqueIds = [...new Set(sessions.map(s => s.userId).filter(Boolean))];
     const userDocs = await Promise.all(
       uniqueIds.map(id => firestore.collection('users').doc(id).get())
     );
-    const nameMap = Object.fromEntries(
-      userDocs.map(doc => [doc.id, doc.exists ? doc.data().name : null])
+    const userMap = Object.fromEntries(
+      userDocs.map(doc => {
+        const d = doc.exists ? doc.data() : {};
+        return [doc.id, {
+          name: d.name ?? null,
+          ageGroup: d.ageGroup ?? null,
+          gender: d.gender ?? null,
+        }];
+      })
     );
 
-    res.json(sessions.map(s => ({ ...s, username: nameMap[s.userId] ?? null })));
+    res.json(sessions.map(s => ({
+      ...s,
+      username: userMap[s.userId]?.name ?? null,
+      ageGroup: userMap[s.userId]?.ageGroup ?? null,
+      gender: userMap[s.userId]?.gender ?? null,
+    })));
   } catch (err) {
     res.status(500).json({ message: "Failed to fetch sessions", error: err.message });
   }

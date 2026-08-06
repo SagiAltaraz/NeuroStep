@@ -23,6 +23,8 @@ interface SessionDoc {
   misses:       number;
   timeouts:     number;
   username?:    string | null;
+  ageGroup?:    string | null;   // from the onboarding questionnaire (Q1)
+  gender?:      string | null;   // from the onboarding questionnaire (Q2)
   report?: {
     cognitiveScore: number;
     summaryHe:      string;
@@ -50,6 +52,11 @@ const AdminStats: React.FC<{ onBack: () => void }> = ({ onBack }) => {
   const [tokenUsage,  setTokenUsage]  = useState<TokenUsage | null>(null);
   const [loading,     setLoading]     = useState(true);
   const [error,       setError]       = useState<string | null>(null);
+
+  // ── Compare-users controls (section 2) ──
+  const [cmpGame,   setCmpGame]   = useState<string>('all');
+  const [cmpDim,    setCmpDim]    = useState<'gender' | 'age'>('age');
+  const [cmpMetric, setCmpMetric] = useState<'accuracy' | 'score' | 'reaction'>('accuracy');
 
   useEffect(() => {
     if (!token) return;
@@ -108,6 +115,77 @@ const AdminStats: React.FC<{ onBack: () => void }> = ({ onBack }) => {
     name:     gameLabel(gameId),
     accuracy: Math.round((vals.reduce((a, b) => a + b, 0) / vals.length) * 100),
   }));
+
+  // Per-game success breakdown (section 1): one row per game with the key
+  // metrics — success (accuracy), reaction time, cognitive score, volume.
+  const mean = (a: number[]) => a.reduce((x, y) => x + y, 0) / a.length;
+  const perGame = Object.entries(
+    sessions.reduce<Record<string, SessionDoc[]>>((acc, s) => {
+      (acc[s.gameId] ??= []).push(s);
+      return acc;
+    }, {})
+  ).map(([gameId, list]) => {
+    const acc = list.filter(
+      (s): s is SessionDoc & { accuracy: number } => typeof s.accuracy === 'number'
+    );
+    const scored = list.filter(s => s.report?.cognitiveScore != null);
+    return {
+      gameId,
+      name:     gameLabel(gameId),
+      sessions: list.length,
+      users:    new Set(list.map(s => s.userId)).size,
+      accuracy: acc.length ? Math.round(mean(acc.map(s => s.accuracy)) * 100) : null,
+      reaction: acc.length ? Math.round(mean(acc.map(s => s.avgReactionMs))) : null,
+      score:    scored.length ? Math.round(mean(scored.map(s => s.report!.cognitiveScore))) : null,
+    };
+  }).sort((a, b) => b.sessions - a.sessions);
+
+  // ── Compare users (section 2): how one game (or all) performs across a
+  //    demographic dimension (gender / age group), for a chosen metric. All
+  //    derived from the already-loaded sessions (each carries the user's
+  //    ageGroup/gender from the onboarding questionnaire).
+  const cmpBucketOrder: Record<'gender' | 'age', string[]> = {
+    gender: ['male', 'female', 'other-undisclosed'],
+    age:    ['under-50', '50-60', '61-70', '71-80', 'over-80'],
+  };
+  const cmpLabel = (dim: 'gender' | 'age', id: string) =>
+    id === '__unknown__'
+      ? t('cmp.unknown')
+      : t(`${dim === 'age' ? 'age' : 'gender'}.${id}` as Parameters<typeof t>[0]);
+
+  // metric value for a session, or null when it doesn't apply.
+  const metricOf = (s: SessionDoc): number | null => {
+    if (cmpMetric === 'accuracy') return typeof s.accuracy === 'number' ? s.accuracy * 100 : null;
+    if (cmpMetric === 'score')    return s.report?.cognitiveScore ?? null;
+    return typeof s.accuracy === 'number' && s.avgReactionMs > 0 ? s.avgReactionMs : null; // reaction
+  };
+
+  const cmpScope = cmpGame === 'all' ? sessions : sessions.filter(s => s.gameId === cmpGame);
+  const cmpBuckets = (() => {
+    const groups = new Map<string, { vals: number[]; sessions: number; users: Set<string> }>();
+    for (const s of cmpScope) {
+      const raw = (cmpDim === 'age' ? s.ageGroup : s.gender) || '__unknown__';
+      const g = groups.get(raw) ?? { vals: [], sessions: 0, users: new Set<string>() };
+      g.sessions += 1;
+      if (s.userId) g.users.add(s.userId);
+      const v = metricOf(s);
+      if (v != null) g.vals.push(v);
+      groups.set(raw, g);
+    }
+    const ordered = [...cmpBucketOrder[cmpDim], '__unknown__'].filter(id => groups.has(id));
+    return ordered.map(id => {
+      const g = groups.get(id)!;
+      return {
+        id,
+        name:     cmpLabel(cmpDim, id),
+        value:    g.vals.length ? Math.round(g.vals.reduce((a, b) => a + b, 0) / g.vals.length) : null,
+        sessions: g.sessions,
+        users:    g.users.size,
+      };
+    });
+  })();
+  const cmpHasData = cmpBuckets.some(b => b.value != null);
+  const cmpUnit = cmpMetric === 'accuracy' ? '%' : cmpMetric === 'reaction' ? 'ms' : '';
 
   // Line chart: cognitive scores over last 20 sessions that have a report
   const scoreTimeline = reportsWithScore
@@ -168,6 +246,38 @@ const AdminStats: React.FC<{ onBack: () => void }> = ({ onBack }) => {
       sessions,
     };
     downloadBlob(`neurostep-stats-${Date.now()}.json`, JSON.stringify(payload, null, 2), 'application/json');
+  };
+
+  // Per-game summary report (one row per game).
+  const exportPerGameCSV = () => {
+    const cols = ['gameId', 'name', 'sessions', 'users', 'accuracyPct', 'avgReactionMs', 'avgCognitiveScore'];
+    const rows = perGame.map(g => [g.gameId, g.name, g.sessions, g.users, g.accuracy ?? '', g.reaction ?? '', g.score ?? '']);
+    const csv = [cols.join(','), ...rows.map(r => r.map(csvEscape).join(','))].join('\n');
+    downloadBlob(`neurostep-per-game-${Date.now()}.csv`, '﻿' + csv, 'text/csv;charset=utf-8;');
+  };
+
+  // Detailed report for ONE game: every session of that game.
+  const exportGameSessionsCSV = (gameId: string) => {
+    const cols = ['id', 'userId', 'username', 'startedAt', 'accuracy', 'avgReactionMs',
+      'peakStreak', 'hits', 'misses', 'timeouts', 'cognitiveScore'];
+    const rows = sessions.filter(s => s.gameId === gameId).map(s => [
+      s.id ?? '', s.userId, s.username ?? '',
+      s.startedAt ? new Date(s.startedAt).toISOString() : '',
+      s.accuracy ?? '', s.avgReactionMs, s.peakStreak, s.hits, s.misses, s.timeouts,
+      s.report?.cognitiveScore ?? '',
+    ]);
+    const csv = [cols.join(','), ...rows.map(r => r.map(csvEscape).join(','))].join('\n');
+    downloadBlob(`neurostep-${gameId}-${Date.now()}.csv`, '﻿' + csv, 'text/csv;charset=utf-8;');
+  };
+
+  // Comparison report: one row per demographic bucket, for the current controls.
+  const exportComparisonCSV = () => {
+    const cols = ['dimension', 'group', 'game', 'metric', 'value', 'unit', 'sessions', 'users'];
+    const rows = cmpBuckets.map(b => [
+      cmpDim, b.name, cmpGame, cmpMetric, b.value ?? '', cmpUnit, b.sessions, b.users,
+    ]);
+    const csv = [cols.join(','), ...rows.map(r => r.map(csvEscape).join(','))].join('\n');
+    downloadBlob(`neurostep-compare-${cmpDim}-${cmpMetric}-${Date.now()}.csv`, '﻿' + csv, 'text/csv;charset=utf-8;');
   };
 
   // ── Render ───────────────────────────────────────────────────────────────────
@@ -270,6 +380,142 @@ const AdminStats: React.FC<{ onBack: () => void }> = ({ onBack }) => {
               </ResponsiveContainer>
           }
         </div>
+      </div>
+
+      {/* ── Per-game success breakdown (section 1) ── */}
+      <div className="pergame-card">
+        <div className="pergame-head">
+          <div>
+            <h3 className="chart-title">{t('sg.title')}</h3>
+            <p className="pergame-sub">{t('sg.sub')}</p>
+          </div>
+          <button className="export-btn" onClick={exportPerGameCSV} disabled={perGame.length === 0}>
+            {t('sg.reportAll')}
+          </button>
+        </div>
+        {perGame.length === 0 ? (
+          <p className="chart-empty">{t('sg.empty')}</p>
+        ) : (
+          <div className="pergame-scroll">
+            <table className="pergame-table">
+              <thead>
+                <tr>
+                  <th>{t('sg.game')}</th>
+                  <th>{t('sg.sessions')}</th>
+                  <th>{t('sg.users')}</th>
+                  <th>{t('sg.accuracy')}</th>
+                  <th>{t('sg.reaction')}</th>
+                  <th>{t('sg.score')}</th>
+                  <th aria-label={t('sg.report')} />
+                </tr>
+              </thead>
+              <tbody>
+                {perGame.map((g) => (
+                  <tr key={g.gameId}>
+                    <td className="pg-game">{g.name}</td>
+                    <td>{g.sessions}</td>
+                    <td>{g.users}</td>
+                    <td>
+                      {g.accuracy == null ? '—' : (
+                        <span className={`pg-acc pg-${scoreClass(g.accuracy)}`}>{g.accuracy}%</span>
+                      )}
+                    </td>
+                    <td>{g.reaction == null ? '—' : g.reaction}</td>
+                    <td>{g.score == null ? '—' : (
+                      <span className={`pg-acc pg-${scoreClass(g.score)}`}>{g.score}</span>
+                    )}</td>
+                    <td>
+                      <button
+                        className="pg-report-btn"
+                        onClick={() => exportGameSessionsCSV(g.gameId)}
+                        title={t('sg.report')}
+                      >
+                        {t('sg.report')}
+                      </button>
+                    </td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
+        )}
+      </div>
+
+      {/* ── Compare users (section 2) ── */}
+      <div className="pergame-card">
+        <div className="pergame-head">
+          <div>
+            <h3 className="chart-title">{t('cmp.title')}</h3>
+            <p className="pergame-sub">{t('cmp.sub')}</p>
+          </div>
+          <button className="export-btn" onClick={exportComparisonCSV} disabled={!cmpHasData}>
+            {t('cmp.report')}
+          </button>
+        </div>
+
+        {/* "what are we comparing" controls */}
+        <div className="cmp-controls">
+          <label className="cmp-field">
+            <span>{t('cmp.game')}</span>
+            <select value={cmpGame} onChange={e => setCmpGame(e.target.value)}>
+              <option value="all">{t('cmp.allGames')}</option>
+              {perGame.map(g => <option key={g.gameId} value={g.gameId}>{g.name}</option>)}
+            </select>
+          </label>
+          <label className="cmp-field">
+            <span>{t('cmp.dim')}</span>
+            <select value={cmpDim} onChange={e => setCmpDim(e.target.value as 'gender' | 'age')}>
+              <option value="age">{t('cmp.dim.age')}</option>
+              <option value="gender">{t('cmp.dim.gender')}</option>
+            </select>
+          </label>
+          <label className="cmp-field">
+            <span>{t('cmp.metric')}</span>
+            <select value={cmpMetric} onChange={e => setCmpMetric(e.target.value as 'accuracy' | 'score' | 'reaction')}>
+              <option value="accuracy">{t('cmp.metric.accuracy')}</option>
+              <option value="score">{t('cmp.metric.score')}</option>
+              <option value="reaction">{t('cmp.metric.reaction')}</option>
+            </select>
+          </label>
+        </div>
+
+        {!cmpHasData ? (
+          <p className="chart-empty">{t('cmp.empty')}</p>
+        ) : (
+          <>
+            <ResponsiveContainer width="100%" height={220}>
+              <BarChart data={cmpBuckets.filter(b => b.value != null)} margin={{ top: 4, right: 8, left: -20, bottom: 0 }}>
+                <CartesianGrid strokeDasharray="3 3" stroke="#f1f5f9" />
+                <XAxis dataKey="name" tick={{ fontSize: 12 }} />
+                <YAxis tick={{ fontSize: 12 }} unit={cmpUnit} domain={cmpMetric === 'reaction' ? undefined : [0, 100]} />
+                <Tooltip formatter={(v) => `${v ?? '—'}${cmpUnit}`} />
+                <Bar dataKey="value" fill="#0ea5e9" radius={[4, 4, 0, 0]} />
+              </BarChart>
+            </ResponsiveContainer>
+            <div className="pergame-scroll">
+              <table className="pergame-table">
+                <thead>
+                  <tr>
+                    <th>{t('cmp.group')}</th>
+                    <th>{t('cmp.value')}</th>
+                    <th>{t('cmp.sessions')}</th>
+                    <th>{t('cmp.users')}</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {cmpBuckets.map(b => (
+                    <tr key={b.id}>
+                      <td className="pg-game">{b.name}</td>
+                      <td>{b.value == null ? '—' : `${b.value}${cmpUnit}`}</td>
+                      <td>{b.sessions}</td>
+                      <td>{b.users}</td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            </div>
+          </>
+        )}
       </div>
 
       {/* ── Claude token usage ── */}

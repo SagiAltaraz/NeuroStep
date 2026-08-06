@@ -6,10 +6,11 @@ const router = express.Router();
 
 router.post("/profile/save", protect, async (req, res) => {
   try {
-    const { answers, prompt } = req.body;
+    const { answers, prompt, answersRaw } = req.body;
     const updatedUser = await userFirebaseService.updatePersonalization(req.user.id, {
       answers,
       prompt,
+      answersRaw,
     });
 
     const { password, ...userWithoutPassword } = updatedUser;

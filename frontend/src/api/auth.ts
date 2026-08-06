@@ -40,7 +40,8 @@ export async function googleAuth(idToken: string) {
 export async function savePersonalizationProfile(
   token: string,
   answers: Record<number, string>,
-  prompt: string
+  prompt: string,
+  answersRaw?: Record<number, string[]>
 ) {
   const res = await fetch("/api/personalization/profile/save", {
     method: "POST",
@@ -48,7 +49,7 @@ export async function savePersonalizationProfile(
       "Content-Type": "application/json",
       Authorization: `Bearer ${token}`,
     },
-    body: JSON.stringify({ answers, prompt }),
+    body: JSON.stringify({ answers, prompt, answersRaw }),
   });
   const data = await res.json();
   if (!res.ok) {

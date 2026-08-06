@@ -88,7 +88,8 @@ export function SignupForm({ ...props }: React.ComponentProps<typeof Card>) {
 
   const handleProfileGenerated = async (
     prompt: string,
-    answers: Record<number, string>
+    answers: Record<number, string>,
+    answersRaw: Record<number, string[]>
   ) => {
     try {
       if (!token) {
@@ -98,7 +99,8 @@ export function SignupForm({ ...props }: React.ComponentProps<typeof Card>) {
       const response = await authAPI.savePersonalizationProfile(
         token,
         answers,
-        prompt
+        prompt,
+        answersRaw
       );
 
       if (!response.success) {

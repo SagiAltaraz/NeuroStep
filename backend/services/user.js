@@ -1,5 +1,6 @@
 import { firestore } from '../config/firebase.js';
 import bcrypt from 'bcryptjs';
+import { derivePersonalizationFocus } from './personalizationFocus.js';
 
 const USERS_COLLECTION = 'users';
 
@@ -13,7 +14,11 @@ const USERS_COLLECTION = 'users';
  * - password: string (bcrypt hash)
  * - role: 'user' | 'admin'
  * - language: 'he' | 'en'   (default 'he')
- * - personalizationAnswers: object | null
+ * - personalizationAnswers: object | null      (question id → display label)
+ * - personalizationAnswersRaw: object | null   (question id → raw option ids)
+ * - personalizationFocus: object | null        (derived cognitive focus)
+ * - ageGroup: string | null
+ * - gender: string | null
  * - personalizationPrompt: string | null
  * - profileCompletedAt: Date | null
  * - createdAt: Date
@@ -48,6 +53,10 @@ export const userFirebaseService = {
       role,
       language: lang,
       personalizationAnswers: null,
+      personalizationAnswersRaw: null,
+      personalizationFocus: null,
+      ageGroup: null,
+      gender: null,
       personalizationPrompt: null,
       profileCompletedAt: null,
       createdAt: new Date(),
@@ -82,6 +91,10 @@ export const userFirebaseService = {
       role,
       language: lang,
       personalizationAnswers: null,
+      personalizationAnswersRaw: null,
+      personalizationFocus: null,
+      ageGroup: null,
+      gender: null,
       personalizationPrompt: null,
       profileCompletedAt: null,
       createdAt: new Date(),
@@ -162,11 +175,24 @@ export const userFirebaseService = {
 
   /**
    * עדכון personalization
+   *
+   * `answers`    — human-readable labels, keyed by question id (for display).
+   * `answersRaw` — the raw option ids, keyed by question id. These are what the
+   *                logic reads: we derive a machine-readable cognitive `focus`
+   *                (weakest / most-wanted domains → a recommended starting game)
+   *                so the questionnaire actually drives the new-user experience.
    */
-  async updatePersonalization(userId, { answers, prompt }) {
+  async updatePersonalization(userId, { answers, prompt, answersRaw }) {
+    const focus = derivePersonalizationFocus(answersRaw);
     return this.updateUser(userId, {
       personalizationAnswers: answers,
+      personalizationAnswersRaw: answersRaw ?? null,
       personalizationPrompt: prompt,
+      personalizationFocus: focus,
+      // Surface age/gender as top-level fields too — handy for the admin
+      // cross-user comparison (section 2) without re-parsing the answers.
+      ageGroup: focus?.ageGroup ?? null,
+      gender: focus?.gender ?? null,
       profileCompletedAt: new Date(),
     });
   },
