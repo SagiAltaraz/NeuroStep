@@ -54,9 +54,11 @@ export function LoginForm({ ...props }: React.ComponentProps<typeof Card>) {
 
       if (res?.error) {
         alert(res.error);
-      } else {
+      } else if (res?.token) {
         navigate("/");
       }
+      // No token and no error → the user cancelled the popup (or a redirect
+      // flow is in flight); stay on the login page instead of faking a login.
     } catch (err) {
       console.error(err);
       alert("Google sign-in failed. Please try again.");
