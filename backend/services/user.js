@@ -174,6 +174,14 @@ export const userFirebaseService = {
    *                so the questionnaire actually drives the new-user experience.
    */
   async updatePersonalization(userId, { answers, prompt, questionnaire }) {
+    // Rebuild the { questionId: optionIds[] } map derivePersonalizationFocus
+    // expects from the questionnaire entries the client sends.
+    const answersRaw = Array.isArray(questionnaire)
+      ? Object.fromEntries(
+          questionnaire.map((e) => [e.questionId, e.selectedOptionIds ?? []]),
+        )
+      : null;
+    const focus = derivePersonalizationFocus(answersRaw);
     return this.updateUser(userId, {
       personalizationAnswers: answers,
       personalizationQuestionnaire: questionnaire ?? null,
