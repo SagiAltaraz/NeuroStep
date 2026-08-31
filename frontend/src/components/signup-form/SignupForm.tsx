@@ -75,8 +75,15 @@ export function SignupForm({ ...props }: React.ComponentProps<typeof Card>) {
       if (res?.error) {
         alert(res.error);
       } else if (res?.token) {
-        setToken(res.token);
-        setShowPersonalizationForm(true);
+        if (res.isNewUser === false) {
+          // Returning user tried to sign up — they already have an account.
+          // Log them straight in instead of re-running onboarding.
+          alert(t('signup.google.exists'));
+          navigate("/");
+        } else {
+          setToken(res.token);
+          setShowPersonalizationForm(true);
+        }
       }
     } catch (err) {
       console.error(err);
