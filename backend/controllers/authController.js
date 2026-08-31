@@ -132,8 +132,10 @@ export const googleAuth = async (req, res) => {
             .json({ message: 'Email not found in Google account' });
       }
 
-      // Check if user already exists
+      // Check if user already exists — the client uses `isNewUser` to decide
+      // whether to run onboarding (new) or just log the person in (returning).
       let user = await userFirebaseService.findByEmail(email);
+      const isNewUser = !user;
 
       if (!user) {
          // Create new user with Google data (no password needed)
@@ -156,7 +158,8 @@ export const googleAuth = async (req, res) => {
         role: user.role,
         language: user.language ?? 'he',
       },
-      token
+      token,
+      isNewUser,
     });
   } catch (err) {
     console.error("Google auth error:", err);
