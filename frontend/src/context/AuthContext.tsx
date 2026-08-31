@@ -27,6 +27,7 @@ interface AuthResponse {
   token?: string;
   user?: User;
   error?: string;
+  isNewUser?: boolean;
 }
 
 interface AuthContextType {
