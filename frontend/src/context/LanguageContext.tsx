@@ -111,6 +111,7 @@ const TRANSLATIONS = {
   'signup.submit':       { he: 'צור חשבון',         en: 'Create Account' },
   'signup.submit.loading':{ he: 'יוצר חשבון...',   en: 'Creating Account...' },
   'signup.google':       { he: 'הרשם עם Google',    en: 'Sign up with Google' },
+  'signup.google.exists':{ he: 'כבר קיים חשבון עם חשבון Google הזה — חיברנו אותך.', en: 'An account already exists for this Google account — signing you in.' },
   'signup.have.account': { he: 'כבר יש לך חשבון?',  en: 'Already have an account?' },
   'signup.signin.link':  { he: 'התחבר',             en: 'Sign in' },
   'signup.or':           { he: 'או',                en: 'or' },
